@@ -9,6 +9,7 @@ SysPulse создаётся как нативный SwiftUI-продукт: кр
 - Demo Mode без реального сервера: Raspberry Pi Home Server, VPS Production, Docker Lab.
 - Liquid Glass-style UI: glass cards, floating tab bar, blur materials, soft shadows, dark mode first.
 - Servers screen с CPU, RAM, Disk, Network, Temperature, Uptime, Health Score и sparkline.
+- Add/Edit Server profile form with Keychain-only credential updates.
 - Server details: Overview, Processes, Disks, Docker, Services, Logs, Packages, Terminal, Actions.
 - SSH Terminal UI с tabs, history, accessory bar, themes и mock session.
 - Quick Commands с safety levels и обязательным подтверждением dangerous actions.

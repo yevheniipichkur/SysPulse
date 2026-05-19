@@ -18,8 +18,10 @@
 "Free plan" = "Безкоштовний план";
 "One real server, basic dashboard and basic terminal." = "Один реальний сервер, базова панель і базовий термінал.";
 "Add Server" = "Додати сервер";
+"Edit Server" = "Редагувати сервер";
 "Test Connection" = "Перевірити з'єднання";
 "Save Securely" = "Безпечно зберегти";
+"Save Changes" = "Зберегти зміни";
 "Save & Connect" = "Зберегти й підключити";
 "Missing Tools" = "Відсутні інструменти";
 "Preview install commands before running anything." = "Перегляньте команди встановлення перед запуском.";

@@ -5,6 +5,7 @@
 - [x] SwiftUI structure.
 - [x] Demo Mode.
 - [x] Server list.
+- [x] Add/Edit Server profile form.
 - [x] Server details.
 - [x] Mock metrics.
 - [x] Terminal UI.

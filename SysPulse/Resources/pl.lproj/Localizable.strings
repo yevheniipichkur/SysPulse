@@ -18,8 +18,10 @@
 "Free plan" = "Plan darmowy";
 "One real server, basic dashboard and basic terminal." = "Jeden realny serwer, podstawowy dashboard i terminal.";
 "Add Server" = "Dodaj serwer";
+"Edit Server" = "Edytuj serwer";
 "Test Connection" = "Test połączenia";
 "Save Securely" = "Zapisz bezpiecznie";
+"Save Changes" = "Zapisz zmiany";
 "Save & Connect" = "Zapisz i połącz";
 "Missing Tools" = "Brakujące narzędzia";
 "Preview install commands before running anything." = "Sprawdź komendy instalacji przed uruchomieniem.";

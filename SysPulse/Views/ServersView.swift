@@ -3,6 +3,7 @@ import SwiftUI
 struct ServersView: View {
     @EnvironmentObject private var appState: AppState
     @State private var isAddingServer = false
+    @State private var editingServer: ServerProfile?
 
     var body: some View {
         NavigationStack {
@@ -38,6 +39,11 @@ struct ServersView: View {
                                     Label("Open Monitor", systemImage: "waveform.path.ecg")
                                 }
                                 Button {
+                                    editingServer = server
+                                } label: {
+                                    Label("Edit Server", systemImage: "pencil")
+                                }
+                                Button {
                                     appState.selectedServer = server
                                     appState.selectedTab = .commands
                                 } label: {
@@ -59,6 +65,11 @@ struct ServersView: View {
         }
         .sheet(isPresented: $isAddingServer) {
             AddServerView()
+                .presentationDetents([.large])
+                .presentationCornerRadius(32)
+        }
+        .sheet(item: $editingServer) { server in
+            AddServerView(editingServer: server)
                 .presentationDetents([.large])
                 .presentationCornerRadius(32)
         }
@@ -226,6 +237,8 @@ struct AddServerView: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var appState: AppState
 
+    private let editingServer: ServerProfile?
+
     @State private var name = ""
     @State private var host = ""
     @State private var port = "22"
@@ -238,6 +251,20 @@ struct AddServerView: View {
     @State private var accentHex = "#33C2EA"
     @State private var serverType: ServerType = .vps
     @State private var statusMessage = ""
+
+    init(editingServer: ServerProfile? = nil) {
+        self.editingServer = editingServer
+        _name = State(initialValue: editingServer?.name ?? "")
+        _host = State(initialValue: editingServer?.host ?? "")
+        _port = State(initialValue: editingServer.map { String($0.port) } ?? "22")
+        _username = State(initialValue: editingServer?.username ?? "")
+        _authType = State(initialValue: editingServer?.authenticationType ?? .password)
+        _tags = State(initialValue: editingServer?.tags.joined(separator: ", ") ?? "")
+        _group = State(initialValue: editingServer?.groupName ?? "")
+        _icon = State(initialValue: editingServer?.icon ?? "server.rack")
+        _accentHex = State(initialValue: editingServer?.accentHex ?? "#33C2EA")
+        _serverType = State(initialValue: editingServer?.serverType ?? .vps)
+    }
 
     var body: some View {
         NavigationStack {
@@ -273,7 +300,7 @@ struct AddServerView: View {
                                 SecureField(secretPlaceholder, text: $secret)
                                     .textFieldStyle(.roundedBorder)
 
-                                Text("Secrets are saved only in iOS Keychain.")
+                                Text(editingServer == nil ? "Secrets are saved only in iOS Keychain." : "Leave the secret empty to keep the current Keychain credential.")
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                             }
@@ -319,7 +346,7 @@ struct AddServerView: View {
                             Button {
                                 save(connectAfterSave: false)
                             } label: {
-                                Label("Save Securely", systemImage: "key")
+                                Label(editingServer == nil ? "Save Securely" : "Save Changes", systemImage: "key")
                                     .frame(maxWidth: .infinity)
                                     .padding(.vertical, 13)
                                     .foregroundStyle(.white)
@@ -337,7 +364,7 @@ struct AddServerView: View {
                     .padding(20)
                 }
             }
-            .navigationTitle("Add Server")
+            .navigationTitle(editingServer == nil ? "Add Server" : "Edit Server")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -363,7 +390,8 @@ struct AddServerView: View {
 
     private func save(connectAfterSave: Bool) {
         let serverID = UUID()
-        let credentialID = "server-\(serverID.uuidString)"
+        let targetID = editingServer?.id ?? serverID
+        let credentialID = editingServer?.credentialIdentifier ?? "server-\(targetID.uuidString)"
         if !secret.isEmpty {
             do {
                 try KeychainService.shared.saveSecret(secret, account: credentialID)
@@ -373,8 +401,28 @@ struct AddServerView: View {
             }
         }
 
+        if let editingServer {
+            editingServer.name = name
+            editingServer.host = host
+            editingServer.port = Int(port) ?? 22
+            editingServer.username = username
+            editingServer.authenticationType = authType
+            editingServer.credentialIdentifier = secret.isEmpty ? editingServer.credentialIdentifier : credentialID
+            editingServer.tagsCSV = tags
+            editingServer.groupName = group.isEmpty ? nil : group
+            editingServer.icon = icon
+            editingServer.accentHex = accentHex
+            editingServer.serverType = serverType
+            appState.updateServer(editingServer)
+            if connectAfterSave {
+                appState.select(editingServer, tab: .terminal)
+            }
+            dismiss()
+            return
+        }
+
         let server = ServerProfile(
-            id: serverID,
+            id: targetID,
             name: name,
             host: host,
             port: Int(port) ?? 22,
@@ -389,7 +437,9 @@ struct AddServerView: View {
             status: .unknown,
             isDemo: false
         )
-        appState.addServer(server)
+        guard appState.addServer(server) else {
+            return
+        }
         if connectAfterSave {
             appState.select(server, tab: .terminal)
         }

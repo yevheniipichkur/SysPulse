@@ -105,15 +105,27 @@ final class AppState: ObservableObject {
         insightsService.makeInsights(for: metric(for: server))
     }
 
-    func addServer(_ server: ServerProfile) {
+    @discardableResult
+    func addServer(_ server: ServerProfile) -> Bool {
         if !isProUnlocked && serverProfiles.filter({ !$0.isDemo }).count >= 1 {
             isPaywallPresented = true
-            return
+            return false
         }
         serverProfiles.append(server)
         metricsByServer[server.id] = ServerMetrics.empty(serverID: server.id)
         selectedServer = server
         profileStorage.saveProfiles(serverProfiles)
+        haptic(.light)
+        return true
+    }
+
+    func updateServer(_ server: ServerProfile) {
+        server.updatedAt = .now
+        if selectedServer?.id == server.id {
+            selectedServer = server
+        }
+        profileStorage.saveProfiles(serverProfiles)
+        objectWillChange.send()
         haptic(.light)
     }
 
