@@ -22,42 +22,17 @@ targets:
           - Info.plist
           - SysPulse.entitlements
     resources:
-      - path: SysPulse/Resources/Assets.xcassets
-      - path: SysPulse/Resources/PrivacyInfo.xcprivacy
-      - path: SysPulse/Resources/en.lproj
-      - path: SysPulse/Resources/pl.lproj
-      - path: SysPulse/Resources/ru.lproj
-      - path: SysPulse/Resources/uk.lproj
+      - path: SysPulse/Resources
     entitlements:
       path: SysPulse/SysPulse.entitlements
     info:
       path: SysPulse/Info.plist
-      properties:
-        CFBundleDevelopmentRegion: en
-        CFBundleExecutable: $(EXECUTABLE_NAME)
-        CFBundleIdentifier: $(PRODUCT_BUNDLE_IDENTIFIER)
-        CFBundleInfoDictionaryVersion: "6.0"
-        CFBundleIconName: AppIcon
-        CFBundleDisplayName: SysPulse
-        CFBundleName: $(PRODUCT_NAME)
-        CFBundlePackageType: APPL
-        CFBundleShortVersionString: $(MARKETING_VERSION)
-        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
-        ITSAppUsesNonExemptEncryption: false
-        LSRequiresIPhoneOS: true
-        NSFaceIDUsageDescription: SysPulse uses Face ID to protect saved server profiles and credentials.
-        NSLocalNetworkUsageDescription: SysPulse can connect to Linux servers on your local network when you add them.
-        UIApplicationSceneManifest:
-          UIApplicationSupportsMultipleScenes: false
-        UIApplicationSupportsIndirectInputEvents: true
-        UILaunchScreen:
-          UIColorName: LaunchBackground
-        UISupportedInterfaceOrientations:
-          - UIInterfaceOrientationPortrait
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.yevheniipichkur.syspulse
         PRODUCT_NAME: SysPulse
+        INFOPLIST_KEY_CFBundleDisplayName: SysPulse
+        INFOPLIST_KEY_CFBundleIconName: AppIcon
         TARGETED_DEVICE_FAMILY: 1
         SKIP_INSTALL: NO
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
