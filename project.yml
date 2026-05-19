@@ -33,6 +33,7 @@ targets:
         PRODUCT_NAME: SysPulse
         INFOPLIST_KEY_CFBundleDisplayName: SysPulse
         TARGETED_DEVICE_FAMILY: 1
+        SKIP_INSTALL: NO
     dependencies:
       - target: SysPulseWidgets
         embed: true

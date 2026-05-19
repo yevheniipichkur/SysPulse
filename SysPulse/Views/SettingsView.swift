@@ -152,7 +152,7 @@ struct DebugMenuView: View {
                                     appState.lastCommandOutput = appState.subscription.lastStoreKitMessage
                                 }
                                 Button("Clear local database", role: .destructive) {
-                                    appState.enableDemoModeData()
+                                    appState.clearSavedProfiles()
                                 }
                                 Button("Export logs") {
                                     appState.lastCommandOutput = appState.terminalSessions.map(\.transcript).joined(separator: "\n---\n")

@@ -138,9 +138,84 @@ struct CommandRunner {
     }
 
     static func containsDangerousToken(_ command: String) -> Bool {
-        let lowered = command.lowercased()
-        return ["reboot", "shutdown", " rm ", "docker rm", "systemctl stop", " kill ", "ufw "]
-            .contains { lowered.contains($0) }
+        CommandSafetyAnalyzer().analyze(command).requiresConfirmation
+    }
+}
+
+struct CommandSafetyAnalyzer {
+    struct Result: Hashable {
+        var level: CommandSafetyLevel
+        var reasons: [String]
+
+        var requiresConfirmation: Bool {
+            level == .dangerous || level == .moderate
+        }
+    }
+
+    private let mutatingUFWActions = ["allow", "deny", "delete", "disable", "enable", "insert", "limit", "reject", "reset"]
+    private let packageManagers = ["apt", "apt-get", "dnf", "pacman", "apk"]
+    private let mutatingPackageActions = ["update", "install", "remove", "upgrade", "dist-upgrade", "autoremove", "clean", "add", "-s", "-syu"]
+
+    func analyze(_ command: String) -> Result {
+        let tokens = tokenize(command)
+        guard !tokens.isEmpty else {
+            return Result(level: .safe, reasons: [])
+        }
+
+        var reasons: [String] = []
+
+        if tokens.contains("reboot") {
+            reasons.append("Reboots the remote server.")
+        }
+        if tokens.contains("shutdown") || tokens.contains("poweroff") || tokens.contains("halt") {
+            reasons.append("Can power off the remote server.")
+        }
+        if tokens.contains("rm") {
+            reasons.append("Deletes files or directories.")
+        }
+        if tokens.contains("kill") || tokens.contains("killall") || tokens.contains("pkill") {
+            reasons.append("Terminates running processes.")
+        }
+        if containsPair("docker", "rm", in: tokens) || containsPair("docker", "rmi", in: tokens) || containsPair("docker", "prune", in: tokens) {
+            reasons.append("Can remove Docker resources.")
+        }
+        if containsPair("systemctl", "stop", in: tokens) || containsPair("systemctl", "disable", in: tokens) || containsPair("service", "stop", in: tokens) {
+            reasons.append("Can stop or disable services.")
+        }
+        if let ufwIndex = tokens.firstIndex(of: "ufw") {
+            let tail = tokens.dropFirst(ufwIndex + 1)
+            if tail.contains(where: { mutatingUFWActions.contains($0) }) {
+                reasons.append("Changes firewall rules.")
+            }
+        }
+
+        if !reasons.isEmpty {
+            return Result(level: .dangerous, reasons: reasons)
+        }
+
+        if tokens.contains(where: { packageManagers.contains($0) }) &&
+            tokens.contains(where: { mutatingPackageActions.contains($0) }) {
+            return Result(level: .moderate, reasons: ["Changes packages or system state."])
+        }
+
+        return Result(level: .safe, reasons: [])
+    }
+
+    func tokenize(_ command: String) -> [String] {
+        let separators = CharacterSet.whitespacesAndNewlines
+            .union(CharacterSet(charactersIn: ";&|()[]{}<>`'\""))
+        return command
+            .lowercased()
+            .components(separatedBy: separators)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+    }
+
+    private func containsPair(_ first: String, _ second: String, in tokens: [String]) -> Bool {
+        guard tokens.count > 1 else { return false }
+        return zip(tokens, tokens.dropFirst()).contains { pair in
+            pair.0 == first && pair.1 == second
+        }
     }
 }
 

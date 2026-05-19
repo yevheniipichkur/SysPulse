@@ -7,6 +7,7 @@ SysPulse проектируется как privacy-first приложение д
 - SSH passwords, private keys and passphrases must be stored only in iOS Keychain.
 - `KeychainService` uses `kSecAttrAccessibleWhenUnlockedThisDeviceOnly`.
 - Plain text secrets must never be written to SwiftData, UserDefaults, logs or repository files.
+- `ProfileStorageService` persists only profile metadata and `credentialIdentifier` references.
 
 ## Face ID / Touch ID
 
@@ -18,6 +19,8 @@ SysPulse проектируется как privacy-first приложение д
 
 Dangerous commands require explicit confirmation.
 
+`CommandSafetyAnalyzer` detects dangerous patterns before execution and is covered by unit tests.
+
 Examples:
 
 - `reboot`
@@ -27,6 +30,8 @@ Examples:
 - `systemctl stop`
 - `kill`
 - `ufw` changes
+
+Package manager actions like `apt update`, `apt install`, `dnf install`, `pacman -Syu` and `apk add` are treated as moderate system-state changes and should be previewed before execution.
 
 Shortcuts / App Intents must not execute dangerous commands without opening SysPulse confirmation UI.
 

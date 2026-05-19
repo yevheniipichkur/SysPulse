@@ -12,7 +12,9 @@ SysPulse создаётся как нативный SwiftUI-продукт: кр
 - Server details: Overview, Processes, Disks, Docker, Services, Logs, Packages, Terminal, Actions.
 - SSH Terminal UI с tabs, history, accessory bar, themes и mock session.
 - Quick Commands с safety levels и обязательным подтверждением dangerous actions.
+- Command safety analyzer для `reboot`, `rm`, `docker rm`, `systemctl stop`, `kill`, `ufw` changes и package manager actions.
 - Missing Tools screen с preview install commands и ручным подтверждением.
+- Metadata-only persistence для server profiles; секреты остаются только в Keychain.
 - StoreKit 2 paywall skeleton: Monthly, Yearly, Lifetime.
 - Settings: security, appearance, language, data, hidden Developer / QA menu.
 - WidgetKit, ActivityKit и App Intents scaffolds.
@@ -72,6 +74,7 @@ Pro:
 ## Безопасность
 
 - Пароли и SSH keys должны храниться только в iOS Keychain.
+- Server profile storage сохраняет только metadata и Keychain reference, без secret material.
 - В репозитории нет сертификатов, `.p12`, provisioning profiles или `.env`.
 - Dangerous commands требуют подтверждения.
 - Установка пакетов не запускается автоматически.

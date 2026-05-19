@@ -11,12 +11,22 @@ final class AppState: ObservableObject {
     @Published var metricsByServer: [UUID: ServerMetrics]
     @Published var quickCommands: [QuickCommand]
     @Published var terminalSessions: [TerminalSession]
-    @Published var settings: AppSettings
-    @Published var subscription: SubscriptionState
+    @Published var settings: AppSettings {
+        didSet {
+            settingsStorage.saveSettings(settings)
+        }
+    }
+    @Published var subscription: SubscriptionState {
+        didSet {
+            settingsStorage.saveSubscription(subscription)
+        }
+    }
     @Published var isPaywallPresented = false
     @Published var isDebugMenuPresented = false
     @Published var lastCommandOutput = ""
 
+    private let profileStorage = ProfileStorageService()
+    private let settingsStorage = SettingsStorageService()
     let demoDataService = DemoDataService()
     let healthScoreService = HealthScoreService()
     let insightsService = InsightsService()
@@ -25,8 +35,14 @@ final class AppState: ObservableObject {
 
     init() {
         let demoServers = DemoDataService.makeDemoServers()
-        self.serverProfiles = demoServers
-        self.metricsByServer = DemoDataService.makeMetrics(for: demoServers)
+        let savedProfiles = ProfileStorageService().loadProfiles()
+        let allProfiles = demoServers + savedProfiles
+        var metrics = DemoDataService.makeMetrics(for: demoServers)
+        for profile in savedProfiles {
+            metrics[profile.id] = ServerMetrics.empty(serverID: profile.id)
+        }
+        self.serverProfiles = allProfiles
+        self.metricsByServer = metrics
         self.quickCommands = DemoDataService.makeQuickCommands()
         self.terminalSessions = [
             TerminalSession(
@@ -41,9 +57,9 @@ final class AppState: ObservableObject {
                 """
             )
         ]
-        self.settings = AppSettings()
-        self.subscription = SubscriptionState()
-        self.selectedServer = demoServers.first
+        self.settings = SettingsStorageService().loadSettings()
+        self.subscription = SettingsStorageService().loadSubscription()
+        self.selectedServer = allProfiles.first
     }
 
     var isProUnlocked: Bool {
@@ -69,8 +85,12 @@ final class AppState: ObservableObject {
 
     func enableDemoModeData() {
         let servers = DemoDataService.makeDemoServers()
-        serverProfiles = servers
+        let savedProfiles = profileStorage.loadProfiles()
+        serverProfiles = servers + savedProfiles
         metricsByServer = DemoDataService.makeMetrics(for: servers)
+        for profile in savedProfiles {
+            metricsByServer[profile.id] = ServerMetrics.empty(serverID: profile.id)
+        }
         selectedServer = servers.first
     }
 
@@ -93,12 +113,17 @@ final class AppState: ObservableObject {
         serverProfiles.append(server)
         metricsByServer[server.id] = ServerMetrics.empty(serverID: server.id)
         selectedServer = server
+        profileStorage.saveProfiles(serverProfiles)
         haptic(.light)
     }
 
     func deleteServer(_ server: ServerProfile) {
         serverProfiles.removeAll { $0.id == server.id }
         metricsByServer.removeValue(forKey: server.id)
+        if let credentialIdentifier = server.credentialIdentifier, !server.isDemo {
+            try? KeychainService.shared.deleteSecret(account: credentialIdentifier)
+        }
+        profileStorage.saveProfiles(serverProfiles)
         if selectedServer?.id == server.id {
             selectedServer = serverProfiles.first
         }
@@ -133,6 +158,15 @@ final class AppState: ObservableObject {
 
     func resetOnboarding() {
         hasSeenOnboarding = false
+    }
+
+    func clearSavedProfiles() {
+        serverProfiles
+            .filter { !$0.isDemo }
+            .compactMap(\.credentialIdentifier)
+            .forEach { try? KeychainService.shared.deleteSecret(account: $0) }
+        profileStorage.clearProfiles()
+        enableDemoModeData()
     }
 
     func haptic(_ style: UIImpactFeedbackGenerator.FeedbackStyle) {

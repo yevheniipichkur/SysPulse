@@ -13,10 +13,13 @@
 - [x] Paywall.
 - [x] Localization.
 - [x] GitHub Actions.
+- [x] Local metadata persistence for saved profiles.
+- [x] Command safety analyzer tests.
 
 ## Next
 
 - [ ] Real SSH integration.
+- [ ] Move profile persistence fully into SwiftData-backed repository.
 - [ ] Docker monitoring.
 - [ ] systemd monitoring.
 - [ ] Widgets with shared App Group data.

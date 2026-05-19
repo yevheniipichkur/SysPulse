@@ -55,7 +55,7 @@ struct SysPulseWidgetView: View {
             Text("Health \(entry.health)")
                 .font(.title3.weight(.bold))
         }
-        .containerBackground(.ultraThinMaterial, for: .widget)
+        .sysPulseWidgetBackground()
     }
 
     private var medium: some View {
@@ -72,7 +72,7 @@ struct SysPulseWidgetView: View {
             metricRow("RAM", entry.ram, .green)
             metricRow("Disk", entry.disk, entry.disk > 80 ? .orange : .blue)
         }
-        .containerBackground(.ultraThinMaterial, for: .widget)
+        .sysPulseWidgetBackground()
     }
 
     private var large: some View {
@@ -91,7 +91,7 @@ struct SysPulseWidgetView: View {
                 }
             }
         }
-        .containerBackground(.ultraThinMaterial, for: .widget)
+        .sysPulseWidgetBackground()
     }
 
     private func metricRow(_ title: String, _ value: Double, _ color: Color) -> some View {
@@ -126,6 +126,21 @@ struct SysPulseWidget: Widget {
         .configurationDisplayName("SysPulse Server")
         .description("Preview server health, CPU, RAM and disk.")
         .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
+    }
+}
+
+private extension View {
+    func sysPulseWidgetBackground() -> some View {
+        containerBackground(for: .widget) {
+            LinearGradient(
+                colors: [
+                    Color(red: 0.04, green: 0.07, blue: 0.11),
+                    Color(red: 0.02, green: 0.11, blue: 0.13)
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        }
     }
 }
 
