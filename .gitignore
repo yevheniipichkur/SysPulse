@@ -1,0 +1,43 @@
+# macOS / Xcode
+.DS_Store
+DerivedData/
+build/
+*.xcarchive
+*.ipa
+*.dSYM.zip
+*.dSYM
+xcuserdata/
+*.xcuserstate
+*.xcscmblueprint
+
+# Generated project files. Recreate with `xcodegen generate`.
+SysPulse.xcodeproj/
+
+# Swift Package Manager
+.build/
+.swiftpm/
+Package.resolved
+
+# Secrets and signing
+*.p12
+*.cer
+*.mobileprovision
+*.provisionprofile
+*.key
+*.pem
+*.priv
+*.pub
+.env
+.env.*
+fastlane/.env
+AuthKey_*.p8
+
+# Logs
+*.log
+*.xcresult
+
+# Editors
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/

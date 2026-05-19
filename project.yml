@@ -1,0 +1,88 @@
+name: SysPulse
+options:
+  minimumXcodeGenVersion: 2.40.0
+  deploymentTarget:
+    iOS: "18.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    SWIFT_VERSION: 5.0
+    IPHONEOS_DEPLOYMENT_TARGET: "18.0"
+    MARKETING_VERSION: 0.1.0
+    CURRENT_PROJECT_VERSION: 1
+    ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS: YES
+targets:
+  SysPulse:
+    type: application
+    platform: iOS
+    sources:
+      - path: SysPulse
+        excludes:
+          - Resources/**
+          - Info.plist
+          - SysPulse.entitlements
+    resources:
+      - path: SysPulse/Resources
+    entitlements:
+      path: SysPulse/SysPulse.entitlements
+    info:
+      path: SysPulse/Info.plist
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.yevheniipichkur.syspulse
+        PRODUCT_NAME: SysPulse
+        INFOPLIST_KEY_CFBundleDisplayName: SysPulse
+        TARGETED_DEVICE_FAMILY: 1
+    dependencies:
+      - target: SysPulseWidgets
+        embed: true
+  SysPulseWidgets:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: SysPulseWidgets
+        excludes:
+          - Resources/**
+          - Info.plist
+          - SysPulseWidgets.entitlements
+    resources:
+      - path: SysPulseWidgets/Resources
+    entitlements:
+      path: SysPulseWidgets/SysPulseWidgets.entitlements
+    info:
+      path: SysPulseWidgets/Info.plist
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.yevheniipichkur.syspulse.widgets
+        PRODUCT_NAME: SysPulseWidgets
+        APPLICATION_EXTENSION_API_ONLY: YES
+        SKIP_INSTALL: YES
+  SysPulseTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: SysPulseTests
+        excludes:
+          - Info.plist
+    info:
+      path: SysPulseTests/Info.plist
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.yevheniipichkur.syspulse.tests
+    dependencies:
+      - target: SysPulse
+schemes:
+  SysPulse:
+    build:
+      targets:
+        SysPulse: all
+        SysPulseWidgets: all
+        SysPulseTests: [test]
+    test:
+      gatherCoverageData: true
+      targets:
+        - SysPulseTests
+    run:
+      config: Debug
+    archive:
+      config: Release
