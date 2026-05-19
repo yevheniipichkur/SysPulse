@@ -112,6 +112,7 @@ jobs:
             echo "No available iPhone simulator found. Skipping tests after successful compile check."
             exit 0
           fi
+          set +e
           xcodebuild test \
             -project "$PROJECT" \
             -scheme "$SCHEME" \
@@ -120,6 +121,18 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             | tee build/logs/test.log
+          TEST_STATUS=${PIPESTATUS[0]}
+          set -e
+          if [ "$TEST_STATUS" -ne 0 ]; then
+            echo "Tests failed. Extracting XCTest diagnostics:"
+            grep -E "error:|warning:|failed:|Test Case|Executed|Testing failed" build/logs/test.log | tail -n 120 | while IFS= read -r line; do
+              escaped=${line//'%'/'%25'}
+              escaped=${escaped//$'\n'/'%0A'}
+              escaped=${escaped//$'\r'/'%0D'}
+              echo "::error::$escaped"
+            done
+          fi
+          exit "$TEST_STATUS"
 
       - name: Create unsigned archive
         run: |
