@@ -36,21 +36,20 @@ struct AppBackground: View {
             )
             .ignoresSafeArea()
 
-            MeshGradient(
-                width: 3,
-                height: 3,
-                points: [
-                    [0.0, 0.0], [0.5, 0.0], [1.0, 0.0],
-                    [0.0, 0.5], [0.5, 0.45], [1.0, 0.5],
-                    [0.0, 1.0], [0.5, 1.0], [1.0, 1.0]
-                ],
-                colors: [
-                    .cyan.opacity(0.22), .blue.opacity(0.12), .indigo.opacity(0.16),
-                    .green.opacity(0.10), .clear, .purple.opacity(0.10),
-                    .clear, .teal.opacity(0.12), .clear
-                ]
+            LinearGradient(
+                colors: [.cyan.opacity(0.18), .clear, .green.opacity(0.10)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
             )
-            .opacity(colorScheme == .dark ? 0.42 : 0.25)
+            .blendMode(.screen)
+            .ignoresSafeArea()
+
+            LinearGradient(
+                colors: [.clear, .purple.opacity(colorScheme == .dark ? 0.16 : 0.08), .clear],
+                startPoint: .topTrailing,
+                endPoint: .bottomLeading
+            )
+            .blendMode(.screen)
             .ignoresSafeArea()
         }
     }

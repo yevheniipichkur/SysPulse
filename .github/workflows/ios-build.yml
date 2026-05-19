@@ -71,13 +71,15 @@ jobs:
       - name: Build unsigned debug
         run: |
           set -o pipefail
+          mkdir -p build/logs
           xcodebuild build \
             -project "$PROJECT" \
             -scheme "$SCHEME" \
             -configuration Debug \
             -destination "generic/platform=iOS" \
             CODE_SIGNING_ALLOWED=NO \
-            CODE_SIGNING_REQUIRED=NO
+            CODE_SIGNING_REQUIRED=NO \
+            | tee build/logs/build-debug.log
 
       - name: Run tests
         run: |
@@ -94,7 +96,8 @@ jobs:
             -configuration Debug \
             -destination "$TEST_DESTINATION" \
             CODE_SIGNING_ALLOWED=NO \
-            CODE_SIGNING_REQUIRED=NO
+            CODE_SIGNING_REQUIRED=NO \
+            | tee build/logs/test.log
 
       - name: Create unsigned archive
         run: |
@@ -108,7 +111,8 @@ jobs:
             -archivePath "$ARCHIVE_PATH" \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
-            SKIP_INSTALL=NO
+            SKIP_INSTALL=NO \
+            | tee build/logs/archive-unsigned.log
 
       - name: Prepare signing assets
         if: ${{ env.APPLE_TEAM_ID != '' && env.APPLE_CERTIFICATE_BASE64 != '' && env.APPLE_PROVISIONING_PROFILE_BASE64 != '' }}
@@ -148,7 +152,8 @@ jobs:
             PRODUCT_BUNDLE_IDENTIFIER="${APPLE_BUNDLE_ID:-$DEFAULT_BUNDLE_ID}" \
             CODE_SIGN_STYLE=Manual \
             PROVISIONING_PROFILE="$PROFILE_UUID" \
-            SKIP_INSTALL=NO
+            SKIP_INSTALL=NO \
+            | tee build/logs/archive-signed.log
 
       - name: Export IPA
         if: ${{ env.APPLE_TEAM_ID != '' && env.APPLE_CERTIFICATE_BASE64 != '' && env.APPLE_PROVISIONING_PROFILE_BASE64 != '' }}
@@ -181,7 +186,8 @@ jobs:
           xcodebuild -exportArchive \
             -archivePath "$ARCHIVE_PATH" \
             -exportPath "$EXPORT_PATH" \
-            -exportOptionsPlist ExportOptions.plist
+            -exportOptionsPlist ExportOptions.plist \
+            | tee build/logs/export-ipa.log
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4

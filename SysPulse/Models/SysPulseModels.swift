@@ -2,7 +2,7 @@ import Foundation
 import SwiftData
 import SwiftUI
 
-enum AppTab: String, CaseIterable, Identifiable {
+enum AppTab: String, CaseIterable, Identifiable, Hashable {
     case servers
     case monitor
     case terminal
@@ -32,7 +32,7 @@ enum AppTab: String, CaseIterable, Identifiable {
     }
 }
 
-enum ServerType: String, CaseIterable, Identifiable, Codable {
+enum ServerType: String, CaseIterable, Identifiable, Codable, Hashable {
     case raspberryPi = "Raspberry Pi"
     case vps = "VPS"
     case dockerHost = "Docker Host"
@@ -60,7 +60,7 @@ enum ServerType: String, CaseIterable, Identifiable, Codable {
     }
 }
 
-enum SSHAuthenticationType: String, CaseIterable, Identifiable, Codable {
+enum SSHAuthenticationType: String, CaseIterable, Identifiable, Codable, Hashable {
     case password = "Password"
     case privateKey = "Private Key"
     case privateKeyWithPassphrase = "Private Key + Passphrase"
@@ -68,7 +68,7 @@ enum SSHAuthenticationType: String, CaseIterable, Identifiable, Codable {
     var id: String { rawValue }
 }
 
-enum ServerStatus: String, Codable {
+enum ServerStatus: String, Codable, Hashable {
     case online
     case offline
     case warning
@@ -93,7 +93,7 @@ enum ServerStatus: String, Codable {
     }
 }
 
-enum CommandSafetyLevel: String, CaseIterable, Identifiable, Codable {
+enum CommandSafetyLevel: String, CaseIterable, Identifiable, Codable, Hashable {
     case safe = "Safe"
     case moderate = "Moderate"
     case dangerous = "Dangerous"
@@ -109,7 +109,7 @@ enum CommandSafetyLevel: String, CaseIterable, Identifiable, Codable {
     }
 }
 
-enum TerminalTheme: String, CaseIterable, Identifiable, Codable {
+enum TerminalTheme: String, CaseIterable, Identifiable, Codable, Hashable {
     case liquidDark = "Liquid Dark"
     case matrix = "Matrix"
     case midnight = "Midnight"
@@ -126,7 +126,7 @@ enum TerminalTheme: String, CaseIterable, Identifiable, Codable {
     var isPremium: Bool { self != .liquidDark }
 }
 
-enum AppearanceMode: String, CaseIterable, Identifiable, Codable {
+enum AppearanceMode: String, CaseIterable, Identifiable, Codable, Hashable {
     case system = "System"
     case light = "Light"
     case dark = "Dark"
@@ -134,7 +134,7 @@ enum AppearanceMode: String, CaseIterable, Identifiable, Codable {
     var id: String { rawValue }
 }
 
-enum AppLanguage: String, CaseIterable, Identifiable, Codable {
+enum AppLanguage: String, CaseIterable, Identifiable, Codable, Hashable {
     case system = "System"
     case english = "English"
     case ukrainian = "Українська"
@@ -144,14 +144,14 @@ enum AppLanguage: String, CaseIterable, Identifiable, Codable {
     var id: String { rawValue }
 }
 
-enum SubscriptionPlan: String, Codable {
+enum SubscriptionPlan: String, Codable, Hashable {
     case free = "Free"
     case proMonthly = "Pro Monthly"
     case proYearly = "Pro Yearly"
     case lifetime = "Lifetime Pro"
 }
 
-enum HealthRating: String {
+enum HealthRating: String, Hashable {
     case excellent = "Excellent"
     case good = "Good"
     case warning = "Warning"
@@ -560,7 +560,7 @@ struct MissingTool: Identifiable, Hashable {
     var unavailableFeatures: [String]
 }
 
-enum LinuxDistribution: String, CaseIterable, Identifiable {
+enum LinuxDistribution: String, CaseIterable, Identifiable, Hashable {
     case debian = "Debian / Ubuntu / Raspberry Pi OS"
     case fedora = "Fedora"
     case arch = "Arch"
