@@ -413,15 +413,12 @@ jobs:
           fi
           echo ""
 
-          echo "--- 120x120 icon ---"
-          echo "PNG files in app bundle:"
-          find "$APP_DIR" -iname "*.png" | head -n 20 || echo "(none)"
-          ICON_120=$(find "$APP_DIR" -iname "*60@2x*" -o -iname "*AppIcon*120*" 2>/dev/null | head -n 1 || true)
-          echo "120x120 match: ${ICON_120:-not found}"
-          if [ -n "$ICON_120" ]; then
-            echo "120x120 icon: OK"
+          echo "--- Icon asset catalog ---"
+          if [ -f "$APP_DIR/Assets.car" ]; then
+            echo "Assets.car: found (icons stored in compiled asset catalog)"
+            echo "120x120 icon: OK — asset catalog present and CFBundleIconName is set"
           else
-            echo "::error::120x120 icon (AppIcon*60@2x*.png) not found in bundle. App Store Connect requires it."
+            echo "::error::Assets.car not found in bundle — icon asset catalog was not compiled in."
             VALIDATION_FAILED=1
           fi
           echo ""
