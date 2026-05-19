@@ -254,7 +254,6 @@ jobs:
             -destination "generic/platform=iOS" \
             -archivePath "$ARCHIVE_PATH" \
             DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
-            PRODUCT_BUNDLE_IDENTIFIER="${APPLE_BUNDLE_ID:-$DEFAULT_BUNDLE_ID}" \
             CODE_SIGN_STYLE=Manual \
             CODE_SIGN_IDENTITY="Apple Distribution" \
             SKIP_INSTALL=NO \
