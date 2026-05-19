@@ -91,6 +91,17 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             | tee build/logs/build-debug.log
+          BUILD_STATUS=$?
+          if [ "$BUILD_STATUS" -ne 0 ]; then
+            echo "Build failed. Extracting compiler diagnostics:"
+            grep -E "error:|warning:" build/logs/build-debug.log | tail -n 80 | while IFS= read -r line; do
+              escaped=${line//'%'/'%25'}
+              escaped=${escaped//$'\n'/'%0A'}
+              escaped=${escaped//$'\r'/'%0D'}
+              echo "::error::$escaped"
+            done
+          fi
+          exit "$BUILD_STATUS"
 
       - name: Run tests
         run: |
