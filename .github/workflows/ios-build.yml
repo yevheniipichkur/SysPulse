@@ -199,21 +199,27 @@ jobs:
             exit "$IMPORT_STATUS"
           fi
           security set-key-partition-list -S apple-tool:,apple: -s -k "" build.keychain
-          if [ -n "${APPLE_PROVISIONING_PROFILE_BASE64:-}" ]; then
-            SECRET_BASE64="$APPLE_PROVISIONING_PROFILE_BASE64" decode_secret profile.mobileprovision
-            if [ ! -s profile.mobileprovision ]; then
-              echo "::error::APPLE_PROVISIONING_PROFILE_BASE64 decoded to an empty file. Recreate the .mobileprovision base64 secret."
+          mkdir -p "$HOME/Library/MobileDevice/Provisioning Profiles"
+          mkdir -p "$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles"
+          install_profile() {
+            local secret_b64="$1"
+            local tmp_file="$2"
+            SECRET_BASE64="$secret_b64" decode_secret "$tmp_file"
+            if [ ! -s "$tmp_file" ]; then
+              echo "::error::Profile secret decoded to an empty file."
               exit 1
             fi
-            security cms -D -i profile.mobileprovision > profile.plist
-            PROFILE_UUID=$(/usr/libexec/PlistBuddy -c "Print :UUID" profile.plist)
-            PROFILE_NAME=$(/usr/libexec/PlistBuddy -c "Print :Name" profile.plist)
-            PROFILE_APP_ID=$(/usr/libexec/PlistBuddy -c "Print :Entitlements:application-identifier" profile.plist || true)
-            cp profile.mobileprovision "$HOME/Library/MobileDevice/Provisioning Profiles/$PROFILE_UUID.mobileprovision"
-            echo "PROFILE_UUID=$PROFILE_UUID" >> "$GITHUB_ENV"
-            echo "PROFILE_NAME=$PROFILE_NAME" >> "$GITHUB_ENV"
-            echo "Installed provisioning profile: $PROFILE_NAME ($PROFILE_UUID)"
-            echo "Profile application identifier: $PROFILE_APP_ID"
+            security cms -D -i "$tmp_file" > "${tmp_file}.plist"
+            local uuid
+            uuid=$(/usr/libexec/PlistBuddy -c "Print :UUID" "${tmp_file}.plist")
+            local name
+            name=$(/usr/libexec/PlistBuddy -c "Print :Name" "${tmp_file}.plist")
+            cp "$tmp_file" "$HOME/Library/MobileDevice/Provisioning Profiles/$uuid.mobileprovision"
+            cp "$tmp_file" "$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles/$uuid.mobileprovision"
+            echo "Installed profile: $name ($uuid)"
+          }
+          if [ -n "${APPLE_PROVISIONING_PROFILE_BASE64:-}" ]; then
+            install_profile "$APPLE_PROVISIONING_PROFILE_BASE64" profile.mobileprovision
           else
             echo "No provisioning profile secret supplied. xcodebuild will rely on automatic signing."
           fi
