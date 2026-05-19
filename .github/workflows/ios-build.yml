@@ -40,6 +40,9 @@ jobs:
       - name: Select Xcode
         run: |
           set -euo pipefail
+          echo "=== Available Xcode installations ==="
+          ls -la /Applications | grep -i xcode || echo "(none found)"
+          echo ""
           XCODE_PATH=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -1 || true)
           if [ -z "$XCODE_PATH" ]; then
             XCODE_PATH=$(ls -d /Applications/Xcode_16.4.app 2>/dev/null || true)
@@ -50,18 +53,18 @@ jobs:
           if [ -z "$XCODE_PATH" ]; then
             XCODE_PATH=/Applications/Xcode.app
           fi
-          echo "Using Xcode at: $XCODE_PATH"
+          echo "Selected: $XCODE_PATH"
           sudo xcode-select -s "$XCODE_PATH/Contents/Developer"
 
-      - name: Show Xcode version
+      - name: Show Xcode version and SDKs
         run: |
+          set -euo pipefail
           xcodebuild -version
+          echo ""
+          echo "=== Available SDKs ==="
+          xcodebuild -showsdks
+          echo ""
           xcrun simctl list runtimes
-          if xcodebuild -showsdks 2>/dev/null | grep -q "iOS 26"; then
-            echo "iOS 26 SDK: available"
-          else
-            echo "::warning::iOS 26 SDK not found — consider upgrading the runner to a macOS image with Xcode 26"
-          fi
 
       - name: Install XcodeGen
         run: |
@@ -166,6 +169,28 @@ jobs:
             CODE_SIGNING_REQUIRED=NO \
             SKIP_INSTALL=NO \
             | tee build/logs/archive-unsigned.log
+
+      - name: Require iOS 26 SDK for distribution
+        if: ${{ env.APPLE_TEAM_ID != '' && env.APPLE_CERTIFICATE_BASE64 != '' }}
+        run: |
+          set -euo pipefail
+          ACTIVE_XCODE=$(xcodebuild -version | head -1)
+          echo "Active Xcode: $ACTIVE_XCODE"
+          echo "=== Available SDKs ==="
+          xcodebuild -showsdks
+          echo ""
+          if xcodebuild -showsdks 2>/dev/null | grep -qE "iphoneos26|iOS 26"; then
+            echo "iOS 26 SDK: found — proceeding with distribution archive."
+          else
+            CURRENT_SDK=$(xcodebuild -showsdks 2>/dev/null | grep iphoneos | tail -1 || echo "unknown")
+            echo "::error::iOS 26 SDK not found."
+            echo "::error::Active Xcode: $ACTIVE_XCODE"
+            echo "::error::Highest available iOS SDK: $CURRENT_SDK"
+            echo "::error::App Store Connect requires ALL iOS apps to be built with the iOS 26 SDK or later."
+            echo "::error::The signed archive and TestFlight upload are blocked until the runner has Xcode 26."
+            echo "::error::Solution: change 'runs-on' to a macOS image that ships with Xcode 26."
+            exit 1
+          fi
 
       - name: Prepare signing assets
         if: ${{ env.APPLE_TEAM_ID != '' && env.APPLE_CERTIFICATE_BASE64 != '' }}
@@ -350,46 +375,89 @@ jobs:
             echo "No IPA found, skipping validation."
             exit 0
           fi
-          VALIDATE_DIR=$(mktemp -d)
-          unzip -q "$IPA" -d "$VALIDATE_DIR"
-          APP_DIR=$(find "$VALIDATE_DIR/Payload" -maxdepth 1 -name "*.app" | head -n 1)
+          echo "=== Validating IPA: $IPA ==="
+          echo ""
+          rm -rf /tmp/ipa_check
+          mkdir -p /tmp/ipa_check
+          unzip -q "$IPA" -d /tmp/ipa_check
+          APP_DIR=$(find /tmp/ipa_check/Payload -maxdepth 1 -name "*.app" | head -n 1)
+          echo "App bundle: $APP_DIR"
+          echo ""
           VALIDATION_FAILED=0
-          if /usr/libexec/PlistBuddy -c "Print :CFBundleIconName" "$APP_DIR/Info.plist" >/dev/null 2>&1; then
+
+          echo "--- Xcode / SDK ---"
+          ACTIVE_XCODE=$(xcodebuild -version | head -1)
+          echo "Builder: $ACTIVE_XCODE"
+          SDK_NAME=$(/usr/libexec/PlistBuddy -c "Print :DTSDKName" "$APP_DIR/Info.plist" 2>/dev/null || true)
+          echo "DTSDKName: ${SDK_NAME:-not found}"
+          SDK_MAJOR=$(echo "${SDK_NAME:-iphoneos0}" | sed -E 's/iphoneos([0-9]+).*/\1/')
+          if [ "${SDK_MAJOR:-0}" -ge 26 ] 2>/dev/null; then
+            echo "SDK version: OK (${SDK_NAME} >= ios26)"
+          else
+            echo "::error::IPA built with '${SDK_NAME:-unknown}'. App Store Connect requires iOS 26 SDK. Rebuild with Xcode 26."
+            VALIDATION_FAILED=1
+          fi
+          echo ""
+
+          echo "--- CFBundleIconName ---"
+          ICON_NAME=$(/usr/libexec/PlistBuddy -c "Print :CFBundleIconName" "$APP_DIR/Info.plist" 2>/dev/null || true)
+          echo "CFBundleIconName: ${ICON_NAME:-not found}"
+          if [ "$ICON_NAME" = "AppIcon" ]; then
             echo "CFBundleIconName: OK"
           else
-            echo "::error::CFBundleIconName missing from Info.plist — App Store Connect will reject this IPA."
+            echo "::error::CFBundleIconName = '${ICON_NAME:-missing}'. Expected 'AppIcon'. App Store Connect will reject this IPA."
             VALIDATION_FAILED=1
           fi
-          if find "$APP_DIR" -name "AppIcon-60@2x*" | grep -q .; then
+          echo ""
+
+          echo "--- 120x120 icon ---"
+          echo "PNG files in app bundle:"
+          find "$APP_DIR" -iname "*.png" | head -n 20 || echo "(none)"
+          ICON_120=$(find "$APP_DIR" -iname "*60@2x*" -o -iname "*AppIcon*120*" 2>/dev/null | head -n 1 || true)
+          echo "120x120 match: ${ICON_120:-not found}"
+          if [ -n "$ICON_120" ]; then
             echo "120x120 icon: OK"
           else
-            echo "::error::120x120 icon (AppIcon-60@2x.png) missing — App Store Connect requires it."
+            echo "::error::120x120 icon (AppIcon*60@2x*.png) not found in bundle. App Store Connect requires it."
             VALIDATION_FAILED=1
           fi
-          WIDGET_PLUGIN=$(find "$APP_DIR/PlugIns" -maxdepth 1 -name "*.appex" | head -n 1 || true)
+          echo ""
+
+          echo "--- Widget NSExtensionPointIdentifier ---"
+          WIDGET_PLUGIN=$(find "$APP_DIR/PlugIns" -maxdepth 1 -name "*.appex" 2>/dev/null | head -n 1 || true)
           if [ -n "$WIDGET_PLUGIN" ]; then
+            echo "Widget plugin: $WIDGET_PLUGIN"
             WIDGET_POINT=$(/usr/libexec/PlistBuddy -c "Print :NSExtension:NSExtensionPointIdentifier" "$WIDGET_PLUGIN/Info.plist" 2>/dev/null || true)
+            echo "NSExtensionPointIdentifier: ${WIDGET_POINT:-not found}"
             if [ "$WIDGET_POINT" = "com.apple.widgetkit-extension" ]; then
               echo "Widget NSExtensionPointIdentifier: OK"
             else
-              echo "::error::Widget NSExtensionPointIdentifier missing or wrong: '$WIDGET_POINT'"
+              echo "::error::NSExtensionPointIdentifier = '${WIDGET_POINT:-missing}'. Expected 'com.apple.widgetkit-extension'."
               VALIDATION_FAILED=1
             fi
+          else
+            echo "No .appex found in PlugIns."
           fi
-          rm -rf "$VALIDATE_DIR"
+          echo ""
+
+          rm -rf /tmp/ipa_check
+
+          if [ "$VALIDATION_FAILED" -ne 0 ]; then
+            echo "::error::Pre-upload validation FAILED. Fix all issues above before running altool."
+            exit 1
+          fi
+
+          echo "=== All pre-upload checks passed. Running xcrun altool --validate-app ==="
           if [ -n "${APPSTORE_CONNECT_API_KEY_ID:-}" ] && [ -n "${APPSTORE_CONNECT_API_ISSUER_ID:-}" ] && [ -n "${ASC_KEY_PATH:-}" ]; then
-            echo "Running xcrun altool --validate-app..."
             xcrun altool --validate-app \
               --type ios \
               --file "$IPA" \
               --apiKey "$APPSTORE_CONNECT_API_KEY_ID" \
               --apiIssuer "$APPSTORE_CONNECT_API_ISSUER_ID"
+          else
+            echo "altool --validate-app skipped (ASC key not configured)."
           fi
-          if [ "$VALIDATION_FAILED" -ne 0 ]; then
-            echo "::error::IPA validation failed — fix the issues above before uploading to TestFlight."
-            exit 1
-          fi
-          echo "IPA validation passed."
+          echo "Validation complete."
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
