@@ -40,18 +40,28 @@ jobs:
       - name: Select Xcode
         run: |
           set -euo pipefail
-          if [ -d "/Applications/Xcode_16.4.app" ]; then
-            sudo xcode-select -s /Applications/Xcode_16.4.app/Contents/Developer
-          elif [ -d "/Applications/Xcode_16.3.app" ]; then
-            sudo xcode-select -s /Applications/Xcode_16.3.app/Contents/Developer
-          else
-            sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
+          XCODE_PATH=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -1 || true)
+          if [ -z "$XCODE_PATH" ]; then
+            XCODE_PATH=$(ls -d /Applications/Xcode_16.4.app 2>/dev/null || true)
           fi
+          if [ -z "$XCODE_PATH" ]; then
+            XCODE_PATH=$(ls -d /Applications/Xcode_16.3.app 2>/dev/null || true)
+          fi
+          if [ -z "$XCODE_PATH" ]; then
+            XCODE_PATH=/Applications/Xcode.app
+          fi
+          echo "Using Xcode at: $XCODE_PATH"
+          sudo xcode-select -s "$XCODE_PATH/Contents/Developer"
 
       - name: Show Xcode version
         run: |
           xcodebuild -version
           xcrun simctl list runtimes
+          if xcodebuild -showsdks 2>/dev/null | grep -q "iOS 26"; then
+            echo "iOS 26 SDK: available"
+          else
+            echo "::warning::iOS 26 SDK not found — consider upgrading the runner to a macOS image with Xcode 26"
+          fi
 
       - name: Install XcodeGen
         run: |
@@ -327,6 +337,59 @@ jobs:
             done
           fi
           exit "$EXPORT_STATUS"
+
+      - name: Validate IPA before upload
+        if: ${{ env.APPLE_TEAM_ID != '' && env.APPLE_CERTIFICATE_BASE64 != '' }}
+        env:
+          APPSTORE_CONNECT_API_KEY_ID: ${{ secrets.APPSTORE_CONNECT_API_KEY_ID }}
+          APPSTORE_CONNECT_API_ISSUER_ID: ${{ secrets.APPSTORE_CONNECT_API_ISSUER_ID }}
+        run: |
+          set -euo pipefail
+          IPA=$(find "$EXPORT_PATH" -name "*.ipa" | head -n 1 || true)
+          if [ -z "$IPA" ]; then
+            echo "No IPA found, skipping validation."
+            exit 0
+          fi
+          VALIDATE_DIR=$(mktemp -d)
+          unzip -q "$IPA" -d "$VALIDATE_DIR"
+          APP_DIR=$(find "$VALIDATE_DIR/Payload" -maxdepth 1 -name "*.app" | head -n 1)
+          VALIDATION_FAILED=0
+          if /usr/libexec/PlistBuddy -c "Print :CFBundleIconName" "$APP_DIR/Info.plist" >/dev/null 2>&1; then
+            echo "CFBundleIconName: OK"
+          else
+            echo "::error::CFBundleIconName missing from Info.plist — App Store Connect will reject this IPA."
+            VALIDATION_FAILED=1
+          fi
+          if find "$APP_DIR" -name "AppIcon-60@2x*" | grep -q .; then
+            echo "120x120 icon: OK"
+          else
+            echo "::error::120x120 icon (AppIcon-60@2x.png) missing — App Store Connect requires it."
+            VALIDATION_FAILED=1
+          fi
+          WIDGET_PLUGIN=$(find "$APP_DIR/PlugIns" -maxdepth 1 -name "*.appex" | head -n 1 || true)
+          if [ -n "$WIDGET_PLUGIN" ]; then
+            WIDGET_POINT=$(/usr/libexec/PlistBuddy -c "Print :NSExtension:NSExtensionPointIdentifier" "$WIDGET_PLUGIN/Info.plist" 2>/dev/null || true)
+            if [ "$WIDGET_POINT" = "com.apple.widgetkit-extension" ]; then
+              echo "Widget NSExtensionPointIdentifier: OK"
+            else
+              echo "::error::Widget NSExtensionPointIdentifier missing or wrong: '$WIDGET_POINT'"
+              VALIDATION_FAILED=1
+            fi
+          fi
+          rm -rf "$VALIDATE_DIR"
+          if [ -n "${APPSTORE_CONNECT_API_KEY_ID:-}" ] && [ -n "${APPSTORE_CONNECT_API_ISSUER_ID:-}" ] && [ -n "${ASC_KEY_PATH:-}" ]; then
+            echo "Running xcrun altool --validate-app..."
+            xcrun altool --validate-app \
+              --type ios \
+              --file "$IPA" \
+              --apiKey "$APPSTORE_CONNECT_API_KEY_ID" \
+              --apiIssuer "$APPSTORE_CONNECT_API_ISSUER_ID"
+          fi
+          if [ "$VALIDATION_FAILED" -ne 0 ]; then
+            echo "::error::IPA validation failed — fix the issues above before uploading to TestFlight."
+            exit 1
+          fi
+          echo "IPA validation passed."
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
