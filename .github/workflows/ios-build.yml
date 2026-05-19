@@ -246,10 +246,6 @@ jobs:
           APPSTORE_CONNECT_API_ISSUER_ID: ${{ secrets.APPSTORE_CONNECT_API_ISSUER_ID }}
         run: |
           set -o pipefail
-          AUTH_ARGS=()
-          if [ -n "${ASC_KEY_PATH:-}" ] && [ -n "${APPSTORE_CONNECT_API_KEY_ID:-}" ] && [ -n "${APPSTORE_CONNECT_API_ISSUER_ID:-}" ]; then
-            AUTH_ARGS=(-allowProvisioningUpdates -authenticationKeyPath "$ASC_KEY_PATH" -authenticationKeyID "$APPSTORE_CONNECT_API_KEY_ID" -authenticationKeyIssuerID "$APPSTORE_CONNECT_API_ISSUER_ID")
-          fi
           set +e
           xcodebuild archive \
             -project "$PROJECT" \
@@ -259,9 +255,9 @@ jobs:
             -archivePath "$ARCHIVE_PATH" \
             DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
             PRODUCT_BUNDLE_IDENTIFIER="${APPLE_BUNDLE_ID:-$DEFAULT_BUNDLE_ID}" \
-            CODE_SIGN_STYLE=Automatic \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY="Apple Distribution" \
             SKIP_INSTALL=NO \
-            "${AUTH_ARGS[@]}" \
             | tee build/logs/archive-signed.log
           ARCHIVE_STATUS=${PIPESTATUS[0]}
           set -e
@@ -286,6 +282,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p "$EXPORT_PATH"
+          BUNDLE_ID="${APPLE_BUNDLE_ID:-$DEFAULT_BUNDLE_ID}"
           cat > ExportOptions.plist <<EOF
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -296,7 +293,14 @@ jobs:
             <key>teamID</key>
             <string>$APPLE_TEAM_ID</string>
             <key>signingStyle</key>
-            <string>automatic</string>
+            <string>manual</string>
+            <key>provisioningProfiles</key>
+            <dict>
+              <key>$BUNDLE_ID</key>
+              <string>$BUNDLE_ID</string>
+              <key>$BUNDLE_ID.widgets</key>
+              <string>$BUNDLE_ID.widgets</string>
+            </dict>
             <key>stripSwiftSymbols</key>
             <true/>
             <key>uploadBitcode</key>
@@ -306,16 +310,11 @@ jobs:
           </dict>
           </plist>
           EOF
-          AUTH_ARGS=()
-          if [ -n "${ASC_KEY_PATH:-}" ] && [ -n "${APPSTORE_CONNECT_API_KEY_ID:-}" ] && [ -n "${APPSTORE_CONNECT_API_ISSUER_ID:-}" ]; then
-            AUTH_ARGS=(-allowProvisioningUpdates -authenticationKeyPath "$ASC_KEY_PATH" -authenticationKeyID "$APPSTORE_CONNECT_API_KEY_ID" -authenticationKeyIssuerID "$APPSTORE_CONNECT_API_ISSUER_ID")
-          fi
           set +e
           xcodebuild -exportArchive \
             -archivePath "$ARCHIVE_PATH" \
             -exportPath "$EXPORT_PATH" \
             -exportOptionsPlist ExportOptions.plist \
-            "${AUTH_ARGS[@]}" \
             | tee build/logs/export-ipa.log
           EXPORT_STATUS=${PIPESTATUS[0]}
           set -e
