@@ -155,8 +155,11 @@ private struct CommandCard: View {
                         .font(.subheadline.weight(.bold))
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 12)
-                        .background(isLocked ? .thinMaterial : .cyan, in: RoundedRectangle(cornerRadius: 15, style: .continuous))
-                        .foregroundStyle(isLocked ? .primary : .white)
+                        .foregroundStyle(isLocked ? Color.primary : Color.white)
+                        .background {
+                            RoundedRectangle(cornerRadius: 15, style: .continuous)
+                                .fill(isLocked ? AnyShapeStyle(.thinMaterial) : AnyShapeStyle(.cyan))
+                        }
                 }
                 .buttonStyle(.plain)
             }
