@@ -7,7 +7,7 @@ struct OpenServerIntent: AppIntent {
     static var openAppWhenRun = true
 
     @Parameter(title: "Server name")
-    var serverName: String = ""
+    var serverName: String
 
     func perform() async throws -> some IntentResult {
         .result(dialog: "Opening \(serverName) in SysPulse.")
@@ -20,10 +20,10 @@ struct RunQuickCommandIntent: AppIntent {
     static var openAppWhenRun = true
 
     @Parameter(title: "Command")
-    var command: String = ""
+    var command: String
 
     @Parameter(title: "Server")
-    var serverName: String = ""
+    var serverName: String
 
     func perform() async throws -> some IntentResult {
         if CommandRunner.containsDangerousToken(command) {
@@ -38,7 +38,7 @@ struct CheckServerStatusIntent: AppIntent {
     static var openAppWhenRun = true
 
     @Parameter(title: "Server")
-    var serverName: String = ""
+    var serverName: String
 
     func perform() async throws -> some IntentResult {
         .result(dialog: "\(serverName) status is available in SysPulse Demo Mode.")
@@ -50,7 +50,7 @@ struct OpenTerminalIntent: AppIntent {
     static var openAppWhenRun = true
 
     @Parameter(title: "Server")
-    var serverName: String = ""
+    var serverName: String
 
     func perform() async throws -> some IntentResult {
         .result(dialog: "Opening terminal for \(serverName).")
@@ -62,7 +62,7 @@ struct ShowDiskUsageIntent: AppIntent {
     static var openAppWhenRun = true
 
     @Parameter(title: "Server")
-    var serverName: String = ""
+    var serverName: String
 
     func perform() async throws -> some IntentResult {
         .result(dialog: "Disk usage opens in SysPulse.")
@@ -75,10 +75,10 @@ struct RestartServiceIntent: AppIntent {
     static var openAppWhenRun = true
 
     @Parameter(title: "Service")
-    var serviceName: String = ""
+    var serviceName: String
 
     @Parameter(title: "Server")
-    var serverName: String = ""
+    var serverName: String
 
     func perform() async throws -> some IntentResult {
         .result(dialog: "Restarting \(serviceName) requires confirmation inside SysPulse.")
