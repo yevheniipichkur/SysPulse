@@ -83,6 +83,7 @@ jobs:
         run: |
           set -o pipefail
           mkdir -p build/logs
+          set +e
           xcodebuild build \
             -project "$PROJECT" \
             -scheme "$SCHEME" \
@@ -91,7 +92,8 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             | tee build/logs/build-debug.log
-          BUILD_STATUS=$?
+          BUILD_STATUS=${PIPESTATUS[0]}
+          set -e
           if [ "$BUILD_STATUS" -ne 0 ]; then
             echo "Build failed. Extracting compiler diagnostics:"
             grep -E "error:|warning:" build/logs/build-debug.log | tail -n 80 | while IFS= read -r line; do
