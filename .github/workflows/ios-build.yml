@@ -57,6 +57,17 @@ jobs:
       - name: Generate Xcode project
         run: xcodegen generate
 
+      - name: Resolve simulator destination
+        run: |
+          SIMULATOR_DESTINATION=$(xcrun simctl list devices available | awk -F '[()]' '/iPhone/ {print "id="$2; exit}')
+          if [ -z "$SIMULATOR_DESTINATION" ]; then
+            echo "No available iPhone simulator found. Debug build will use generic iOS destination."
+            echo "SIMULATOR_DESTINATION=generic/platform=iOS" >> "$GITHUB_ENV"
+          else
+            echo "Using simulator destination: $SIMULATOR_DESTINATION"
+            echo "SIMULATOR_DESTINATION=$SIMULATOR_DESTINATION" >> "$GITHUB_ENV"
+          fi
+
       - name: Explain signing state
         run: |
           echo "Unsigned compile check always runs with CODE_SIGNING_ALLOWED=NO."
@@ -76,7 +87,7 @@ jobs:
             -project "$PROJECT" \
             -scheme "$SCHEME" \
             -configuration Debug \
-            -destination "generic/platform=iOS" \
+            -destination "$SIMULATOR_DESTINATION" \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             | tee build/logs/build-debug.log
@@ -84,17 +95,15 @@ jobs:
       - name: Run tests
         run: |
           set -o pipefail
-          TEST_DESTINATION=$(xcrun simctl list devices available | awk -F '[()]' '/iPhone/ {print "id="$2; exit}')
-          if [ -z "$TEST_DESTINATION" ]; then
+          if [ "$SIMULATOR_DESTINATION" = "generic/platform=iOS" ]; then
             echo "No available iPhone simulator found. Skipping tests after successful compile check."
             exit 0
           fi
-          echo "Using simulator destination: $TEST_DESTINATION"
           xcodebuild test \
             -project "$PROJECT" \
             -scheme "$SCHEME" \
             -configuration Debug \
-            -destination "$TEST_DESTINATION" \
+            -destination "$SIMULATOR_DESTINATION" \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             | tee build/logs/test.log
