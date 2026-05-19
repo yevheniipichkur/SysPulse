@@ -22,7 +22,12 @@ targets:
           - Info.plist
           - SysPulse.entitlements
     resources:
-      - path: SysPulse/Resources
+      - path: SysPulse/Resources/Assets.xcassets
+      - path: SysPulse/Resources/PrivacyInfo.xcprivacy
+      - path: SysPulse/Resources/en.lproj
+      - path: SysPulse/Resources/pl.lproj
+      - path: SysPulse/Resources/ru.lproj
+      - path: SysPulse/Resources/uk.lproj
     entitlements:
       path: SysPulse/SysPulse.entitlements
     info:
