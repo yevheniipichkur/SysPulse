@@ -1,0 +1,215 @@
+name: iOS Build
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+env:
+  SCHEME: SysPulse
+  PROJECT: SysPulse.xcodeproj
+  DEFAULT_BUNDLE_ID: com.yevheniipichkur.syspulse
+  ARCHIVE_PATH: build/SysPulse.xcarchive
+  EXPORT_PATH: build/export
+  APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+  APPLE_BUNDLE_ID: ${{ secrets.APPLE_BUNDLE_ID }}
+  APPLE_CERTIFICATE_BASE64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
+  APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+  APPLE_PROVISIONING_PROFILE_BASE64: ${{ secrets.APPLE_PROVISIONING_PROFILE_BASE64 }}
+  APPSTORE_CONNECT_API_KEY_ID: ${{ secrets.APPSTORE_CONNECT_API_KEY_ID }}
+  APPSTORE_CONNECT_API_ISSUER_ID: ${{ secrets.APPSTORE_CONNECT_API_ISSUER_ID }}
+  APPSTORE_CONNECT_API_KEY_BASE64: ${{ secrets.APPSTORE_CONNECT_API_KEY_BASE64 }}
+
+jobs:
+  build:
+    name: Build SysPulse
+    runs-on: macos-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: |
+          set -euo pipefail
+          if [ -d "/Applications/Xcode_16.4.app" ]; then
+            sudo xcode-select -s /Applications/Xcode_16.4.app/Contents/Developer
+          elif [ -d "/Applications/Xcode_16.3.app" ]; then
+            sudo xcode-select -s /Applications/Xcode_16.3.app/Contents/Developer
+          else
+            sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
+          fi
+
+      - name: Show Xcode version
+        run: |
+          xcodebuild -version
+          xcrun simctl list runtimes
+
+      - name: Install XcodeGen
+        run: |
+          if ! command -v xcodegen >/dev/null 2>&1; then
+            brew install xcodegen
+          fi
+          xcodegen --version
+
+      - name: Generate Xcode project
+        run: xcodegen generate
+
+      - name: Explain signing state
+        run: |
+          echo "Unsigned compile check always runs with CODE_SIGNING_ALLOWED=NO."
+          if [ -z "${APPLE_TEAM_ID:-}" ] || [ -z "${APPLE_CERTIFICATE_BASE64:-}" ] || [ -z "${APPLE_PROVISIONING_PROFILE_BASE64:-}" ]; then
+            echo "IPA export is skipped until signing secrets are configured."
+            echo "Required for IPA: APPLE_TEAM_ID, APPLE_BUNDLE_ID, APPLE_CERTIFICATE_BASE64, APPLE_CERTIFICATE_PASSWORD, APPLE_PROVISIONING_PROFILE_BASE64."
+          fi
+          if [ -z "${APPSTORE_CONNECT_API_KEY_ID:-}" ] || [ -z "${APPSTORE_CONNECT_API_ISSUER_ID:-}" ] || [ -z "${APPSTORE_CONNECT_API_KEY_BASE64:-}" ]; then
+            echo "TestFlight upload is skipped until App Store Connect API secrets are configured."
+          fi
+
+      - name: Build unsigned debug
+        run: |
+          set -o pipefail
+          xcodebuild build \
+            -project "$PROJECT" \
+            -scheme "$SCHEME" \
+            -configuration Debug \
+            -destination "generic/platform=iOS" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO
+
+      - name: Run tests
+        run: |
+          set -o pipefail
+          TEST_DESTINATION=$(xcrun simctl list devices available | awk -F '[()]' '/iPhone/ {print "id="$2; exit}')
+          if [ -z "$TEST_DESTINATION" ]; then
+            echo "No available iPhone simulator found. Skipping tests after successful compile check."
+            exit 0
+          fi
+          echo "Using simulator destination: $TEST_DESTINATION"
+          xcodebuild test \
+            -project "$PROJECT" \
+            -scheme "$SCHEME" \
+            -configuration Debug \
+            -destination "$TEST_DESTINATION" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO
+
+      - name: Create unsigned archive
+        run: |
+          set -o pipefail
+          mkdir -p build
+          xcodebuild archive \
+            -project "$PROJECT" \
+            -scheme "$SCHEME" \
+            -configuration Release \
+            -destination "generic/platform=iOS" \
+            -archivePath "$ARCHIVE_PATH" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            SKIP_INSTALL=NO
+
+      - name: Prepare signing assets
+        if: ${{ env.APPLE_TEAM_ID != '' && env.APPLE_CERTIFICATE_BASE64 != '' && env.APPLE_PROVISIONING_PROFILE_BASE64 != '' }}
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_CERTIFICATE_BASE64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_PROVISIONING_PROFILE_BASE64: ${{ secrets.APPLE_PROVISIONING_PROFILE_BASE64 }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+          echo "$APPLE_CERTIFICATE_BASE64" | base64 --decode > certificate.p12
+          echo "$APPLE_PROVISIONING_PROFILE_BASE64" | base64 --decode > profile.mobileprovision
+          security create-keychain -p "" build.keychain
+          security default-keychain -s build.keychain
+          security unlock-keychain -p "" build.keychain
+          security import certificate.p12 -k build.keychain -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple: -s -k "" build.keychain
+          PROFILE_UUID=$(/usr/libexec/PlistBuddy -c "Print :UUID" /dev/stdin <<< "$(security cms -D -i profile.mobileprovision)")
+          cp profile.mobileprovision "$HOME/Library/MobileDevice/Provisioning Profiles/$PROFILE_UUID.mobileprovision"
+          echo "PROFILE_UUID=$PROFILE_UUID" >> "$GITHUB_ENV"
+
+      - name: Create signed archive
+        if: ${{ env.APPLE_TEAM_ID != '' && env.APPLE_CERTIFICATE_BASE64 != '' && env.APPLE_PROVISIONING_PROFILE_BASE64 != '' }}
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_BUNDLE_ID: ${{ secrets.APPLE_BUNDLE_ID }}
+        run: |
+          set -o pipefail
+          xcodebuild archive \
+            -project "$PROJECT" \
+            -scheme "$SCHEME" \
+            -configuration Release \
+            -destination "generic/platform=iOS" \
+            -archivePath "$ARCHIVE_PATH" \
+            DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
+            PRODUCT_BUNDLE_IDENTIFIER="${APPLE_BUNDLE_ID:-$DEFAULT_BUNDLE_ID}" \
+            CODE_SIGN_STYLE=Manual \
+            PROVISIONING_PROFILE="$PROFILE_UUID" \
+            SKIP_INSTALL=NO
+
+      - name: Export IPA
+        if: ${{ env.APPLE_TEAM_ID != '' && env.APPLE_CERTIFICATE_BASE64 != '' && env.APPLE_PROVISIONING_PROFILE_BASE64 != '' }}
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_BUNDLE_ID: ${{ secrets.APPLE_BUNDLE_ID }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$EXPORT_PATH"
+          cat > ExportOptions.plist <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key>
+            <string>app-store-connect</string>
+            <key>teamID</key>
+            <string>$APPLE_TEAM_ID</string>
+            <key>signingStyle</key>
+            <string>manual</string>
+            <key>stripSwiftSymbols</key>
+            <true/>
+            <key>uploadBitcode</key>
+            <false/>
+            <key>compileBitcode</key>
+            <false/>
+          </dict>
+          </plist>
+          EOF
+          xcodebuild -exportArchive \
+            -archivePath "$ARCHIVE_PATH" \
+            -exportPath "$EXPORT_PATH" \
+            -exportOptionsPlist ExportOptions.plist
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: syspulse-ios-build
+          path: |
+            build/
+            SysPulse.xcodeproj/
+          if-no-files-found: warn
+
+      - name: Upload to TestFlight
+        if: ${{ env.APPSTORE_CONNECT_API_KEY_ID != '' && env.APPSTORE_CONNECT_API_ISSUER_ID != '' && env.APPSTORE_CONNECT_API_KEY_BASE64 != '' }}
+        env:
+          APPSTORE_CONNECT_API_KEY_ID: ${{ secrets.APPSTORE_CONNECT_API_KEY_ID }}
+          APPSTORE_CONNECT_API_ISSUER_ID: ${{ secrets.APPSTORE_CONNECT_API_ISSUER_ID }}
+          APPSTORE_CONNECT_API_KEY_BASE64: ${{ secrets.APPSTORE_CONNECT_API_KEY_BASE64 }}
+        run: |
+          set -euo pipefail
+          IPA=$(find "$EXPORT_PATH" -name "*.ipa" | head -n 1 || true)
+          if [ -z "$IPA" ]; then
+            echo "No IPA found. Configure signing secrets before TestFlight upload."
+            exit 0
+          fi
+          mkdir -p private_keys
+          echo "$APPSTORE_CONNECT_API_KEY_BASE64" | base64 --decode > "private_keys/AuthKey_${APPSTORE_CONNECT_API_KEY_ID}.p8"
+          xcrun altool --upload-app \
+            --type ios \
+            --file "$IPA" \
+            --apiKey "$APPSTORE_CONNECT_API_KEY_ID" \
+            --apiIssuer "$APPSTORE_CONNECT_API_ISSUER_ID"
