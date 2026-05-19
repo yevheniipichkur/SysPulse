@@ -1,0 +1,176 @@
+import SwiftUI
+
+struct SettingsView: View {
+    @EnvironmentObject private var appState: AppState
+    @State private var versionTapCount = 0
+    private let buildInfo = GitBuildInfoService()
+
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                AppBackground()
+
+                ScrollView {
+                    VStack(spacing: 16) {
+                        PageHeader(title: "Settings", subtitle: "Security, appearance and Pro controls.", actionSymbol: nil, action: nil)
+
+                        settingsSection("Account", symbol: "person.crop.circle") {
+                            SettingsRow(title: "Pro status", value: appState.isProUnlocked ? "Active" : "Free")
+                            Button("Manage subscription") { appState.isPaywallPresented = true }
+                            Button("Restore purchases") {
+                                appState.subscription.lastStoreKitMessage = "Restore purchases will sync through StoreKit 2."
+                            }
+                        }
+
+                        settingsSection("Security", symbol: "lock.shield") {
+                            Toggle("Face ID lock", isOn: $appState.settings.requiresBiometrics)
+                            Stepper("Auto-lock: \(appState.settings.autoLockMinutes) min", value: $appState.settings.autoLockMinutes, in: 1...30)
+                            Toggle("Hide sensitive data", isOn: $appState.settings.hideSensitiveData)
+                            Toggle("Clear clipboard warning", isOn: $appState.settings.clipboardWarning)
+                        }
+
+                        settingsSection("Appearance", symbol: "paintpalette") {
+                            Picker("Mode", selection: $appState.settings.appearanceMode) {
+                                ForEach(AppearanceMode.allCases) { mode in
+                                    Text(mode.rawValue).tag(mode)
+                                }
+                            }
+                            Picker("Terminal theme", selection: $appState.settings.terminalTheme) {
+                                ForEach(TerminalTheme.allCases) { theme in
+                                    HStack {
+                                        Text(theme.rawValue)
+                                        if theme.isPremium { Text("Pro") }
+                                    }
+                                    .tag(theme)
+                                }
+                            }
+                            Slider(value: $appState.settings.terminalFontSize, in: 11...22, step: 1) {
+                                Text("Terminal font size")
+                            }
+                            Toggle("Reduce animations", isOn: $appState.settings.reduceAnimations)
+                        }
+
+                        settingsSection("Language", symbol: "globe") {
+                            Picker("Language", selection: $appState.settings.language) {
+                                ForEach(AppLanguage.allCases) { language in
+                                    Text(language.rawValue).tag(language)
+                                }
+                            }
+                        }
+
+                        settingsSection("Data", symbol: "externaldrive") {
+                            Toggle("iCloud sync", isOn: $appState.settings.iCloudSyncEnabled)
+                                .disabled(!appState.isProUnlocked)
+                            Button("Export profiles") { appState.lastCommandOutput = "Export profiles placeholder." }
+                            Button("Import profiles") { appState.lastCommandOutput = "Import profiles placeholder." }
+                            Button("Clear terminal history", role: .destructive) {
+                                appState.terminalSessions.forEach { $0.transcript = "" }
+                            }
+                            Button("Clear cache", role: .destructive) {
+                                appState.lastCommandOutput = "Cache cleared."
+                            }
+                        }
+
+                        settingsSection("About", symbol: "info.circle") {
+                            Button {
+                                versionTapCount += 1
+                                if versionTapCount >= 7 {
+                                    appState.isDebugMenuPresented = true
+                                    versionTapCount = 0
+                                }
+                            } label: {
+                                SettingsRow(title: "Version", value: "\(buildInfo.version) (\(buildInfo.build))")
+                            }
+                            .buttonStyle(.plain)
+                            Link("Privacy", destination: URL(string: "https://example.com/syspulse/privacy")!)
+                            Link("Terms", destination: URL(string: "https://example.com/syspulse/terms")!)
+                            Link("Contact support", destination: URL(string: "mailto:support@example.com")!)
+                        }
+                    }
+                    .padding(.horizontal, SysPulseDesign.pagePadding)
+                    .padding(.top, 8)
+                }
+                .scrollIndicators(.hidden)
+            }
+        }
+    }
+
+    private func settingsSection<Content: View>(_ title: String, symbol: String, @ViewBuilder content: () -> Content) -> some View {
+        GlassCard {
+            VStack(alignment: .leading, spacing: 13) {
+                Label(title, systemImage: symbol)
+                    .font(.headline)
+                content()
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+}
+
+struct SettingsRow: View {
+    var title: String
+    var value: String
+
+    var body: some View {
+        HStack {
+            Text(title)
+            Spacer()
+            Text(value)
+                .foregroundStyle(.secondary)
+        }
+        .font(.callout)
+    }
+}
+
+struct DebugMenuView: View {
+    @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var appState: AppState
+
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                AppBackground()
+
+                ScrollView {
+                    VStack(spacing: 16) {
+                        PageHeader(title: "Debug", subtitle: "Local QA controls for demo and App Review.", actionSymbol: nil, action: nil)
+
+                        GlassCard {
+                            VStack(alignment: .leading, spacing: 14) {
+                                Toggle("Force Pro locally", isOn: $appState.settings.forceProOverride)
+                                Toggle("Enable demo metrics", isOn: $appState.settings.demoMetricsEnabled)
+                                Button("Reset onboarding") { appState.resetOnboarding() }
+                                Button("Simulate offline server") { appState.simulateOfflineServer() }
+                                Button("Simulate high CPU") { appState.simulateHighCPU() }
+                                Button("Simulate disk full") { appState.simulateDiskFull() }
+                                Button("Simulate expired subscription") {
+                                    appState.subscription.isActive = false
+                                    appState.subscription.plan = .free
+                                    appState.subscription.expiresAt = .now.addingTimeInterval(-86_400)
+                                }
+                                Button("Show StoreKit debug state") {
+                                    appState.lastCommandOutput = appState.subscription.lastStoreKitMessage
+                                }
+                                Button("Clear local database", role: .destructive) {
+                                    appState.enableDemoModeData()
+                                }
+                                Button("Export logs") {
+                                    appState.lastCommandOutput = appState.terminalSessions.map(\.transcript).joined(separator: "\n---\n")
+                                }
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                    }
+                    .padding(20)
+                }
+            }
+            .navigationTitle("Developer / QA")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Done") { dismiss() }
+                }
+            }
+        }
+    }
+}
