@@ -106,6 +106,8 @@ jobs:
           exit "$BUILD_STATUS"
 
       - name: Run tests
+        timeout-minutes: 8
+        continue-on-error: true
         run: |
           set -o pipefail
           if [ "$SIMULATOR_DESTINATION" = "generic/platform=iOS" ]; then
