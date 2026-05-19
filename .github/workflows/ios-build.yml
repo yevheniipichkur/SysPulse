@@ -174,15 +174,17 @@ jobs:
         if: ${{ env.APPLE_TEAM_ID != '' && env.APPLE_CERTIFICATE_BASE64 != '' }}
         run: |
           set -euo pipefail
-          ACTIVE_XCODE=$(xcodebuild -version | head -1)
+          XCODE_INFO=$(xcodebuild -version 2>/dev/null || true)
+          ACTIVE_XCODE=$(printf '%s\n' "$XCODE_INFO" | head -1)
           echo "Active Xcode: $ACTIVE_XCODE"
+          SDKS=$(xcodebuild -showsdks 2>/dev/null || true)
           echo "=== Available SDKs ==="
-          xcodebuild -showsdks
+          printf '%s\n' "$SDKS"
           echo ""
-          if xcodebuild -showsdks 2>/dev/null | grep -qE "iphoneos26|iOS 26"; then
+          if printf '%s\n' "$SDKS" | grep -qE "iphoneos26|iOS 26"; then
             echo "iOS 26 SDK: found — proceeding with distribution archive."
           else
-            CURRENT_SDK=$(xcodebuild -showsdks 2>/dev/null | grep iphoneos | tail -1 || echo "unknown")
+            CURRENT_SDK=$(printf '%s\n' "$SDKS" | grep iphoneos | tail -1 || echo "unknown")
             echo "::error::iOS 26 SDK not found."
             echo "::error::Active Xcode: $ACTIVE_XCODE"
             echo "::error::Highest available iOS SDK: $CURRENT_SDK"
@@ -386,7 +388,8 @@ jobs:
           VALIDATION_FAILED=0
 
           echo "--- Xcode / SDK ---"
-          ACTIVE_XCODE=$(xcodebuild -version | head -1)
+          XCODE_INFO=$(xcodebuild -version 2>/dev/null || true)
+          ACTIVE_XCODE=$(printf '%s\n' "$XCODE_INFO" | head -1)
           echo "Builder: $ACTIVE_XCODE"
           SDK_NAME=$(/usr/libexec/PlistBuddy -c "Print :DTSDKName" "$APP_DIR/Info.plist" 2>/dev/null || true)
           echo "DTSDKName: ${SDK_NAME:-not found}"
