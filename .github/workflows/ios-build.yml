@@ -24,6 +24,7 @@ env:
   APPSTORE_CONNECT_API_KEY_ID: ${{ secrets.APPSTORE_CONNECT_API_KEY_ID }}
   APPSTORE_CONNECT_API_ISSUER_ID: ${{ secrets.APPSTORE_CONNECT_API_ISSUER_ID }}
   APPSTORE_CONNECT_API_KEY_BASE64: ${{ secrets.APPSTORE_CONNECT_API_KEY_BASE64 }}
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   build:
@@ -156,33 +157,58 @@ jobs:
             | tee build/logs/archive-unsigned.log
 
       - name: Prepare signing assets
-        if: ${{ env.APPLE_TEAM_ID != '' && env.APPLE_CERTIFICATE_BASE64 != '' && env.APPLE_PROVISIONING_PROFILE_BASE64 != '' }}
+        if: ${{ env.APPLE_TEAM_ID != '' && env.APPLE_CERTIFICATE_BASE64 != '' }}
         env:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           APPLE_CERTIFICATE_BASE64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
           APPLE_PROVISIONING_PROFILE_BASE64: ${{ secrets.APPLE_PROVISIONING_PROFILE_BASE64 }}
+          APPSTORE_CONNECT_API_KEY_ID: ${{ secrets.APPSTORE_CONNECT_API_KEY_ID }}
+          APPSTORE_CONNECT_API_KEY_BASE64: ${{ secrets.APPSTORE_CONNECT_API_KEY_BASE64 }}
         run: |
           set -euo pipefail
           mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+          mkdir -p private_keys
           echo "$APPLE_CERTIFICATE_BASE64" | base64 --decode > certificate.p12
-          echo "$APPLE_PROVISIONING_PROFILE_BASE64" | base64 --decode > profile.mobileprovision
           security create-keychain -p "" build.keychain
           security default-keychain -s build.keychain
           security unlock-keychain -p "" build.keychain
+          security set-keychain-settings -lut 21600 build.keychain
           security import certificate.p12 -k build.keychain -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
           security set-key-partition-list -S apple-tool:,apple: -s -k "" build.keychain
-          PROFILE_UUID=$(/usr/libexec/PlistBuddy -c "Print :UUID" /dev/stdin <<< "$(security cms -D -i profile.mobileprovision)")
-          cp profile.mobileprovision "$HOME/Library/MobileDevice/Provisioning Profiles/$PROFILE_UUID.mobileprovision"
-          echo "PROFILE_UUID=$PROFILE_UUID" >> "$GITHUB_ENV"
+          if [ -n "${APPLE_PROVISIONING_PROFILE_BASE64:-}" ]; then
+            echo "$APPLE_PROVISIONING_PROFILE_BASE64" | base64 --decode > profile.mobileprovision
+            security cms -D -i profile.mobileprovision > profile.plist
+            PROFILE_UUID=$(/usr/libexec/PlistBuddy -c "Print :UUID" profile.plist)
+            PROFILE_NAME=$(/usr/libexec/PlistBuddy -c "Print :Name" profile.plist)
+            PROFILE_APP_ID=$(/usr/libexec/PlistBuddy -c "Print :Entitlements:application-identifier" profile.plist || true)
+            cp profile.mobileprovision "$HOME/Library/MobileDevice/Provisioning Profiles/$PROFILE_UUID.mobileprovision"
+            echo "PROFILE_UUID=$PROFILE_UUID" >> "$GITHUB_ENV"
+            echo "PROFILE_NAME=$PROFILE_NAME" >> "$GITHUB_ENV"
+            echo "Installed provisioning profile: $PROFILE_NAME ($PROFILE_UUID)"
+            echo "Profile application identifier: $PROFILE_APP_ID"
+          else
+            echo "No provisioning profile secret supplied. xcodebuild will rely on automatic signing."
+          fi
+          if [ -n "${APPSTORE_CONNECT_API_KEY_ID:-}" ] && [ -n "${APPSTORE_CONNECT_API_KEY_BASE64:-}" ]; then
+            echo "$APPSTORE_CONNECT_API_KEY_BASE64" | base64 --decode > "private_keys/AuthKey_${APPSTORE_CONNECT_API_KEY_ID}.p8"
+            echo "ASC_KEY_PATH=$PWD/private_keys/AuthKey_${APPSTORE_CONNECT_API_KEY_ID}.p8" >> "$GITHUB_ENV"
+          fi
 
       - name: Create signed archive
-        if: ${{ env.APPLE_TEAM_ID != '' && env.APPLE_CERTIFICATE_BASE64 != '' && env.APPLE_PROVISIONING_PROFILE_BASE64 != '' }}
+        if: ${{ env.APPLE_TEAM_ID != '' && env.APPLE_CERTIFICATE_BASE64 != '' }}
         env:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           APPLE_BUNDLE_ID: ${{ secrets.APPLE_BUNDLE_ID }}
+          APPSTORE_CONNECT_API_KEY_ID: ${{ secrets.APPSTORE_CONNECT_API_KEY_ID }}
+          APPSTORE_CONNECT_API_ISSUER_ID: ${{ secrets.APPSTORE_CONNECT_API_ISSUER_ID }}
         run: |
           set -o pipefail
+          AUTH_ARGS=()
+          if [ -n "${ASC_KEY_PATH:-}" ] && [ -n "${APPSTORE_CONNECT_API_KEY_ID:-}" ] && [ -n "${APPSTORE_CONNECT_API_ISSUER_ID:-}" ]; then
+            AUTH_ARGS=(-allowProvisioningUpdates -authenticationKeyPath "$ASC_KEY_PATH" -authenticationKeyID "$APPSTORE_CONNECT_API_KEY_ID" -authenticationKeyIssuerID "$APPSTORE_CONNECT_API_ISSUER_ID")
+          fi
+          set +e
           xcodebuild archive \
             -project "$PROJECT" \
             -scheme "$SCHEME" \
@@ -191,16 +217,30 @@ jobs:
             -archivePath "$ARCHIVE_PATH" \
             DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
             PRODUCT_BUNDLE_IDENTIFIER="${APPLE_BUNDLE_ID:-$DEFAULT_BUNDLE_ID}" \
-            CODE_SIGN_STYLE=Manual \
-            PROVISIONING_PROFILE="$PROFILE_UUID" \
+            CODE_SIGN_STYLE=Automatic \
             SKIP_INSTALL=NO \
+            "${AUTH_ARGS[@]}" \
             | tee build/logs/archive-signed.log
+          ARCHIVE_STATUS=${PIPESTATUS[0]}
+          set -e
+          if [ "$ARCHIVE_STATUS" -ne 0 ]; then
+            echo "Signed archive failed. Extracting signing diagnostics:"
+            grep -E "error:|warning:|Provisioning|provisioning|Signing|signing|No profiles|requires a provisioning profile|CodeSign|CodeSign error" build/logs/archive-signed.log | tail -n 160 | while IFS= read -r line; do
+              escaped=${line//'%'/'%25'}
+              escaped=${escaped//$'\n'/'%0A'}
+              escaped=${escaped//$'\r'/'%0D'}
+              echo "::error::$escaped"
+            done
+          fi
+          exit "$ARCHIVE_STATUS"
 
       - name: Export IPA
-        if: ${{ env.APPLE_TEAM_ID != '' && env.APPLE_CERTIFICATE_BASE64 != '' && env.APPLE_PROVISIONING_PROFILE_BASE64 != '' }}
+        if: ${{ env.APPLE_TEAM_ID != '' && env.APPLE_CERTIFICATE_BASE64 != '' }}
         env:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           APPLE_BUNDLE_ID: ${{ secrets.APPLE_BUNDLE_ID }}
+          APPSTORE_CONNECT_API_KEY_ID: ${{ secrets.APPSTORE_CONNECT_API_KEY_ID }}
+          APPSTORE_CONNECT_API_ISSUER_ID: ${{ secrets.APPSTORE_CONNECT_API_ISSUER_ID }}
         run: |
           set -euo pipefail
           mkdir -p "$EXPORT_PATH"
@@ -214,7 +254,7 @@ jobs:
             <key>teamID</key>
             <string>$APPLE_TEAM_ID</string>
             <key>signingStyle</key>
-            <string>manual</string>
+            <string>automatic</string>
             <key>stripSwiftSymbols</key>
             <true/>
             <key>uploadBitcode</key>
@@ -224,11 +264,29 @@ jobs:
           </dict>
           </plist>
           EOF
+          AUTH_ARGS=()
+          if [ -n "${ASC_KEY_PATH:-}" ] && [ -n "${APPSTORE_CONNECT_API_KEY_ID:-}" ] && [ -n "${APPSTORE_CONNECT_API_ISSUER_ID:-}" ]; then
+            AUTH_ARGS=(-allowProvisioningUpdates -authenticationKeyPath "$ASC_KEY_PATH" -authenticationKeyID "$APPSTORE_CONNECT_API_KEY_ID" -authenticationKeyIssuerID "$APPSTORE_CONNECT_API_ISSUER_ID")
+          fi
+          set +e
           xcodebuild -exportArchive \
             -archivePath "$ARCHIVE_PATH" \
             -exportPath "$EXPORT_PATH" \
             -exportOptionsPlist ExportOptions.plist \
+            "${AUTH_ARGS[@]}" \
             | tee build/logs/export-ipa.log
+          EXPORT_STATUS=${PIPESTATUS[0]}
+          set -e
+          if [ "$EXPORT_STATUS" -ne 0 ]; then
+            echo "IPA export failed. Extracting export diagnostics:"
+            grep -E "error:|warning:|Provisioning|provisioning|Signing|signing|No profiles|requires a provisioning profile|exportArchive|method|teamID" build/logs/export-ipa.log | tail -n 160 | while IFS= read -r line; do
+              escaped=${line//'%'/'%25'}
+              escaped=${escaped//$'\n'/'%0A'}
+              escaped=${escaped//$'\r'/'%0D'}
+              echo "::error::$escaped"
+            done
+          fi
+          exit "$EXPORT_STATUS"
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
@@ -254,7 +312,10 @@ jobs:
             exit 0
           fi
           mkdir -p private_keys
-          echo "$APPSTORE_CONNECT_API_KEY_BASE64" | base64 --decode > "private_keys/AuthKey_${APPSTORE_CONNECT_API_KEY_ID}.p8"
+          if [ -z "${ASC_KEY_PATH:-}" ]; then
+            echo "$APPSTORE_CONNECT_API_KEY_BASE64" | base64 --decode > "private_keys/AuthKey_${APPSTORE_CONNECT_API_KEY_ID}.p8"
+            ASC_KEY_PATH="$PWD/private_keys/AuthKey_${APPSTORE_CONNECT_API_KEY_ID}.p8"
+          fi
           xcrun altool --upload-app \
             --type ios \
             --file "$IPA" \
