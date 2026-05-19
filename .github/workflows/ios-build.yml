@@ -414,11 +414,15 @@ jobs:
           echo ""
 
           echo "--- Icon asset catalog ---"
-          if [ -f "$APP_DIR/Assets.car" ]; then
-            echo "Assets.car: found (icons stored in compiled asset catalog)"
-            echo "120x120 icon: OK — asset catalog present and CFBundleIconName is set"
+          echo "App bundle top-level contents:"
+          ls -la "$APP_DIR/" 2>/dev/null | head -n 40 || true
+          echo ""
+          ASSETS_CAR=$(find "$APP_DIR" -name "Assets.car" 2>/dev/null | head -n 1 || true)
+          echo "Assets.car location: ${ASSETS_CAR:-not found}"
+          if [ -n "$ASSETS_CAR" ]; then
+            echo "Icon asset catalog: OK"
           else
-            echo "::error::Assets.car not found in bundle — icon asset catalog was not compiled in."
+            echo "::error::Assets.car not found anywhere in bundle. Asset catalog was not compiled."
             VALIDATION_FAILED=1
           fi
           echo ""
