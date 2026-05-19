@@ -132,7 +132,7 @@ jobs:
           set -e
           if [ "$TEST_STATUS" -ne 0 ]; then
             echo "Tests failed. Extracting XCTest diagnostics as warnings so TestFlight packaging can continue:"
-            grep -E "error:|warning:|failed:|Test Case|Executed|Testing failed" build/logs/test.log | tail -n 120 | while IFS= read -r line; do
+            { grep -E "error:|warning:|failed:|Test Case|Executed|Testing failed" build/logs/test.log || true; } | tail -n 120 | while IFS= read -r line; do
               escaped=${line//'%'/'%25'}
               escaped=${escaped//$'\n'/'%0A'}
               escaped=${escaped//$'\r'/'%0D'}
@@ -189,7 +189,13 @@ jobs:
           set -e
           if [ "$IMPORT_STATUS" -ne 0 ]; then
             echo "::error::Could not import APPLE_CERTIFICATE_BASE64 into keychain. Check that the .p12 includes a private key and APPLE_CERTIFICATE_PASSWORD is correct."
-            sed -E 's/[A-Za-z0-9+\/=]{24,}/[redacted]/g' build/logs/security-import.log | tail -n 40
+            sed -E 's/[A-Za-z0-9+\/=]{24,}/[redacted]/g' build/logs/security-import.log | tail -n 40 | while IFS= read -r line; do
+              [ -z "$line" ] && continue
+              escaped=${line//'%'/'%25'}
+              escaped=${escaped//$'\n'/'%0A'}
+              escaped=${escaped//$'\r'/'%0D'}
+              echo "::error::$escaped"
+            done
             exit "$IMPORT_STATUS"
           fi
           security set-key-partition-list -S apple-tool:,apple: -s -k "" build.keychain
