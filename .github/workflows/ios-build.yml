@@ -294,6 +294,7 @@ jobs:
           security default-keychain -s build.keychain
           security unlock-keychain -p "" build.keychain
           security set-keychain-settings -lut 21600 build.keychain
+          echo "SIGNING_KEYCHAIN_PATH=$HOME/Library/Keychains/build.keychain-db" >> "$GITHUB_ENV"
           set +e
           security import certificate.p12 -k build.keychain -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign > build/logs/security-import.log 2>&1
           IMPORT_STATUS=$?
@@ -369,12 +370,13 @@ jobs:
             CURRENT_PROJECT_VERSION="$BUILD_NUMBER" \
             CODE_SIGN_STYLE=Manual \
             CODE_SIGN_IDENTITY="Apple Distribution" \
+            OTHER_CODE_SIGN_FLAGS="--keychain $SIGNING_KEYCHAIN_PATH" \
             | tee build/logs/archive-signed.log
           ARCHIVE_STATUS=${PIPESTATUS[0]}
           set -e
           if [ "$ARCHIVE_STATUS" -ne 0 ]; then
             echo "Signed archive failed. Extracting signing diagnostics:"
-            grep -E "error:|warning:|Provisioning|provisioning|Signing|signing|No profiles|requires a provisioning profile|CodeSign|CodeSign error" build/logs/archive-signed.log | tail -n 160 | while IFS= read -r line; do
+            grep -E "error:|warning:|Provisioning|provisioning|No profiles|requires a provisioning profile|errSec|Command CodeSign failed|CodeSign error|No signing certificate|Signing for|requires a development team" build/logs/archive-signed.log | tail -n 160 | while IFS= read -r line; do
               escaped=${line//'%'/'%25'}
               escaped=${escaped//$'\n'/'%0A'}
               escaped=${escaped//$'\r'/'%0D'}
