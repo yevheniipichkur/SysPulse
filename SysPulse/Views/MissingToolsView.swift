@@ -57,11 +57,16 @@ struct MissingToolsView: View {
                                                 .font(.caption.monospaced())
                                                 .foregroundStyle(.secondary)
                                         }
-                                        Text(tool.reason)
+                                        Text(LocalizedStringKey(tool.reason))
                                             .font(.callout)
-                                        Text("Unavailable: \(tool.unavailableFeatures.joined(separator: ", "))")
-                                            .font(.caption)
-                                            .foregroundStyle(.secondary)
+                                        HStack(spacing: 4) {
+                                            Text("Unavailable:")
+                                            ForEach(tool.unavailableFeatures, id: \.self) { feature in
+                                                Text(LocalizedStringKey(feature))
+                                            }
+                                        }
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
                                     }
                                 }
                             }
@@ -71,7 +76,7 @@ struct MissingToolsView: View {
                             VStack(alignment: .leading, spacing: 12) {
                                 Picker("Distribution", selection: $distribution) {
                                     ForEach(LinuxDistribution.allCases) { item in
-                                        Text(item.rawValue).tag(item)
+                                        Text(item.titleKey).tag(item)
                                     }
                                 }
                                 .pickerStyle(.menu)

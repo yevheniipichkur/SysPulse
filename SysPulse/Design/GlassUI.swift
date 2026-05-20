@@ -84,13 +84,13 @@ struct StatusPill: View {
                 .fill(status.color)
                 .frame(width: 7, height: 7)
                 .shadow(color: status.color.opacity(0.8), radius: 6)
-            Text(status.title)
+            Text(status.titleKey)
                 .font(.caption.weight(.semibold))
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 7)
         .background(.thinMaterial, in: Capsule())
-        .accessibilityLabel(status.title)
+        .accessibilityLabel(Text(status.titleKey))
     }
 }
 
@@ -112,7 +112,7 @@ struct SafetyBadge: View {
     var level: CommandSafetyLevel
 
     var body: some View {
-        Text(level.rawValue)
+        Text(level.titleKey)
             .font(.caption.weight(.semibold))
             .foregroundStyle(level.color)
             .padding(.horizontal, 9)
@@ -122,7 +122,7 @@ struct SafetyBadge: View {
 }
 
 struct MetricTile: View {
-    var title: String
+    var title: LocalizedStringKey
     var value: String
     var symbol: String
     var color: Color

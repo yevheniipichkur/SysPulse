@@ -144,10 +144,13 @@ struct ServerCardView: View {
                                     .background(.cyan.opacity(0.12), in: Capsule())
                             }
                         }
-                        Text("\(server.serverType.rawValue) • \(server.host)")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
+                        HStack(spacing: 0) {
+                            Text(server.serverType.titleKey)
+                            Text(" • \(server.host)")
+                        }
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
                         Text(metrics.osName)
                             .font(.caption2)
                             .foregroundStyle(.secondary)
@@ -186,7 +189,7 @@ struct ServerCardView: View {
 }
 
 struct CompactMetric: View {
-    var title: String
+    var title: LocalizedStringKey
     var value: Double
     var color: Color
 
@@ -228,7 +231,7 @@ struct HealthScoreView: View {
                     .monospacedDigit()
             }
             .font(.subheadline.weight(.bold))
-            Text(rating.rawValue)
+            Text(rating.titleKey)
                 .font(.caption2.weight(.semibold))
                 .foregroundStyle(rating.color)
         }
@@ -295,7 +298,7 @@ struct AddServerView: View {
                             VStack(alignment: .leading, spacing: 14) {
                                 Picker("Authentication", selection: $authType) {
                                     ForEach(SSHAuthenticationType.allCases) { type in
-                                        Text(type.rawValue).tag(type)
+                                        Text(type.titleKey).tag(type)
                                     }
                                 }
                                 .pickerStyle(.menu)
@@ -313,7 +316,7 @@ struct AddServerView: View {
                             VStack(spacing: 14) {
                                 Picker("Server type", selection: $serverType) {
                                     ForEach(ServerType.allCases) { type in
-                                        Label(type.rawValue, systemImage: type.symbol).tag(type)
+                                        Label(type.titleKey, systemImage: type.symbol).tag(type)
                                     }
                                 }
                                 .pickerStyle(.menu)
@@ -349,7 +352,7 @@ struct AddServerView: View {
                             Button {
                                 save(connectAfterSave: false)
                             } label: {
-                                Label(editingServer == nil ? "Save Securely" : "Save Changes", systemImage: "key")
+                                Label(editingServer == nil ? LocalizedStringKey("Save Securely") : LocalizedStringKey("Save Changes"), systemImage: "key")
                                     .frame(maxWidth: .infinity)
                                     .padding(.vertical, 13)
                                     .foregroundStyle(.white)
@@ -367,7 +370,7 @@ struct AddServerView: View {
                     .padding(20)
                 }
             }
-            .navigationTitle(editingServer == nil ? "Add Server" : "Edit Server")
+            .navigationTitle(editingServer == nil ? LocalizedStringKey("Add Server") : LocalizedStringKey("Edit Server"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -383,7 +386,7 @@ struct AddServerView: View {
         !username.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
-    private var secretPlaceholder: String {
+    private var secretPlaceholder: LocalizedStringKey {
         switch authType {
         case .password: "Password"
         case .privateKey: "Private key"

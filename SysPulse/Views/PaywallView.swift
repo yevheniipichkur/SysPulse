@@ -44,7 +44,7 @@ struct PaywallView: View {
                                     Image(systemName: item.1)
                                         .foregroundStyle(.cyan)
                                         .frame(width: 28)
-                                    Text(item.0)
+                                    Text(LocalizedStringKey(item.0))
                                         .font(.headline)
                                     Spacer()
                                 }
@@ -88,9 +88,9 @@ struct PaywallView: View {
 }
 
 private struct PlanCard: View {
-    var title: String
+    var title: LocalizedStringKey
     var price: String
-    var subtitle: String
+    var subtitle: LocalizedStringKey
     var isBestValue: Bool
     var action: () -> Void
 

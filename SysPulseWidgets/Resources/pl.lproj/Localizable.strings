@@ -1,0 +1,10 @@
+"Health %lld" = "Kondycja %lld";
+"Online" = "Online";
+"Offline" = "Offline";
+"Warning" = "Uwaga";
+"Unknown" = "Nieznany";
+"CPU" = "CPU";
+"RAM" = "RAM";
+"Disk" = "Dysk";
+"SysPulse Server" = "Serwer SysPulse";
+"Preview server health, CPU, RAM and disk." = "Podgląd kondycji serwera, CPU, RAM i dysku.";

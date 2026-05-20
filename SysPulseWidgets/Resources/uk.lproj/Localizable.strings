@@ -1,0 +1,10 @@
+"Health %lld" = "Стан %lld";
+"Online" = "Онлайн";
+"Offline" = "Офлайн";
+"Warning" = "Увага";
+"Unknown" = "Невідомо";
+"CPU" = "CPU";
+"RAM" = "RAM";
+"Disk" = "Диск";
+"SysPulse Server" = "Сервер SysPulse";
+"Preview server health, CPU, RAM and disk." = "Перегляд стану сервера, CPU, RAM і диска.";

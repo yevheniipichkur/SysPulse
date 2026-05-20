@@ -15,7 +15,9 @@ struct SettingsView: View {
                         PageHeader(title: "Settings", subtitle: "Security, appearance and Pro controls.", actionSymbol: nil, action: nil)
 
                         settingsSection("Account", symbol: "person.crop.circle") {
-                            SettingsRow(title: "Pro status", value: appState.isProUnlocked ? "Active" : "Free")
+                            SettingsRow(title: "Pro status") {
+                                Text(appState.isProUnlocked ? LocalizedStringKey("Active") : LocalizedStringKey("Free"))
+                            }
                             Button("Manage subscription") { appState.isPaywallPresented = true }
                             Button("Restore purchases") {
                                 appState.subscription.lastStoreKitMessage = "Restore purchases will sync through StoreKit 2."
@@ -32,13 +34,13 @@ struct SettingsView: View {
                         settingsSection("Appearance", symbol: "paintpalette") {
                             Picker("Mode", selection: $appState.settings.appearanceMode) {
                                 ForEach(AppearanceMode.allCases) { mode in
-                                    Text(mode.rawValue).tag(mode)
+                                    Text(mode.titleKey).tag(mode)
                                 }
                             }
                             Picker("Terminal theme", selection: $appState.settings.terminalTheme) {
                                 ForEach(TerminalTheme.allCases) { theme in
                                     HStack {
-                                        Text(theme.rawValue)
+                                        Text(theme.titleKey)
                                         if theme.isPremium { Text("Pro") }
                                     }
                                     .tag(theme)
@@ -53,7 +55,7 @@ struct SettingsView: View {
                         settingsSection("Language", symbol: "globe") {
                             Picker("Language", selection: $appState.settings.language) {
                                 ForEach(AppLanguage.allCases) { language in
-                                    Text(language.rawValue).tag(language)
+                                    Text(language.titleKey).tag(language)
                                 }
                             }
                         }
@@ -79,7 +81,9 @@ struct SettingsView: View {
                                     versionTapCount = 0
                                 }
                             } label: {
-                                SettingsRow(title: "Version", value: "\(buildInfo.version) (\(buildInfo.build))")
+                                SettingsRow(title: "Version") {
+                                    Text("\(buildInfo.version) (\(buildInfo.build))")
+                                }
                             }
                             .buttonStyle(.plain)
                             Link("Privacy", destination: URL(string: "https://example.com/syspulse/privacy")!)
@@ -95,7 +99,7 @@ struct SettingsView: View {
         }
     }
 
-    private func settingsSection<Content: View>(_ title: String, symbol: String, @ViewBuilder content: () -> Content) -> some View {
+    private func settingsSection<Content: View>(_ title: LocalizedStringKey, symbol: String, @ViewBuilder content: () -> Content) -> some View {
         GlassCard {
             VStack(alignment: .leading, spacing: 13) {
                 Label(title, systemImage: symbol)
@@ -107,15 +111,20 @@ struct SettingsView: View {
     }
 }
 
-struct SettingsRow: View {
-    var title: String
-    var value: String
+struct SettingsRow<Value: View>: View {
+    var title: LocalizedStringKey
+    private let value: Value
+
+    init(title: LocalizedStringKey, @ViewBuilder value: () -> Value) {
+        self.title = title
+        self.value = value()
+    }
 
     var body: some View {
         HStack {
             Text(title)
             Spacer()
-            Text(value)
+            value
                 .foregroundStyle(.secondary)
         }
         .font(.callout)

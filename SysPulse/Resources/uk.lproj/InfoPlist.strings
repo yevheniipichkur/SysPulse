@@ -1,0 +1,2 @@
+"NSFaceIDUsageDescription" = "SysPulse використовує Face ID для захисту збережених профілів серверів і облікових даних.";
+"NSLocalNetworkUsageDescription" = "SysPulse може підключатися до Linux-серверів у вашій локальній мережі після додавання профілю.";

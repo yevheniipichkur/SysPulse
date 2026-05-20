@@ -70,7 +70,7 @@ struct InsightsService {
             insights.append(
                 SmartInsight(
                     title: "There are failed systemd services",
-                    details: "\(metrics.failedServices) unit needs attention.",
+                    details: "One or more units need attention.",
                     severity: .moderate,
                     symbol: "xmark.seal"
                 )

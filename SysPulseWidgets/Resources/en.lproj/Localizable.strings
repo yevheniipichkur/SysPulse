@@ -1,0 +1,10 @@
+"Health %lld" = "Health %lld";
+"Online" = "Online";
+"Offline" = "Offline";
+"Warning" = "Warning";
+"Unknown" = "Unknown";
+"CPU" = "CPU";
+"RAM" = "RAM";
+"Disk" = "Disk";
+"SysPulse Server" = "SysPulse Server";
+"Preview server health, CPU, RAM and disk." = "Preview server health, CPU, RAM and disk.";

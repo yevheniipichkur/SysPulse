@@ -64,7 +64,7 @@ struct SysPulseWidgetView: View {
                     .font(.headline)
                     .lineLimit(1)
                 Spacer()
-                Text(entry.primary.status)
+                Text(LocalizedStringKey(entry.primary.status))
                     .font(.caption.weight(.bold))
                     .foregroundStyle(statusColor(entry.primary.status))
             }
@@ -94,7 +94,7 @@ struct SysPulseWidgetView: View {
         .sysPulseWidgetBackground()
     }
 
-    private func metricRow(_ title: String, _ value: Double, _ color: Color) -> some View {
+    private func metricRow(_ title: LocalizedStringKey, _ value: Double, _ color: Color) -> some View {
         HStack {
             Text(title)
                 .font(.caption)

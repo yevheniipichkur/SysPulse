@@ -13,6 +13,8 @@
 - [x] Settings.
 - [x] Paywall.
 - [x] Localization.
+- [x] Runtime language switching in Settings.
+- [x] Expanded EN/UK/RU/PL localization for main app, widgets and permission prompts.
 - [x] GitHub Actions.
 - [x] Local metadata persistence for saved profiles.
 - [x] Command safety analyzer tests.

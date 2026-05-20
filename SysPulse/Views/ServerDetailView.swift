@@ -129,7 +129,7 @@ struct ServerDetailView: View {
                             selectedTab = tab
                         }
                     } label: {
-                        Label(tab.title, systemImage: tab.symbol)
+                        Label(tab.titleKey, systemImage: tab.symbol)
                             .font(.caption.weight(.semibold))
                             .padding(.horizontal, 12)
                             .padding(.vertical, 10)
@@ -170,9 +170,9 @@ struct ServerDetailView: View {
                                 .foregroundStyle(insight.severity.color)
                                 .frame(width: 26)
                             VStack(alignment: .leading, spacing: 3) {
-                                Text(insight.title)
+                                Text(LocalizedStringKey(insight.title))
                                     .font(.subheadline.weight(.semibold))
-                                Text(insight.details)
+                                Text(LocalizedStringKey(insight.details))
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                             }
@@ -184,7 +184,7 @@ struct ServerDetailView: View {
 
             GlassCard {
                 VStack(alignment: .leading, spacing: 10) {
-                    Text("System")
+                    Text("System Info")
                         .font(.headline)
                     DetailRow(title: "Kernel", value: metrics.kernel)
                     DetailRow(title: "Load average", value: metrics.loadAverage)
@@ -236,7 +236,7 @@ struct ServerDetailView: View {
                             Label(disk.mountPoint, systemImage: "externaldrive")
                                 .font(.headline)
                             Spacer()
-                            Text(disk.usagePercent >= 90 ? "Critical" : disk.usagePercent >= 80 ? "Warning" : "Healthy")
+                            Text(LocalizedStringKey(disk.usagePercent >= 90 ? "Critical" : disk.usagePercent >= 80 ? "Warning" : "Healthy"))
                                 .font(.caption.weight(.bold))
                                 .foregroundStyle(disk.usagePercent >= 90 ? .red : disk.usagePercent >= 80 ? .orange : .green)
                         }
@@ -353,7 +353,7 @@ struct ServerDetailView: View {
         }
     }
 
-    private func commandPreview(title: String, command: String) -> some View {
+    private func commandPreview(title: LocalizedStringKey, command: String) -> some View {
         GlassCard(cornerRadius: 18, padding: 12) {
             VStack(alignment: .leading, spacing: 6) {
                 Text(title)
@@ -391,7 +391,7 @@ struct ServerDetailView: View {
                         VStack(alignment: .leading, spacing: 3) {
                             Text(item.commandName)
                                 .font(.headline)
-                            Text(item.featureImpact)
+                            Text(LocalizedStringKey(item.featureImpact))
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
@@ -463,7 +463,7 @@ private enum DetailTab: String, CaseIterable, Identifiable {
     case actions = "Actions"
 
     var id: String { rawValue }
-    var title: String { rawValue }
+    var titleKey: LocalizedStringKey { LocalizedStringKey(rawValue) }
 
     var symbol: String {
         switch self {
@@ -481,7 +481,7 @@ private enum DetailTab: String, CaseIterable, Identifiable {
 }
 
 struct DetailRow: View {
-    var title: String
+    var title: LocalizedStringKey
     var value: String
 
     var body: some View {

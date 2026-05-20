@@ -45,6 +45,8 @@ enum ServerType: String, CaseIterable, Identifiable, Codable, Hashable {
 
     var id: String { rawValue }
 
+    var titleKey: LocalizedStringKey { LocalizedStringKey(rawValue) }
+
     var symbol: String {
         switch self {
         case .raspberryPi: "cpu"
@@ -66,6 +68,7 @@ enum SSHAuthenticationType: String, CaseIterable, Identifiable, Codable, Hashabl
     case privateKeyWithPassphrase = "Private Key + Passphrase"
 
     var id: String { rawValue }
+    var titleKey: LocalizedStringKey { LocalizedStringKey(rawValue) }
 }
 
 enum ServerStatus: String, Codable, Hashable {
@@ -83,6 +86,8 @@ enum ServerStatus: String, Codable, Hashable {
         }
     }
 
+    var titleKey: LocalizedStringKey { LocalizedStringKey(title) }
+
     var color: Color {
         switch self {
         case .online: .green
@@ -99,6 +104,7 @@ enum CommandSafetyLevel: String, CaseIterable, Identifiable, Codable, Hashable {
     case dangerous = "Dangerous"
 
     var id: String { rawValue }
+    var titleKey: LocalizedStringKey { LocalizedStringKey(rawValue) }
 
     var color: Color {
         switch self {
@@ -122,6 +128,7 @@ enum TerminalTheme: String, CaseIterable, Identifiable, Codable, Hashable {
     case terminalPro = "Terminal Pro"
 
     var id: String { rawValue }
+    var titleKey: LocalizedStringKey { LocalizedStringKey(rawValue) }
 
     var isPremium: Bool { self != .liquidDark }
 }
@@ -132,6 +139,7 @@ enum AppearanceMode: String, CaseIterable, Identifiable, Codable, Hashable {
     case dark = "Dark"
 
     var id: String { rawValue }
+    var titleKey: LocalizedStringKey { LocalizedStringKey(rawValue) }
 }
 
 enum AppLanguage: String, CaseIterable, Identifiable, Codable, Hashable {
@@ -142,6 +150,36 @@ enum AppLanguage: String, CaseIterable, Identifiable, Codable, Hashable {
     case polish = "Polski"
 
     var id: String { rawValue }
+
+    var locale: Locale {
+        switch self {
+        case .system:
+            .autoupdatingCurrent
+        case .english:
+            Locale(identifier: "en")
+        case .ukrainian:
+            Locale(identifier: "uk")
+        case .russian:
+            Locale(identifier: "ru")
+        case .polish:
+            Locale(identifier: "pl")
+        }
+    }
+
+    var titleKey: LocalizedStringKey {
+        switch self {
+        case .system:
+            "System"
+        case .english:
+            "English"
+        case .ukrainian:
+            "Українська"
+        case .russian:
+            "Русский"
+        case .polish:
+            "Polski"
+        }
+    }
 }
 
 enum SubscriptionPlan: String, Codable, Hashable {
@@ -165,6 +203,8 @@ enum HealthRating: String, Hashable {
         default: .critical
         }
     }
+
+    var titleKey: LocalizedStringKey { LocalizedStringKey(rawValue) }
 
     var color: Color {
         switch self {
@@ -567,6 +607,7 @@ enum LinuxDistribution: String, CaseIterable, Identifiable, Hashable {
     case alpine = "Alpine"
 
     var id: String { rawValue }
+    var titleKey: LocalizedStringKey { LocalizedStringKey(rawValue) }
 
     var installCommand: String {
         switch self {

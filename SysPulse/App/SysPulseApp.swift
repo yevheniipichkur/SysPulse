@@ -9,6 +9,7 @@ struct SysPulseApp: App {
         WindowGroup {
             RootView()
                 .environmentObject(appState)
+                .environment(\.locale, appState.settings.language.locale)
                 .preferredColorScheme(appState.preferredColorScheme)
         }
         .modelContainer(

@@ -124,13 +124,13 @@ private struct CommandCard: View {
                 HStack(alignment: .top) {
                     VStack(alignment: .leading, spacing: 5) {
                         HStack {
-                            Text(command.title)
+                            Text(LocalizedStringKey(command.title))
                                 .font(.headline)
                             if command.isPremium {
                                 PremiumBadge()
                             }
                         }
-                        Text(command.details)
+                        Text(LocalizedStringKey(command.details))
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -145,13 +145,16 @@ private struct CommandCard: View {
                     .background(.black.opacity(0.18), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
 
                 if !command.variables.isEmpty {
-                    Text("Variables: \(command.variables.map { "{\($0)}" }.joined(separator: ", "))")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    HStack(spacing: 4) {
+                        Text("Variables:")
+                        Text(command.variables.map { "{\($0)}" }.joined(separator: ", "))
+                    }
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
                 }
 
                 Button(action: action) {
-                    Label(isLocked ? "Unlock Pro" : "Run Command", systemImage: isLocked ? "sparkles" : "play.fill")
+                    Label(isLocked ? LocalizedStringKey("Unlock Pro") : LocalizedStringKey("Run Command"), systemImage: isLocked ? "sparkles" : "play.fill")
                         .font(.subheadline.weight(.bold))
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 12)
