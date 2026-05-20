@@ -6,6 +6,7 @@ struct TerminalView: View {
     @State private var selectedSessionID: UUID?
     @State private var commandLine = ""
     @State private var isRunning = false
+    @State private var workingDirectories: [UUID: String] = [:]
     @FocusState private var inputFocused: Bool
 
     private var selectedSession: TerminalSession? {
@@ -318,6 +319,7 @@ struct TerminalView: View {
         )
         appState.terminalSessions.append(session)
         selectedSessionID = session.id
+        workingDirectories[session.id] = nil
         appState.haptic(.light)
         inputFocused = true
     }
@@ -349,9 +351,32 @@ struct TerminalView: View {
         commandLine = ""
         isRunning = true
 
+        // cd is a shell built-in that produces no output over stateless SSH.
+        // Simulate it by resolving the new path with pwd and tracking it locally.
+        if text == "cd" || text.hasPrefix("cd ") || text.hasPrefix("cd\t") {
+            let arg = String(text.dropFirst(2)).trimmingCharacters(in: .whitespaces)
+            let resolveCmd = arg.isEmpty ? "pwd" : "cd \(arg) && pwd"
+            Task {
+                do {
+                    let raw = try await appState.sshClient.run(prefixedCommand(resolveCmd, session: sessionID), on: server)
+                    let newPath = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+                    await MainActor.run {
+                        if let id = sessionID { workingDirectories[id] = newPath }
+                        isRunning = false
+                    }
+                } catch {
+                    await MainActor.run {
+                        append("cd: \(error.localizedDescription)\n", to: sessionID)
+                        isRunning = false
+                    }
+                }
+            }
+            return
+        }
+
         Task {
             do {
-                let output = try await appState.sshClient.run(text, on: server)
+                let output = try await appState.sshClient.run(prefixedCommand(text, session: sessionID), on: server)
                 await MainActor.run {
                     append(normalizedOutput(output), to: sessionID)
                     isRunning = false
@@ -365,8 +390,18 @@ struct TerminalView: View {
         }
     }
 
+    private func prefixedCommand(_ command: String, session: UUID?) -> String {
+        guard let id = session, let cwd = workingDirectories[id], !cwd.isEmpty else {
+            return command
+        }
+        return "cd \(cwd) && \(command)"
+    }
+
     private func prompt(for server: ServerProfile) -> String {
-        "\(server.username)@\(server.host):~$ "
+        let cwd = selectedSessionID.flatMap { workingDirectories[$0] } ?? "~"
+        let home = "/home/\(server.username)"
+        let display = (cwd == home || cwd == "/root") ? "~" : cwd
+        return "\(server.username)@\(server.host):\(display)$ "
     }
 
     private func normalizedOutput(_ output: String) -> String {

@@ -43,6 +43,7 @@ final class AppState: ObservableObject {
     let packageDetector = PackageDetector()
     let sshClient: SSHClientProtocol = RealSSHClient()
     @Published var packageStatuses: [PackageStatus]
+    private var autoRefreshTask: Task<Void, Never>?
 
     init() {
         let savedProfiles = ProfileStorageService().loadProfiles()
@@ -59,6 +60,7 @@ final class AppState: ObservableObject {
         self.packageStatuses = PackageDetector.defaultStatuses
         self.selectedServer = savedProfiles.first
         publishWidgetSnapshots()
+        startAutoRefresh()
     }
 
     var isProUnlocked: Bool {
@@ -136,6 +138,24 @@ final class AppState: ObservableObject {
     func testConnection(to server: ServerProfile) async throws -> String {
         try await sshClient.connect(to: server)
         return try await sshClient.run("uname -a", on: server)
+    }
+
+    func refreshAllServers() {
+        for server in serverProfiles where !server.isDemo {
+            refreshMetrics(for: server)
+        }
+    }
+
+    private func startAutoRefresh() {
+        autoRefreshTask?.cancel()
+        autoRefreshTask = Task {
+            refreshAllServers()
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(60))
+                guard !Task.isCancelled else { break }
+                refreshAllServers()
+            }
+        }
     }
 
     func refreshMetrics(for server: ServerProfile) {
