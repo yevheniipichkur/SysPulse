@@ -107,7 +107,7 @@ struct TerminalView: View {
     private func topChrome(palette: TerminalThemePalette) -> some View {
         HStack(spacing: 10) {
             Circle()
-                .fill(sessionServer == nil ? .secondary : .green)
+                .fill(sessionServer == nil ? Color(UIColor.secondaryLabel) : Color.green)
                 .frame(width: 8, height: 8)
 
             Text(sessionServer.map { "\($0.username)@\($0.host)" } ?? "SysPulse SSH")
