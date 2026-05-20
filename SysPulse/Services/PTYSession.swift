@@ -27,7 +27,7 @@ final class PTYSession {
                             }
                         }
                         group.addTask { [weak self] in
-                            for await chunk in ttyOutput {
+                            for try await chunk in ttyOutput {
                                 try Task.checkCancellation()
                                 let text: String
                                 switch chunk {
