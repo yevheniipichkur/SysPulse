@@ -16,6 +16,7 @@ env:
   DEFAULT_BUNDLE_ID: com.yevheniipichkur.syspulse
   ARCHIVE_PATH: build/SysPulse.xcarchive
   EXPORT_PATH: build/export
+  BUILD_NUMBER: ${{ github.run_number }}
   APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
   APPLE_BUNDLE_ID: ${{ secrets.APPLE_BUNDLE_ID }}
   APPLE_CERTIFICATE_BASE64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
@@ -89,6 +90,8 @@ jobs:
 
       - name: Explain signing state
         run: |
+          echo "Marketing version: 0.1.0"
+          echo "Build number: $BUILD_NUMBER"
           echo "Unsigned compile check always runs with CODE_SIGNING_ALLOWED=NO."
           if [ -z "${APPLE_TEAM_ID:-}" ] || [ -z "${APPLE_CERTIFICATE_BASE64:-}" ] || [ -z "${APPLE_PROVISIONING_PROFILE_BASE64:-}" ]; then
             echo "IPA export is skipped until signing secrets are configured."
@@ -108,6 +111,7 @@ jobs:
             -scheme "$SCHEME" \
             -configuration Debug \
             -destination "$SIMULATOR_DESTINATION" \
+            CURRENT_PROJECT_VERSION="$BUILD_NUMBER" \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             | tee build/logs/build-debug.log
@@ -139,6 +143,7 @@ jobs:
             -scheme "$SCHEME" \
             -configuration Debug \
             -destination "$SIMULATOR_DESTINATION" \
+            CURRENT_PROJECT_VERSION="$BUILD_NUMBER" \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             | tee build/logs/test.log
@@ -165,6 +170,7 @@ jobs:
             -configuration Release \
             -destination "generic/platform=iOS" \
             -archivePath "$ARCHIVE_PATH" \
+            CURRENT_PROJECT_VERSION="$BUILD_NUMBER" \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             SKIP_INSTALL=NO \
@@ -291,6 +297,7 @@ jobs:
             -destination "generic/platform=iOS" \
             -archivePath "$ARCHIVE_PATH" \
             DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
+            CURRENT_PROJECT_VERSION="$BUILD_NUMBER" \
             CODE_SIGN_STYLE=Manual \
             CODE_SIGN_IDENTITY="Apple Distribution" \
             SKIP_INSTALL=NO \
