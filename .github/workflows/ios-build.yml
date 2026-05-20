@@ -310,6 +310,30 @@ jobs:
           fi
           exit "$ARCHIVE_STATUS"
 
+      - name: Ensure app icon plist metadata
+        if: ${{ env.APPLE_TEAM_ID != '' && env.APPLE_CERTIFICATE_BASE64 != '' }}
+        run: |
+          set -euo pipefail
+          APP_DIR=$(find "$ARCHIVE_PATH/Products/Applications" -maxdepth 1 -name "*.app" | head -n 1)
+          APP_PLIST="$APP_DIR/Info.plist"
+          echo "Patching icon metadata in $APP_PLIST"
+
+          /usr/libexec/PlistBuddy -c "Set :CFBundleIconName AppIcon" "$APP_PLIST" 2>/dev/null \
+            || /usr/libexec/PlistBuddy -c "Add :CFBundleIconName string AppIcon" "$APP_PLIST"
+
+          /usr/libexec/PlistBuddy -c "Add :CFBundleIcons dict" "$APP_PLIST" 2>/dev/null || true
+          /usr/libexec/PlistBuddy -c "Add :CFBundleIcons:CFBundlePrimaryIcon dict" "$APP_PLIST" 2>/dev/null || true
+          /usr/libexec/PlistBuddy -c "Set :CFBundleIcons:CFBundlePrimaryIcon:CFBundleIconName AppIcon" "$APP_PLIST" 2>/dev/null \
+            || /usr/libexec/PlistBuddy -c "Add :CFBundleIcons:CFBundlePrimaryIcon:CFBundleIconName string AppIcon" "$APP_PLIST"
+
+          if ! /usr/libexec/PlistBuddy -c "Print :CFBundleIcons:CFBundlePrimaryIcon:CFBundleIconFiles" "$APP_PLIST" >/dev/null 2>&1; then
+            /usr/libexec/PlistBuddy -c "Add :CFBundleIcons:CFBundlePrimaryIcon:CFBundleIconFiles array" "$APP_PLIST"
+            /usr/libexec/PlistBuddy -c "Add :CFBundleIcons:CFBundlePrimaryIcon:CFBundleIconFiles:0 string AppIcon" "$APP_PLIST"
+          fi
+
+          /usr/libexec/PlistBuddy -c "Print :CFBundleIconName" "$APP_PLIST"
+          /usr/libexec/PlistBuddy -c "Print :CFBundleIcons:CFBundlePrimaryIcon:CFBundleIconName" "$APP_PLIST"
+
       - name: Export IPA
         if: ${{ env.APPLE_TEAM_ID != '' && env.APPLE_CERTIFICATE_BASE64 != '' }}
         env:
