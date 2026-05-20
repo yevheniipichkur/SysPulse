@@ -284,10 +284,9 @@ struct TerminalView: View {
                     } label: {
                         Text(key)
                             .font(.caption.weight(.bold))
-                            .frame(width: key.count > 2 ? 44 : 34, height: 30)
-                            .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+                            .frame(width: key.count > 2 ? 44 : 34)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(TerminalKeyStyle())
                 }
             }
             .padding(.horizontal, 2)
@@ -350,6 +349,7 @@ struct TerminalView: View {
         append("\(prompt(for: server))\(text)\n", to: sessionID)
         commandLine = ""
         isRunning = true
+        inputFocused = true
 
         // cd is a shell built-in that produces no output over stateless SSH.
         // Simulate it by resolving the new path with pwd and tracking it locally.
@@ -405,10 +405,21 @@ struct TerminalView: View {
     }
 
     private func normalizedOutput(_ output: String) -> String {
-        if output.isEmpty {
-            return "\n"
-        }
-        return output.hasSuffix("\n") ? output : "\(output)\n"
+        let stripped = stripAnsi(output)
+        if stripped.isEmpty { return "\n" }
+        return stripped.hasSuffix("\n") ? stripped : "\(stripped)\n"
+    }
+
+    private func stripAnsi(_ text: String) -> String {
+        guard text.contains("\u{1B}") || text.contains("\r") else { return text }
+        guard let regex = try? NSRegularExpression(
+            pattern: "\u{1B}\\[[0-9;?]*[A-Za-z]|\u{1B}[()][B012]|\u{1B}[=>]|\\r(?!\\n)"
+        ) else { return text }
+        return regex.stringByReplacingMatches(
+            in: text,
+            range: NSRange(text.startIndex..., in: text),
+            withTemplate: ""
+        )
     }
 
     private func append(_ text: String, to sessionID: UUID? = nil) {
@@ -448,6 +459,22 @@ struct TerminalView: View {
             commandLine += key
         }
         inputFocused = true
+    }
+}
+
+private struct TerminalKeyStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .frame(height: 30)
+            .padding(.horizontal, 4)
+            .background(
+                configuration.isPressed
+                    ? AnyShapeStyle(.cyan.opacity(0.28))
+                    : AnyShapeStyle(.thinMaterial),
+                in: RoundedRectangle(cornerRadius: 9, style: .continuous)
+            )
+            .scaleEffect(configuration.isPressed ? 0.91 : 1.0)
+            .animation(.easeOut(duration: 0.07), value: configuration.isPressed)
     }
 }
 
