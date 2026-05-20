@@ -375,6 +375,7 @@ struct TerminalView: View {
         if selectedSessionID == nil { selectedSessionID = sessionID }
 
         if ptySessions[sessionID] == nil {
+            append("[Reconnecting PTY…]\n", to: sessionID)
             connectPTY(sessionID: sessionID, server: server)
         }
 

@@ -7,28 +7,35 @@ final class PTYSession {
     var onDisconnect: ((Error?) -> Void)?
 
     private var task: Task<Void, Never>?
-    private var inputContinuation: AsyncStream<ByteBuffer>.Continuation?
+    // Use String stream to avoid ByteBuffer Sendability concerns
+    private var textContinuation: AsyncStream<String>.Continuation?
 
     func connect(to server: ServerProfile, using sshClient: SSHClientProtocol) {
         task?.cancel()
-        let (inputStream, inputCont) = AsyncStream<ByteBuffer>.makeStream()
-        inputContinuation = inputCont
+        let (textStream, textCont) = AsyncStream<String>.makeStream()
+        textContinuation = textCont
         task = Task { [weak self] in
             guard let self else { return }
             do {
                 let client = try await sshClient.makeCitadelClient(for: server)
                 defer { Task { try? await client.close() } }
                 try await client.withTTY { [weak self] ttyOutput, stdinWriter in
-                    // stdin: unstructured task avoids Sendability issues with stdinWriter
-                    let stdinTask = Task {
-                        for await buffer in inputStream {
+                    // Stdin in separate task; String is Sendable so capture is safe
+                    let stdinTask = Task { [weak self] in
+                        for await text in textStream {
                             guard !Task.isCancelled else { break }
-                            try? await stdinWriter.write(buffer)
+                            var buffer = ByteBufferAllocator().buffer(capacity: text.utf8.count)
+                            buffer.writeString(text)
+                            do {
+                                try await stdinWriter.write(buffer)
+                            } catch {
+                                let cb = self?.onOutput
+                                await MainActor.run { cb?("\n[stdin error: \(error.localizedDescription)]\n") }
+                            }
                         }
                     }
                     defer { stdinTask.cancel() }
 
-                    // stdout: read inline so stdinWriter stays on its original context
                     for try await chunk in ttyOutput {
                         guard !Task.isCancelled else { break }
                         let text: String
@@ -53,13 +60,11 @@ final class PTYSession {
     }
 
     func send(_ text: String) {
-        var buffer = ByteBufferAllocator().buffer(capacity: text.utf8.count)
-        buffer.writeString(text)
-        inputContinuation?.yield(buffer)
+        textContinuation?.yield(text)
     }
 
     func disconnect() {
-        inputContinuation?.finish()
+        textContinuation?.finish()
         task?.cancel()
         task = nil
     }
