@@ -533,11 +533,25 @@ jobs:
 
           echo "=== All pre-upload checks passed. Running xcrun altool --validate-app ==="
           if [ -n "${APPSTORE_CONNECT_API_KEY_ID:-}" ] && [ -n "${APPSTORE_CONNECT_API_ISSUER_ID:-}" ] && [ -n "${ASC_KEY_PATH:-}" ]; then
+            set +e
             xcrun altool --validate-app \
               --type ios \
               --file "$IPA" \
               --apiKey "$APPSTORE_CONNECT_API_KEY_ID" \
-              --apiIssuer "$APPSTORE_CONNECT_API_ISSUER_ID"
+              --apiIssuer "$APPSTORE_CONNECT_API_ISSUER_ID" \
+              2>&1 | tee build/logs/altool-validate.log
+            ALTOOL_VALIDATE_STATUS=${PIPESTATUS[0]}
+            set -e
+            if [ "$ALTOOL_VALIDATE_STATUS" -ne 0 ] || grep -qE "VALIDATION FAILED|UPLOAD FAILED|Validation failed|Failed to upload package" build/logs/altool-validate.log; then
+              echo "::error::altool validate-app failed."
+              grep -E "ERROR:|VALIDATION FAILED|UPLOAD FAILED|Validation failed|Failed to upload package|Invalid |Missing " build/logs/altool-validate.log | tail -n 80 | while IFS= read -r line; do
+                escaped=${line//'%'/'%25'}
+                escaped=${escaped//$'\n'/'%0A'}
+                escaped=${escaped//$'\r'/'%0D'}
+                echo "::error::$escaped"
+              done
+              exit 1
+            fi
           else
             echo "altool --validate-app skipped (ASC key not configured)."
           fi
@@ -571,8 +585,23 @@ jobs:
             python3 -c 'import base64, os, sys; sys.stdout.buffer.write(base64.b64decode(os.environ["APPSTORE_CONNECT_API_KEY_BASE64"]))' > "private_keys/AuthKey_${APPSTORE_CONNECT_API_KEY_ID}.p8"
             ASC_KEY_PATH="$PWD/private_keys/AuthKey_${APPSTORE_CONNECT_API_KEY_ID}.p8"
           fi
+          set +e
           xcrun altool --upload-app \
             --type ios \
             --file "$IPA" \
             --apiKey "$APPSTORE_CONNECT_API_KEY_ID" \
-            --apiIssuer "$APPSTORE_CONNECT_API_ISSUER_ID"
+            --apiIssuer "$APPSTORE_CONNECT_API_ISSUER_ID" \
+            2>&1 | tee build/logs/altool-upload.log
+          ALTOOL_UPLOAD_STATUS=${PIPESTATUS[0]}
+          set -e
+          if [ "$ALTOOL_UPLOAD_STATUS" -ne 0 ] || grep -qE "VALIDATION FAILED|UPLOAD FAILED|Validation failed|Failed to upload package" build/logs/altool-upload.log; then
+            echo "::error::altool upload-app failed."
+            grep -E "ERROR:|VALIDATION FAILED|UPLOAD FAILED|Validation failed|Failed to upload package|Invalid |Missing " build/logs/altool-upload.log | tail -n 100 | while IFS= read -r line; do
+              escaped=${line//'%'/'%25'}
+              escaped=${escaped//$'\n'/'%0A'}
+              escaped=${escaped//$'\r'/'%0D'}
+              echo "::error::$escaped"
+            done
+            exit 1
+          fi
+          echo "TestFlight upload command completed without altool validation errors."
