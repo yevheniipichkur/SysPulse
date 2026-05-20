@@ -379,7 +379,7 @@ struct TerminalView: View {
             connectPTY(sessionID: sessionID, server: server)
         }
 
-        ptySessions[sessionID]?.send(text + "\r\n")
+        ptySessions[sessionID]?.send(text + "\n")
     }
 
     private func stripAnsi(_ text: String) -> String {
