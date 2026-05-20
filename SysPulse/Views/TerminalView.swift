@@ -786,7 +786,6 @@ private struct SwiftTermTerminalSurface: UIViewRepresentable {
         view.backgroundColor = .clear
         view.nativeBackgroundColor = .clear
         view.nativeForegroundColor = UIColor(palette.foreground)
-        view.keyboardType = .asciiCapable
         view.autocorrectionType = .no
         view.autocapitalizationType = .none
         view.spellCheckingType = .no
