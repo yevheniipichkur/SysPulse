@@ -71,6 +71,9 @@
 "Private key" = "Приватний ключ";
 "Private Key + Passphrase" = "Приватний ключ + парольна фраза";
 "Private key + passphrase" = "Приватний ключ + парольна фраза";
+"OpenSSH private key" = "Приватний ключ OpenSSH";
+"Passphrase" = "Парольна фраза";
+"Paste an OpenSSH RSA or ED25519 private key. ECDSA key login is not enabled yet." = "Вставте приватний ключ OpenSSH RSA або ED25519. Вхід з ECDSA-ключем поки не ввімкнено.";
 "Secrets are saved only in iOS Keychain." = "Секрети зберігаються лише в iOS Keychain.";
 "Leave the secret empty to keep the current Keychain credential." = "Залиште секрет порожнім, щоб зберегти поточні дані Keychain.";
 "Server type" = "Тип сервера";

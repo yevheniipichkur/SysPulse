@@ -300,6 +300,27 @@ struct SSHCredential: Identifiable, Codable, Hashable {
     var displayName: String
 }
 
+struct SSHPrivateKeyCredentialPayload: Codable, Hashable {
+    var privateKey: String
+    var passphrase: String?
+
+    var keychainValue: String {
+        guard let data = try? JSONEncoder().encode(self),
+              let value = String(data: data, encoding: .utf8) else {
+            return privateKey
+        }
+        return value
+    }
+
+    static func decode(from value: String) -> SSHPrivateKeyCredentialPayload {
+        guard let data = value.data(using: .utf8),
+              let payload = try? JSONDecoder().decode(SSHPrivateKeyCredentialPayload.self, from: data) else {
+            return SSHPrivateKeyCredentialPayload(privateKey: value, passphrase: nil)
+        }
+        return payload
+    }
+}
+
 struct ServerMetrics: Identifiable, Codable, Hashable {
     var id: UUID = UUID()
     var serverID: UUID

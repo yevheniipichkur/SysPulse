@@ -71,6 +71,9 @@
 "Private key" = "Private key";
 "Private Key + Passphrase" = "Private Key + Passphrase";
 "Private key + passphrase" = "Private key + passphrase";
+"OpenSSH private key" = "OpenSSH private key";
+"Passphrase" = "Passphrase";
+"Paste an OpenSSH RSA or ED25519 private key. ECDSA key login is not enabled yet." = "Paste an OpenSSH RSA or ED25519 private key. ECDSA key login is not enabled yet.";
 "Secrets are saved only in iOS Keychain." = "Secrets are saved only in iOS Keychain.";
 "Leave the secret empty to keep the current Keychain credential." = "Leave the secret empty to keep the current Keychain credential.";
 "Server type" = "Server type";

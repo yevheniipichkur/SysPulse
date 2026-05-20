@@ -1,5 +1,6 @@
 import Foundation
 import Citadel
+import Crypto
 
 enum SSHClientError: LocalizedError {
     case realClientNotConfigured
@@ -136,9 +137,40 @@ struct RealSSHClient: SSHClientProtocol {
         switch server.authenticationType {
         case .password:
             return .passwordBased(username: server.username, password: secret)
-        case .privateKey, .privateKeyWithPassphrase:
+        case .privateKey:
+            return try privateKeyAuthentication(username: server.username, privateKey: secret, passphrase: nil)
+        case .privateKeyWithPassphrase:
+            let payload = SSHPrivateKeyCredentialPayload.decode(from: secret)
+            return try privateKeyAuthentication(username: server.username, privateKey: payload.privateKey, passphrase: payload.passphrase)
+        }
+    }
+
+    private func privateKeyAuthentication(username: String, privateKey: String, passphrase: String?) throws -> SSHAuthenticationMethod {
+        let trimmedKey = privateKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedKey.isEmpty else {
+            throw SSHClientError.missingCredentials
+        }
+
+        let decryptionKey = passphrase?.isEmpty == false ? passphrase?.data(using: .utf8) : nil
+        do {
+            let keyType = try SSHKeyDetection.detectPrivateKeyType(from: trimmedKey)
+            switch keyType {
+            case .rsa:
+                let key = try Insecure.RSA.PrivateKey(sshRsa: trimmedKey, decryptionKey: decryptionKey)
+                return .rsa(username: username, privateKey: key)
+            case .ed25519:
+                let key = try Curve25519.Signing.PrivateKey(sshEd25519: trimmedKey, decryptionKey: decryptionKey)
+                return .ed25519(username: username, privateKey: key)
+            default:
+                throw SSHClientError.unsupportedAuthentication(
+                    "This build detects \(keyType.description) keys, but real SSH login currently supports RSA and ED25519 OpenSSH private keys."
+                )
+            }
+        } catch let error as SSHClientError {
+            throw error
+        } catch {
             throw SSHClientError.unsupportedAuthentication(
-                "Private key SSH is prepared in the profile UI but this build currently supports real password SSH. Use password auth for the first TestFlight server connection."
+                "Could not read the OpenSSH private key. Check the key format and passphrase. \(error.localizedDescription)"
             )
         }
     }

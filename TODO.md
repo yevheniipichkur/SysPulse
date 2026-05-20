@@ -22,7 +22,7 @@
 ## Next
 
 - [x] Real SSH integration for password auth and command execution.
-- [ ] Private key SSH authentication.
+- [x] Private key SSH authentication for OpenSSH RSA and ED25519 keys.
 - [x] Real Linux metrics collection over SSH.
 - [ ] Move profile persistence fully into SwiftData-backed repository.
 - [x] Docker monitoring demo flow and command builders.

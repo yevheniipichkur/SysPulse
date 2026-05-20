@@ -251,6 +251,7 @@ struct AddServerView: View {
     @State private var username = ""
     @State private var authType: SSHAuthenticationType = .password
     @State private var secret = ""
+    @State private var passphrase = ""
     @State private var tags = ""
     @State private var group = ""
     @State private var icon = "server.rack"
@@ -303,8 +304,7 @@ struct AddServerView: View {
                                 }
                                 .pickerStyle(.menu)
 
-                                SecureField(secretPlaceholder, text: $secret)
-                                    .textFieldStyle(.roundedBorder)
+                                credentialInput
 
                                 Text(editingServer == nil ? "Secrets are saved only in iOS Keychain." : "Leave the secret empty to keep the current Keychain credential.")
                                     .font(.caption)
@@ -394,13 +394,56 @@ struct AddServerView: View {
         }
     }
 
+    @ViewBuilder
+    private var credentialInput: some View {
+        switch authType {
+        case .password:
+            SecureField(secretPlaceholder, text: $secret)
+                .textFieldStyle(.roundedBorder)
+        case .privateKey, .privateKeyWithPassphrase:
+            VStack(alignment: .leading, spacing: 8) {
+                Text("OpenSSH private key")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                TextEditor(text: $secret)
+                    .font(.caption.monospaced())
+                    .frame(minHeight: 140)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .padding(8)
+                    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+
+                if authType == .privateKeyWithPassphrase {
+                    SecureField("Passphrase", text: $passphrase)
+                        .textFieldStyle(.roundedBorder)
+                }
+
+                Text("Paste an OpenSSH RSA or ED25519 private key. ECDSA key login is not enabled yet.")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private var keychainSecretValue: String {
+        switch authType {
+        case .password, .privateKey:
+            secret
+        case .privateKeyWithPassphrase:
+            SSHPrivateKeyCredentialPayload(
+                privateKey: secret,
+                passphrase: passphrase.isEmpty ? nil : passphrase
+            ).keychainValue
+        }
+    }
+
     private func save(connectAfterSave: Bool) {
         let serverID = UUID()
         let targetID = editingServer?.id ?? serverID
         let credentialID = editingServer?.credentialIdentifier ?? "server-\(targetID.uuidString)"
         if !secret.isEmpty {
             do {
-                try KeychainService.shared.saveSecret(secret, account: credentialID)
+                try KeychainService.shared.saveSecret(keychainSecretValue, account: credentialID)
             } catch {
                 statusMessage = error.localizedDescription
                 return
@@ -466,7 +509,7 @@ struct AddServerView: View {
 
         if !secret.isEmpty {
             do {
-                try KeychainService.shared.saveSecret(secret, account: credentialID)
+                try KeychainService.shared.saveSecret(keychainSecretValue, account: credentialID)
             } catch {
                 statusMessage = error.localizedDescription
                 return

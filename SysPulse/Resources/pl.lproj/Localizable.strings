@@ -71,6 +71,9 @@
 "Private key" = "Klucz prywatny";
 "Private Key + Passphrase" = "Klucz prywatny + hasło";
 "Private key + passphrase" = "Klucz prywatny + hasło";
+"OpenSSH private key" = "Klucz prywatny OpenSSH";
+"Passphrase" = "Hasło klucza";
+"Paste an OpenSSH RSA or ED25519 private key. ECDSA key login is not enabled yet." = "Wklej klucz prywatny OpenSSH RSA lub ED25519. Logowanie kluczem ECDSA nie jest jeszcze włączone.";
 "Secrets are saved only in iOS Keychain." = "Sekrety są zapisywane tylko w iOS Keychain.";
 "Leave the secret empty to keep the current Keychain credential." = "Zostaw sekret pusty, aby zachować obecne dane w Keychain.";
 "Server type" = "Typ serwera";
