@@ -8,6 +8,7 @@ struct TerminalView: View {
     @State private var commandHistory: [String] = []
     @State private var keyboardActive: Bool = false
     @State private var ptySessions: [UUID: PTYSession] = [:]
+    @State private var runtimeStates: [UUID: TerminalRuntimeState] = [:]
 
     private var selectedSession: TerminalSession? {
         if let selectedSessionID {
@@ -32,6 +33,23 @@ struct TerminalView: View {
     private var activePTY: PTYSession? {
         let id = selectedSessionID ?? appState.terminalSessions.first?.id
         return id.flatMap { ptySessions[$0] }
+    }
+
+    private var activePrompt: String {
+        guard let server = sessionServer,
+              let sessionID = selectedSessionID ?? selectedSession?.id else {
+            return "$ "
+        }
+        let state = runtimeStates[sessionID] ?? TerminalRuntimeState(server: server)
+        let marker = server.username == "root" ? "#" : "$"
+        return "\(server.username)@\(state.host):\(state.displayDirectory) \(marker) "
+    }
+
+    private var displayedTranscript: String {
+        guard selectedSession != nil else { return "" }
+        let base = selectedSession?.transcript ?? ""
+        let separator = base.isEmpty || base.hasSuffix("\n") ? "" : "\n"
+        return base + separator + activePrompt + currentInput + "█"
     }
 
     var body: some View {
@@ -104,9 +122,11 @@ struct TerminalView: View {
             } else {
                 ScrollViewReader { proxy in
                     ScrollView {
-                        Text(selectedSession?.transcript ?? "")
-                            .font(.system(size: CGFloat(appState.settings.terminalFontSize), weight: .regular, design: .monospaced))
-                            .foregroundStyle(palette.foreground)
+                        TerminalANSIText(
+                            rawText: displayedTranscript,
+                            fontSize: CGFloat(appState.settings.terminalFontSize),
+                            palette: palette
+                        )
                             .textSelection(.enabled)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .padding(.horizontal, 14)
@@ -117,7 +137,7 @@ struct TerminalView: View {
                     .scrollIndicators(.hidden)
                     .contentShape(Rectangle())
                     .onTapGesture { keyboardActive = true }
-                    .onChange(of: selectedSession?.transcript ?? "") {
+                    .onChange(of: displayedTranscript) {
                         withAnimation(.easeOut(duration: 0.18)) {
                             proxy.scrollTo("terminal-bottom", anchor: .bottom)
                         }
@@ -143,7 +163,7 @@ struct TerminalView: View {
                 .fill(isConnected ? Color.green : Color(UIColor.secondaryLabel))
                 .frame(width: 8, height: 8)
 
-            Text(sessionServer.map { "\($0.username)@\($0.host)" } ?? "SysPulse SSH")
+            Text(sessionServer == nil ? "SysPulse SSH" : activePrompt.trimmingCharacters(in: .whitespaces))
                 .font(.caption.monospaced())
                 .foregroundStyle(palette.foreground.opacity(0.82))
                 .lineLimit(1)
@@ -300,15 +320,15 @@ struct TerminalView: View {
     private var inputPreviewBar: some View {
         HStack(spacing: 8) {
             HStack(spacing: 6) {
-                Image(systemName: "chevron.right")
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(.cyan.opacity(0.7))
-                Text(currentInput.isEmpty ? "Tap to type…" : currentInput)
+                Text(activePrompt)
+                    .foregroundStyle(.cyan.opacity(0.82))
+                Text(currentInput + "█")
                     .font(.system(size: 15, design: .monospaced))
-                    .foregroundStyle(currentInput.isEmpty ? Color.secondary : Color.primary)
+                    .foregroundStyle(Color.primary)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .lineLimit(1)
             }
+            .font(.system(size: 15, design: .monospaced))
             .padding(.horizontal, 12)
             .frame(height: 38)
             .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
@@ -318,9 +338,7 @@ struct TerminalView: View {
             Button("Paste") {
                 guard let text = UIPasteboard.general.string else { return }
                 for char in text {
-                    let s = String(char)
-                    currentInput += s
-                    activePTY?.send(s)
+                    handleInsert(String(char))
                 }
                 keyboardActive = true
             }
@@ -377,8 +395,13 @@ struct TerminalView: View {
             if !cmd.isEmpty && commandHistory.last != cmd {
                 commandHistory.append(cmd)
             }
+            append("\(activePrompt)\(cmd)\n", to: sessionID)
             currentInput = ""
             pty?.send("\n")
+            pty?.send(Self.cwdProbeCommand)
+            if cmd.trimmingCharacters(in: .whitespacesAndNewlines) == "clear" {
+                clearTranscript()
+            }
         } else {
             currentInput += text
             pty?.send(text)
@@ -403,8 +426,13 @@ struct TerminalView: View {
     private func insertAccessory(_ key: String) {
         let pty = activePTY
         switch key {
-        case "↑": pty?.send("\u{1B}[A")
-        case "↓": pty?.send("\u{1B}[B")
+        case "↑":
+            if let previous = commandHistory.last {
+                applySuggestion(previous)
+            }
+        case "↓":
+            pty?.send("\u{15}")
+            currentInput = ""
         case "←": pty?.send("\u{1B}[D")
         case "→": pty?.send("\u{1B}[C")
         case "^C":
@@ -414,8 +442,9 @@ struct TerminalView: View {
             pty?.send("\t")
         case "esc":
             pty?.send("\u{1B}")
+        case "ctrl", "alt":
+            break
         default:
-            // /  |  ~  - ctrl alt
             currentInput += key
             pty?.send(key)
         }
@@ -435,6 +464,9 @@ struct TerminalView: View {
     private func ensureSession(for server: ServerProfile) {
         if let existing = appState.terminalSessions.first(where: { $0.serverID == server.id }) {
             selectedSessionID = existing.id
+            if runtimeStates[existing.id] == nil {
+                runtimeStates[existing.id] = TerminalRuntimeState(server: server)
+            }
             if ptySessions[existing.id] == nil {
                 connectPTY(sessionID: existing.id, server: server)
             }
@@ -450,6 +482,7 @@ struct TerminalView: View {
             transcript: welcomeTranscript(for: server)
         )
         appState.terminalSessions.append(session)
+        runtimeStates[session.id] = TerminalRuntimeState(server: server)
         selectedSessionID = session.id
         appState.haptic(.light)
         keyboardActive = true
@@ -457,44 +490,24 @@ struct TerminalView: View {
     }
 
     private func connectPTY(sessionID: UUID, server: ServerProfile) {
+        var state = runtimeStates[sessionID] ?? TerminalRuntimeState(server: server)
+        state.host = server.host
+        runtimeStates[sessionID] = state
         let pty = PTYSession()
         let appStateRef = appState
         pty.onOutput = { [appStateRef] text in
             guard let idx = appStateRef.terminalSessions.firstIndex(where: { $0.id == sessionID }) else { return }
 
-            // Convert \r\n → \n, then strip ANSI escape codes (keep bare \r for CR handling)
-            var processed = text.replacingOccurrences(of: "\r\n", with: "\n")
-            if processed.contains("\u{1B}") {
-                let ansiPattern = "\u{1B}\\[[\\d;?]*[A-Za-z]|\u{1B}[()][B012]|\u{1B}[=>78M]|\u{1B}\\][^\u{07}]*\u{07}"
-                if let regex = try? NSRegularExpression(pattern: ansiPattern) {
-                    processed = regex.stringByReplacingMatches(
-                        in: processed,
-                        range: NSRange(processed.startIndex..., in: processed),
-                        withTemplate: ""
-                    )
-                }
-            }
+            let controlResult = extractSysPulseControlMessages(from: text, sessionID: sessionID, server: server)
+            var processed = sanitizeTerminalStream(controlResult.visibleText)
+            processed = processed.replacingOccurrences(of: "\r\n", with: "\n")
+            processed = processed.replacingOccurrences(of: "\r", with: "\n")
             guard !processed.isEmpty else { return }
 
-            guard processed.contains("\r") else {
-                appStateRef.terminalSessions[idx].transcript += processed
-                return
-            }
-
-            // \r = carriage return: overwrite current line (VT100 behaviour).
-            // Skip empty parts — a bare \r after ANSI strip must not erase the prompt.
-            var t = appStateRef.terminalSessions[idx].transcript
-            let parts = processed.components(separatedBy: "\r")
-            t += parts[0]
-            for part in parts.dropFirst() where !part.isEmpty {
-                if let lastNL = t.lastIndex(of: "\n") {
-                    t = String(t[t.startIndex...lastNL])
-                } else {
-                    t = ""
-                }
-                t += part
-            }
-            appStateRef.terminalSessions[idx].transcript = t
+            appStateRef.terminalSessions[idx].transcript = applyingBackspaces(
+                processed,
+                to: appStateRef.terminalSessions[idx].transcript
+            )
         }
         pty.onDisconnect = { [appStateRef] error in
             guard let idx = appStateRef.terminalSessions.firstIndex(where: { $0.id == sessionID }) else { return }
@@ -509,6 +522,8 @@ struct TerminalView: View {
     }
 
     private func welcomeTranscript(for server: ServerProfile) -> String { "" }
+
+    private static let cwdProbeCommand = "printf '\\033]777;cwd:%s;home:%s;host:%s\\007' \"$PWD\" \"$HOME\" \"$(hostname 2>/dev/null || uname -n)\"\n"
 
     private func append(_ text: String, to sessionID: UUID? = nil) {
         guard let id = sessionID ?? selectedSessionID ?? appState.terminalSessions.first?.id,
@@ -526,9 +541,180 @@ struct TerminalView: View {
         guard let id = selectedSessionID else { return }
         ptySessions[id]?.disconnect()
         ptySessions.removeValue(forKey: id)
+        runtimeStates.removeValue(forKey: id)
         appState.terminalSessions.removeAll { $0.id == id }
         selectedSessionID = appState.terminalSessions.first?.id
     }
+
+    private func extractSysPulseControlMessages(from text: String, sessionID: UUID, server: ServerProfile) -> (visibleText: String, didUpdateState: Bool) {
+        var output = ""
+        var index = text.startIndex
+        var didUpdateState = false
+
+        while index < text.endIndex {
+            if text[index] == "\u{1B}" {
+                let next = text.index(after: index)
+                if next < text.endIndex, text[next] == "]" {
+                    var cursor = text.index(after: next)
+                    var payload = ""
+                    var consumed = false
+                    while cursor < text.endIndex {
+                        if text[cursor] == "\u{07}" {
+                            consumed = true
+                            cursor = text.index(after: cursor)
+                            break
+                        }
+                        payload.append(text[cursor])
+                        cursor = text.index(after: cursor)
+                    }
+
+                    if consumed, payload.hasPrefix("777;") {
+                        applySysPulseControlPayload(String(payload.dropFirst(4)), sessionID: sessionID, server: server)
+                        didUpdateState = true
+                        index = cursor
+                        continue
+                    }
+                }
+            }
+
+            output.append(text[index])
+            index = text.index(after: index)
+        }
+
+        return (output, didUpdateState)
+    }
+
+    private func applySysPulseControlPayload(_ payload: String, sessionID: UUID, server: ServerProfile) {
+        var state = runtimeStates[sessionID] ?? TerminalRuntimeState(server: server)
+        for component in payload.split(separator: ";", omittingEmptySubsequences: false) {
+            let parts = component.split(separator: ":", maxSplits: 1, omittingEmptySubsequences: false)
+            guard parts.count == 2 else { continue }
+            let key = String(parts[0])
+            let value = String(parts[1])
+            switch key {
+            case "cwd":
+                state.absoluteDirectory = value
+            case "home":
+                state.homeDirectory = value.isEmpty ? nil : value
+            case "host":
+                state.host = value.isEmpty ? server.host : value
+            default:
+                break
+            }
+        }
+        runtimeStates[sessionID] = state
+    }
+}
+
+private struct TerminalRuntimeState {
+    var host: String
+    var absoluteDirectory: String
+    var homeDirectory: String?
+
+    init(server: ServerProfile) {
+        self.host = server.host
+        self.absoluteDirectory = "~"
+        self.homeDirectory = nil
+    }
+
+    var displayDirectory: String {
+        guard absoluteDirectory != "~" else { return "~" }
+        guard let homeDirectory, !homeDirectory.isEmpty else { return absoluteDirectory }
+        if absoluteDirectory == homeDirectory {
+            return "~"
+        }
+        if absoluteDirectory.hasPrefix(homeDirectory + "/") {
+            return "~/" + String(absoluteDirectory.dropFirst(homeDirectory.count + 1))
+        }
+        return absoluteDirectory
+    }
+}
+
+private func sanitizeTerminalStream(_ text: String) -> String {
+    var output = ""
+    var index = text.startIndex
+
+    while index < text.endIndex {
+        if text[index] == "\u{1B}" {
+            let next = text.index(after: index)
+            guard next < text.endIndex else { break }
+
+            if text[next] == "[" {
+                var cursor = text.index(after: next)
+                var sequence = "\u{1B}["
+                var final: Character?
+
+                while cursor < text.endIndex {
+                    let char = text[cursor]
+                    sequence.append(char)
+                    if let scalar = char.unicodeScalars.first,
+                       scalar.value >= 0x40,
+                       scalar.value <= 0x7E {
+                        final = char
+                        cursor = text.index(after: cursor)
+                        break
+                    }
+                    cursor = text.index(after: cursor)
+                }
+
+                if final == "m" {
+                    output += sequence
+                }
+                index = cursor
+                continue
+            }
+
+            if text[next] == "]" {
+                var cursor = text.index(after: next)
+                while cursor < text.endIndex {
+                    if text[cursor] == "\u{07}" {
+                        cursor = text.index(after: cursor)
+                        break
+                    }
+                    if text[cursor] == "\u{1B}" {
+                        let afterEscape = text.index(after: cursor)
+                        if afterEscape < text.endIndex, text[afterEscape] == "\\" {
+                            cursor = text.index(after: afterEscape)
+                            break
+                        }
+                    }
+                    cursor = text.index(after: cursor)
+                }
+                index = cursor
+                continue
+            }
+
+            index = text.index(after: next)
+            continue
+        }
+
+        output.append(text[index])
+        index = text.index(after: index)
+    }
+
+    if let regex = try? NSRegularExpression(pattern: #"(?m)^.*stty -echo cols 120 rows 40.*\n?"#) {
+        output = regex.stringByReplacingMatches(
+            in: output,
+            range: NSRange(output.startIndex..., in: output),
+            withTemplate: ""
+        )
+    }
+
+    return output
+}
+
+private func applyingBackspaces(_ update: String, to existing: String) -> String {
+    var result = existing
+    for char in update {
+        if char == "\u{08}" || char == "\u{7F}" {
+            if !result.isEmpty {
+                result.removeLast()
+            }
+        } else {
+            result.append(char)
+        }
+    }
+    return result
 }
 
 // MARK: - Keyboard input capture
@@ -606,6 +792,134 @@ private struct TerminalKeyboardCapture: UIViewRepresentable {
 }
 
 // MARK: - Sub-views
+
+private struct TerminalANSIText: View {
+    var rawText: String
+    var fontSize: CGFloat
+    var palette: TerminalThemePalette
+
+    var body: some View {
+        Text(makeAttributedString())
+            .font(.system(size: fontSize, weight: .regular, design: .monospaced))
+            .foregroundStyle(palette.foreground)
+    }
+
+    private func makeAttributedString() -> AttributedString {
+        var result = AttributedString()
+        var style = ANSIStyle(color: palette.foreground, isBold: false)
+        var buffer = ""
+        var index = rawText.startIndex
+
+        func flush() {
+            guard !buffer.isEmpty else { return }
+            var run = AttributedString(buffer)
+            run.foregroundColor = style.color
+            if style.isBold {
+                run.font = .system(size: fontSize, weight: .semibold, design: .monospaced)
+            }
+            result += run
+            buffer.removeAll(keepingCapacity: true)
+        }
+
+        while index < rawText.endIndex {
+            if rawText[index] == "\u{1B}" {
+                let next = rawText.index(after: index)
+                if next < rawText.endIndex, rawText[next] == "[" {
+                    var cursor = rawText.index(after: next)
+                    var parameterText = ""
+                    var isSGR = false
+
+                    while cursor < rawText.endIndex {
+                        let char = rawText[cursor]
+                        if char == "m" {
+                            isSGR = true
+                            cursor = rawText.index(after: cursor)
+                            break
+                        }
+                        parameterText.append(char)
+                        cursor = rawText.index(after: cursor)
+                    }
+
+                    if isSGR {
+                        flush()
+                        style.applySGR(parameterText, fallback: palette.foreground)
+                        index = cursor
+                        continue
+                    }
+                }
+            }
+
+            buffer.append(rawText[index])
+            index = rawText.index(after: index)
+        }
+
+        flush()
+        return result
+    }
+}
+
+private struct ANSIStyle {
+    var color: Color
+    var isBold: Bool
+
+    mutating func applySGR(_ parameterText: String, fallback: Color) {
+        let codes = parameterText.isEmpty ? [0] : parameterText
+            .split(separator: ";", omittingEmptySubsequences: false)
+            .map { Int($0) ?? 0 }
+
+        var index = 0
+        while index < codes.count {
+            let code = codes[index]
+            switch code {
+            case 0:
+                color = fallback
+                isBold = false
+            case 1:
+                isBold = true
+            case 22:
+                isBold = false
+            case 30...37, 90...97:
+                color = Self.color(for: code)
+            case 39:
+                color = fallback
+            case 38:
+                if index + 4 < codes.count, codes[index + 1] == 2 {
+                    color = Color(
+                        red: Double(codes[index + 2]) / 255.0,
+                        green: Double(codes[index + 3]) / 255.0,
+                        blue: Double(codes[index + 4]) / 255.0
+                    )
+                    index += 4
+                }
+            default:
+                break
+            }
+            index += 1
+        }
+    }
+
+    private static func color(for code: Int) -> Color {
+        switch code {
+        case 30: Color(red: 0.32, green: 0.36, blue: 0.42)
+        case 31: Color(red: 1.0, green: 0.35, blue: 0.36)
+        case 32: Color(red: 0.42, green: 0.95, blue: 0.54)
+        case 33: Color(red: 1.0, green: 0.82, blue: 0.36)
+        case 34: Color(red: 0.38, green: 0.68, blue: 1.0)
+        case 35: Color(red: 0.88, green: 0.55, blue: 1.0)
+        case 36: Color(red: 0.38, green: 0.95, blue: 1.0)
+        case 37: Color(red: 0.86, green: 0.90, blue: 0.95)
+        case 90: Color(red: 0.45, green: 0.50, blue: 0.58)
+        case 91: Color(red: 1.0, green: 0.50, blue: 0.50)
+        case 92: Color(red: 0.55, green: 1.0, blue: 0.62)
+        case 93: Color(red: 1.0, green: 0.88, blue: 0.48)
+        case 94: Color(red: 0.50, green: 0.76, blue: 1.0)
+        case 95: Color(red: 0.96, green: 0.64, blue: 1.0)
+        case 96: Color(red: 0.55, green: 1.0, blue: 1.0)
+        case 97: .white
+        default: .primary
+        }
+    }
+}
 
 private struct TerminalKeyStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {

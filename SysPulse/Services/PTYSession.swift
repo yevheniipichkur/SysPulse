@@ -20,6 +20,9 @@ final class PTYSession {
                 let client = try await sshClient.makeCitadelClient(for: server)
                 defer { Task { try? await client.close() } }
                 try await client.withTTY { [weak self] ttyOutput, stdinWriter in
+                    try? await stdinWriter.changeSize(cols: 120, rows: 40, pixelWidth: 960, pixelHeight: 640)
+                    try? await stdinWriter.write(Self.bootstrapCommandBuffer)
+
                     // Stdin in separate task; String is Sendable so capture is safe
                     let stdinTask = Task { [weak self] in
                         for await text in textStream {
@@ -68,4 +71,14 @@ final class PTYSession {
         task?.cancel()
         task = nil
     }
+
+    private static var bootstrapCommandBuffer: ByteBuffer {
+        var buffer = ByteBufferAllocator().buffer(capacity: bootstrapCommand.utf8.count)
+        buffer.writeString(bootstrapCommand)
+        return buffer
+    }
+
+    private static let bootstrapCommand = """
+    stty -echo cols 120 rows 40 2>/dev/null; export TERM=xterm-256color CLICOLOR=1; export LS_COLORS='di=1;34:ln=1;36:ex=1;32:*.sh=1;32:*.py=1;32:*.rb=1;32:*.js=1;32:*.swift=1;35:*.json=0;33:*.log=0;90:*.conf=0;36:*.yml=0;36:*.yaml=0;36:*.md=0;37'; export PS1=''; export PROMPT_COMMAND=''; alias ls='ls --color=always -C' 2>/dev/null || true; printf '\\033]777;cwd:%s;home:%s;host:%s\\007' "$PWD" "$HOME" "$(hostname 2>/dev/null || uname -n)"
+    """
 }
