@@ -39,6 +39,10 @@ struct TerminalView: View {
         return id.flatMap { ptySessions[$0] }
     }
 
+    private var activeSessionID: UUID? {
+        selectedSessionID ?? selectedSession?.id ?? appState.terminalSessions.first?.id
+    }
+
     private var activePrompt: String {
         guard let server = sessionServer,
               let sessionID = selectedSessionID ?? selectedSession?.id else {
@@ -49,13 +53,6 @@ struct TerminalView: View {
         return "\(server.username)@\(state.host):\(state.displayDirectory) \(marker) "
     }
 
-    private var displayedTranscript: String {
-        guard selectedSession != nil else { return "" }
-        let base = selectedSession?.transcript ?? ""
-        let separator = base.isEmpty || base.hasSuffix("\n") ? "" : "\n"
-        return base + separator + activePrompt + currentInput + "█"
-    }
-
     var body: some View {
         NavigationStack {
             ZStack {
@@ -63,16 +60,6 @@ struct TerminalView: View {
                     .ignoresSafeArea()
 
                 terminalCanvas
-
-                // Invisible keyboard capture — sits in ZStack, not in hit-test chain
-                TerminalKeyboardCapture(
-                    onInsert: handleInsert,
-                    onDeleteBackward: handleDeleteBackward,
-                    isActive: $keyboardActive
-                )
-                .frame(width: 1, height: 1)
-                .opacity(0)
-                .allowsHitTesting(false)
             }
             .safeAreaInset(edge: .bottom, spacing: 0) {
                 bottomConsole
@@ -83,6 +70,7 @@ struct TerminalView: View {
             Task { @MainActor in
                 try? await Task.sleep(for: .seconds(0.5))
                 keyboardActive = true
+                focusActiveTerminal()
             }
         }
         .onChange(of: appState.selectedServer?.id) {
@@ -93,6 +81,7 @@ struct TerminalView: View {
             Task { @MainActor in
                 try? await Task.sleep(for: .seconds(0.35))
                 keyboardActive = true
+                focusActiveTerminal()
             }
         }
     }
@@ -129,8 +118,9 @@ struct TerminalView: View {
                     fontSize: CGFloat(appState.settings.terminalFontSize),
                     palette: palette,
                     onInput: { bytes in
-                        mirrorTerminalInput(bytes)
-                        activePTY?.send(bytes)
+                        let outboundBytes = transformedTerminalInput(bytes)
+                        mirrorTerminalInput(outboundBytes)
+                        activePTY?.send(outboundBytes)
                     },
                     onResize: { cols, rows in
                         ptySessions[session.id]?.resize(cols: cols, rows: rows)
@@ -138,9 +128,13 @@ struct TerminalView: View {
                 )
                 .padding(.horizontal, 10)
                 .padding(.top, 8)
-                .padding(.bottom, 174)
+                .padding(.bottom, 6)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .contentShape(Rectangle())
-                .onTapGesture { keyboardActive = true }
+                .onTapGesture {
+                    keyboardActive = true
+                    focusActiveTerminal()
+                }
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -148,11 +142,6 @@ struct TerminalView: View {
             LinearGradient(colors: palette.background, startPoint: .topLeading, endPoint: .bottomTrailing)
                 .ignoresSafeArea()
         )
-        .overlay(alignment: .bottom) {
-            LinearGradient(colors: [.clear, .black.opacity(0.24)], startPoint: .top, endPoint: .bottom)
-                .frame(height: 110)
-                .allowsHitTesting(false)
-        }
     }
 
     private func topChrome(palette: TerminalThemePalette) -> some View {
@@ -331,14 +320,16 @@ struct TerminalView: View {
             .frame(height: 38)
             .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
             .contentShape(Rectangle())
-            .onTapGesture { keyboardActive = true }
+            .onTapGesture {
+                keyboardActive = true
+                focusActiveTerminal()
+            }
 
             Button("Paste") {
                 guard let text = UIPasteboard.general.string else { return }
-                for char in text {
-                    handleInsert(String(char))
-                }
+                sendRawToActivePTY(Array(text.utf8), mirrorInput: true)
                 keyboardActive = true
+                focusActiveTerminal()
             }
             .font(.caption.weight(.bold))
             .buttonStyle(.plain)
@@ -366,7 +357,7 @@ struct TerminalView: View {
                             .font(.caption.weight(.bold))
                             .frame(width: key.count > 2 ? 44 : 34)
                     }
-                    .buttonStyle(TerminalKeyStyle())
+                    .buttonStyle(TerminalKeyStyle(isActive: keyIsLatched(key)))
                 }
             }
             .padding(.horizontal, 2)
@@ -376,85 +367,45 @@ struct TerminalView: View {
 
     // MARK: - Input handling
 
-    private func handleInsert(_ text: String) {
-        guard let server = sessionServer ?? appState.selectedServer else { return }
-        if selectedSession == nil { createSession(for: server) }
-        let sessionID = selectedSessionID ?? appState.terminalSessions.first?.id
-        guard let sessionID else { return }
-        if selectedSessionID == nil { selectedSessionID = sessionID }
-        if ptySessions[sessionID] == nil {
-            append("[Reconnecting PTY…]\n", to: sessionID)
-            connectPTY(sessionID: sessionID, server: server)
-        }
-        let pty = ptySessions[sessionID]
-
-        if applyPendingModifier(to: text, pty: pty) {
-            return
-        }
-
-        if text == "\n" || text == "\r" {
-            let cmd = currentInput
-            if !cmd.isEmpty && commandHistory.last != cmd {
-                commandHistory.append(cmd)
-            }
-            if pty == nil {
-                append("\(activePrompt)\(cmd)\n", to: sessionID)
-            }
-            currentInput = ""
-            pty?.send("\n")
-            if cmd.trimmingCharacters(in: .whitespacesAndNewlines) == "clear" {
-                clearTranscript()
-            }
-        } else {
-            currentInput += text
-            pty?.send(text)
-        }
-    }
-
-    private func handleDeleteBackward() {
-        if !currentInput.isEmpty {
-            currentInput.removeLast()
-        }
-        activePTY?.send("\u{7F}")
-    }
-
     private func applySuggestion(_ cmd: String) {
         // ctrl-U clears current line on server, then we type the suggestion
-        activePTY?.send("\u{15}")
-        activePTY?.send(cmd)
+        sendRawToActivePTY([0x15], mirrorInput: false)
+        sendRawToActivePTY(Array(cmd.utf8), mirrorInput: false)
         currentInput = cmd
         keyboardActive = true
+        focusActiveTerminal()
     }
 
     private func insertAccessory(_ key: String) {
-        let pty = activePTY
         switch key {
         case "↑":
             if let previous = commandHistory.last {
                 applySuggestion(previous)
             }
         case "↓":
-            pty?.send("\u{15}")
+            sendRawToActivePTY([0x15], mirrorInput: false)
             currentInput = ""
-        case "←": pty?.send("\u{1B}[D")
-        case "→": pty?.send("\u{1B}[C")
+        case "←":
+            sendRawToActivePTY(Array("\u{1B}[D".utf8), mirrorInput: false)
+        case "→":
+            sendRawToActivePTY(Array("\u{1B}[C".utf8), mirrorInput: false)
         case "^C":
-            pty?.send("\u{03}")
+            sendRawToActivePTY([0x03], mirrorInput: true)
             currentInput = ""
             controlModifierActive = false
             altModifierActive = false
         case "^X":
-            pty?.send("\u{18}")
+            sendRawToActivePTY([0x18], mirrorInput: true)
             controlModifierActive = false
             altModifierActive = false
         case "^O":
-            pty?.send("\u{0F}")
+            sendRawToActivePTY([0x0F], mirrorInput: true)
             controlModifierActive = false
             altModifierActive = false
         case "tab":
-            pty?.send("\t")
+            sendRawToActivePTY([0x09], mirrorInput: true)
         case "esc":
-            pty?.send("\u{1B}")
+            sendRawToActivePTY([0x1B], mirrorInput: true)
         case "ctrl":
             controlModifierActive.toggle()
             if controlModifierActive { altModifierActive = false }
@@ -462,16 +413,21 @@ struct TerminalView: View {
             altModifierActive.toggle()
             if altModifierActive { controlModifierActive = false }
         default:
-            if applyPendingModifier(to: key, pty: pty) {
+            if applyPendingModifier(to: key) {
                 break
             }
             currentInput += key
-            pty?.send(key)
+            sendRawToActivePTY(Array(key.utf8), mirrorInput: false)
         }
         keyboardActive = true
+        focusActiveTerminal()
     }
 
-    private func applyPendingModifier(to text: String, pty: PTYSession?) -> Bool {
+    private func keyIsLatched(_ key: String) -> Bool {
+        (key == "ctrl" && controlModifierActive) || (key == "alt" && altModifierActive)
+    }
+
+    private func applyPendingModifier(to text: String) -> Bool {
         guard controlModifierActive || altModifierActive else { return false }
         defer {
             controlModifierActive = false
@@ -479,7 +435,7 @@ struct TerminalView: View {
         }
 
         if controlModifierActive, let control = controlCharacter(for: text) {
-            pty?.send(control)
+            sendRawToActivePTY(Array(control.utf8), mirrorInput: true)
             if control == "\u{03}" || control == "\u{15}" {
                 currentInput = ""
             }
@@ -487,9 +443,8 @@ struct TerminalView: View {
         }
 
         if altModifierActive {
-            pty?.send("\u{1B}")
-            pty?.send(text)
-            currentInput += text
+            sendRawToActivePTY([0x1B], mirrorInput: false)
+            sendRawToActivePTY(Array(text.utf8), mirrorInput: true)
             return true
         }
 
@@ -503,6 +458,72 @@ struct TerminalView: View {
         if value == 63 { return "\u{7F}" } // Ctrl-?
         guard value >= 64, value <= 126 else { return nil }
         return String(UnicodeScalar(value & 0x1F)!)
+    }
+
+    private func transformedTerminalInput(_ bytes: [UInt8]) -> [UInt8] {
+        guard !bytes.isEmpty else { return bytes }
+        guard controlModifierActive || altModifierActive else { return bytes }
+        defer {
+            controlModifierActive = false
+            altModifierActive = false
+        }
+
+        if controlModifierActive,
+           bytes.count == 1,
+           let controlByte = controlByte(for: bytes[0]) {
+            return [controlByte]
+        }
+
+        if altModifierActive {
+            return [0x1B] + bytes
+        }
+
+        return bytes
+    }
+
+    private func controlByte(for byte: UInt8) -> UInt8? {
+        switch byte {
+        case 32:
+            return 0x00
+        case 63:
+            return 0x7F
+        case 64...95:
+            return byte & 0x1F
+        case 97...122:
+            return (byte - 96) & 0x1F
+        default:
+            return nil
+        }
+    }
+
+    private func sendRawToActivePTY(_ bytes: [UInt8], mirrorInput: Bool) {
+        guard !bytes.isEmpty,
+              let server = sessionServer ?? appState.selectedServer else { return }
+
+        if selectedSession == nil {
+            createSession(for: server)
+        }
+
+        let sessionID = selectedSessionID ?? appState.terminalSessions.first?.id
+        guard let sessionID else { return }
+        if selectedSessionID == nil {
+            selectedSessionID = sessionID
+        }
+
+        if ptySessions[sessionID] == nil {
+            append("[Reconnecting PTY…]\n", to: sessionID)
+            connectPTY(sessionID: sessionID, server: server)
+        }
+
+        if mirrorInput {
+            mirrorTerminalInput(bytes)
+        }
+        ptySessions[sessionID]?.send(bytes)
+    }
+
+    private func focusActiveTerminal() {
+        guard let id = activeSessionID else { return }
+        terminalBridgeStore.bridge(for: id).focus()
     }
 
     // MARK: - Session management
@@ -735,15 +756,27 @@ private final class TerminalBridgeStore: ObservableObject {
 private final class TerminalFeedBridge: ObservableObject {
     private var feedHandler: (([UInt8]) -> Void)?
     private var resetHandler: (() -> Void)?
+    private var focusHandler: (() -> Void)?
     private var pending: [[UInt8]] = []
+    private var pendingFocus = false
 
-    func bind(feed: @escaping ([UInt8]) -> Void, reset: @escaping () -> Void) {
+    func bind(
+        feed: @escaping ([UInt8]) -> Void,
+        reset: @escaping () -> Void,
+        focus: @escaping () -> Void
+    ) {
         feedHandler = feed
         resetHandler = reset
-        guard !pending.isEmpty else { return }
-        let buffered = pending
-        pending.removeAll(keepingCapacity: true)
-        buffered.forEach(feed)
+        focusHandler = focus
+        if !pending.isEmpty {
+            let buffered = pending
+            pending.removeAll(keepingCapacity: true)
+            buffered.forEach(feed)
+        }
+        if pendingFocus {
+            pendingFocus = false
+            focus()
+        }
     }
 
     func feed(_ bytes: [UInt8]) {
@@ -761,6 +794,14 @@ private final class TerminalFeedBridge: ObservableObject {
             resetHandler()
         } else {
             feedHandler?(Array("\u{1B}[2J\u{1B}[H".utf8))
+        }
+    }
+
+    func focus() {
+        if let focusHandler {
+            focusHandler()
+        } else {
+            pendingFocus = true
         }
     }
 }
@@ -815,6 +856,11 @@ private struct SwiftTermTerminalSurface: UIViewRepresentable {
             },
             reset: { [weak terminalView] in
                 terminalView?.feed(text: "\u{1B}[2J\u{1B}[H")
+            },
+            focus: { [weak terminalView] in
+                DispatchQueue.main.async {
+                    terminalView?.becomeFirstResponder()
+                }
             }
         )
     }
@@ -952,211 +998,11 @@ private func applyingBackspaces(_ update: String, to existing: String) -> String
     return result
 }
 
-// MARK: - Keyboard input capture
-
-private final class TerminalKeyView: UIView, UIKeyInput, UITextInputTraits {
-    var onInsert: ((String) -> Void)?
-    var onDeleteBackward: (() -> Void)?
-    var onResign: (() -> Void)?
-
-    override var canBecomeFirstResponder: Bool { true }
-
-    // UITextInputTraits — stored vars, not overrides
-    var keyboardType: UIKeyboardType = .asciiCapable
-    var autocorrectionType: UITextAutocorrectionType = .no
-    var autocapitalizationType: UITextAutocapitalizationType = .none
-    var spellCheckingType: UITextSpellCheckingType = .no
-    var smartQuotesType: UITextSmartQuotesType = .no
-    var smartDashesType: UITextSmartDashesType = .no
-
-    // Always true so the system never disables the delete key
-    var hasText: Bool { true }
-
-    func insertText(_ text: String) { onInsert?(text) }
-    func deleteBackward() { onDeleteBackward?() }
-
-    @discardableResult
-    override func resignFirstResponder() -> Bool {
-        let result = super.resignFirstResponder()
-        if result { onResign?() }
-        return result
-    }
-
-    override var inputAssistantItem: UITextInputAssistantItem {
-        let item = super.inputAssistantItem
-        item.leadingBarButtonGroups = []
-        item.trailingBarButtonGroups = []
-        return item
-    }
-}
-
-private struct TerminalKeyboardCapture: UIViewRepresentable {
-    var onInsert: (String) -> Void
-    var onDeleteBackward: () -> Void
-    @Binding var isActive: Bool
-
-    func makeCoordinator() -> Coordinator { Coordinator(parent: self) }
-
-    func makeUIView(context: Context) -> TerminalKeyView {
-        let view = TerminalKeyView()
-        view.onInsert = onInsert
-        view.onDeleteBackward = onDeleteBackward
-        view.onResign = { context.coordinator.didResign() }
-        return view
-    }
-
-    func updateUIView(_ uiView: TerminalKeyView, context: Context) {
-        uiView.onInsert = onInsert
-        uiView.onDeleteBackward = onDeleteBackward
-        DispatchQueue.main.async {
-            if isActive, !uiView.isFirstResponder {
-                uiView.becomeFirstResponder()
-            } else if !isActive, uiView.isFirstResponder {
-                uiView.resignFirstResponder()
-            }
-        }
-    }
-
-    final class Coordinator {
-        var parent: TerminalKeyboardCapture
-        init(parent: TerminalKeyboardCapture) { self.parent = parent }
-        func didResign() {
-            DispatchQueue.main.async { self.parent.isActive = false }
-        }
-    }
-}
-
 // MARK: - Sub-views
 
-private struct TerminalANSIText: View {
-    var rawText: String
-    var fontSize: CGFloat
-    var palette: TerminalThemePalette
-
-    var body: some View {
-        Text(makeAttributedString())
-            .font(.system(size: fontSize, weight: .regular, design: .monospaced))
-            .foregroundStyle(palette.foreground)
-    }
-
-    private func makeAttributedString() -> AttributedString {
-        var result = AttributedString()
-        var style = ANSIStyle(color: palette.foreground, isBold: false)
-        var buffer = ""
-        var index = rawText.startIndex
-
-        func flush() {
-            guard !buffer.isEmpty else { return }
-            var run = AttributedString(buffer)
-            run.foregroundColor = style.color
-            if style.isBold {
-                run.font = .system(size: fontSize, weight: .semibold, design: .monospaced)
-            }
-            result += run
-            buffer.removeAll(keepingCapacity: true)
-        }
-
-        while index < rawText.endIndex {
-            if rawText[index] == "\u{1B}" {
-                let next = rawText.index(after: index)
-                if next < rawText.endIndex, rawText[next] == "[" {
-                    var cursor = rawText.index(after: next)
-                    var parameterText = ""
-                    var isSGR = false
-
-                    while cursor < rawText.endIndex {
-                        let char = rawText[cursor]
-                        if char == "m" {
-                            isSGR = true
-                            cursor = rawText.index(after: cursor)
-                            break
-                        }
-                        parameterText.append(char)
-                        cursor = rawText.index(after: cursor)
-                    }
-
-                    if isSGR {
-                        flush()
-                        style.applySGR(parameterText, fallback: palette.foreground)
-                        index = cursor
-                        continue
-                    }
-                }
-            }
-
-            buffer.append(rawText[index])
-            index = rawText.index(after: index)
-        }
-
-        flush()
-        return result
-    }
-}
-
-private struct ANSIStyle {
-    var color: SwiftUI.Color
-    var isBold: Bool
-
-    mutating func applySGR(_ parameterText: String, fallback: SwiftUI.Color) {
-        let codes = parameterText.isEmpty ? [0] : parameterText
-            .split(separator: ";", omittingEmptySubsequences: false)
-            .map { Int($0) ?? 0 }
-
-        var index = 0
-        while index < codes.count {
-            let code = codes[index]
-            switch code {
-            case 0:
-                color = fallback
-                isBold = false
-            case 1:
-                isBold = true
-            case 22:
-                isBold = false
-            case 30...37, 90...97:
-                color = Self.color(for: code)
-            case 39:
-                color = fallback
-            case 38:
-                if index + 4 < codes.count, codes[index + 1] == 2 {
-                    color = SwiftUI.Color(
-                        red: Double(codes[index + 2]) / 255.0,
-                        green: Double(codes[index + 3]) / 255.0,
-                        blue: Double(codes[index + 4]) / 255.0
-                    )
-                    index += 4
-                }
-            default:
-                break
-            }
-            index += 1
-        }
-    }
-
-    private static func color(for code: Int) -> SwiftUI.Color {
-        switch code {
-        case 30: SwiftUI.Color(red: 0.32, green: 0.36, blue: 0.42)
-        case 31: SwiftUI.Color(red: 1.0, green: 0.35, blue: 0.36)
-        case 32: SwiftUI.Color(red: 0.42, green: 0.95, blue: 0.54)
-        case 33: SwiftUI.Color(red: 1.0, green: 0.82, blue: 0.36)
-        case 34: SwiftUI.Color(red: 0.38, green: 0.68, blue: 1.0)
-        case 35: SwiftUI.Color(red: 0.88, green: 0.55, blue: 1.0)
-        case 36: SwiftUI.Color(red: 0.38, green: 0.95, blue: 1.0)
-        case 37: SwiftUI.Color(red: 0.86, green: 0.90, blue: 0.95)
-        case 90: SwiftUI.Color(red: 0.45, green: 0.50, blue: 0.58)
-        case 91: SwiftUI.Color(red: 1.0, green: 0.50, blue: 0.50)
-        case 92: SwiftUI.Color(red: 0.55, green: 1.0, blue: 0.62)
-        case 93: SwiftUI.Color(red: 1.0, green: 0.88, blue: 0.48)
-        case 94: SwiftUI.Color(red: 0.50, green: 0.76, blue: 1.0)
-        case 95: SwiftUI.Color(red: 0.96, green: 0.64, blue: 1.0)
-        case 96: SwiftUI.Color(red: 0.55, green: 1.0, blue: 1.0)
-        case 97: .white
-        default: .primary
-        }
-    }
-}
-
 private struct TerminalKeyStyle: ButtonStyle {
+    var isActive: Bool = false
+
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .frame(height: 30)
@@ -1164,7 +1010,7 @@ private struct TerminalKeyStyle: ButtonStyle {
             .background(
                 configuration.isPressed
                     ? AnyShapeStyle(.cyan.opacity(0.28))
-                    : AnyShapeStyle(.thinMaterial),
+                    : isActive ? AnyShapeStyle(.cyan.opacity(0.20)) : AnyShapeStyle(.thinMaterial),
                 in: RoundedRectangle(cornerRadius: 9, style: .continuous)
             )
             .scaleEffect(configuration.isPressed ? 0.91 : 1.0)
