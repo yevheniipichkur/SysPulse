@@ -37,10 +37,20 @@ struct TerminalView: View {
         }
         .onAppear {
             ensureSessionForSelectedServer()
-            inputFocused = true
+            Task { @MainActor in
+                try? await Task.sleep(for: .seconds(0.5))
+                inputFocused = true
+            }
         }
         .onChange(of: appState.selectedServer?.id) {
             ensureSessionForSelectedServer()
+        }
+        .onChange(of: appState.selectedTab) { _, newTab in
+            guard newTab == .terminal else { return }
+            Task { @MainActor in
+                try? await Task.sleep(for: .seconds(0.35))
+                inputFocused = true
+            }
         }
     }
 
