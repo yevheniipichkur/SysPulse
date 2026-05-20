@@ -22,6 +22,7 @@ env:
   DEFAULT_BUNDLE_ID: com.yevheniipichkur.syspulse
   ARCHIVE_PATH: build/SysPulse.xcarchive
   EXPORT_PATH: build/export
+  MARKETING_VERSION: 0.1.0
   BUILD_NUMBER: ${{ github.run_number }}
   APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
   APPLE_BUNDLE_ID: ${{ secrets.APPLE_BUNDLE_ID }}
@@ -84,6 +85,37 @@ jobs:
       - name: Generate Xcode project
         run: xcodegen generate
 
+      - name: Stamp bundle versions
+        run: |
+          set -euo pipefail
+          echo "Stamping Info.plist files with marketing version $MARKETING_VERSION and build $BUILD_NUMBER."
+
+          set_plist_string() {
+            local plist="$1"
+            local key="$2"
+            local value="$3"
+            /usr/libexec/PlistBuddy -c "Set :$key $value" "$plist" 2>/dev/null \
+              || /usr/libexec/PlistBuddy -c "Add :$key string $value" "$plist"
+          }
+
+          for plist in SysPulse/Info.plist SysPulseWidgets/Info.plist SysPulseTests/Info.plist; do
+            set_plist_string "$plist" CFBundleShortVersionString "$MARKETING_VERSION"
+            set_plist_string "$plist" CFBundleVersion "$BUILD_NUMBER"
+            echo "$plist:"
+            /usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$plist"
+            /usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "$plist"
+          done
+
+          # xcodebuild -exportArchive re-runs Info.plist processing from the xcodeproj
+          # build settings, which overwrites any archive-level patches. Stamp the xcodeproj
+          # directly so both the archive and the export use the right version numbers.
+          PBXPROJ="$PROJECT/project.pbxproj"
+          sed -i '' "s/CURRENT_PROJECT_VERSION = [^;]*;/CURRENT_PROJECT_VERSION = $BUILD_NUMBER;/g" "$PBXPROJ"
+          sed -i '' "s/MARKETING_VERSION = [^;]*;/MARKETING_VERSION = $MARKETING_VERSION;/g" "$PBXPROJ"
+          echo "xcodeproj build settings stamped:"
+          grep "CURRENT_PROJECT_VERSION" "$PBXPROJ" | head -n 4
+          grep "MARKETING_VERSION" "$PBXPROJ" | head -n 4
+
       - name: Prepare build directories
         run: mkdir -p build/logs build/SourcePackages
 
@@ -110,7 +142,7 @@ jobs:
 
       - name: Explain signing state
         run: |
-          echo "Marketing version: 0.1.0"
+          echo "Marketing version: $MARKETING_VERSION"
           echo "Build number: $BUILD_NUMBER"
           echo "Run tests: $RUN_TESTS"
           echo "Unsigned compile check runs when signing secrets are missing or manual tests are requested."
@@ -388,7 +420,7 @@ jobs:
             case "$plist" in
               *.app/Info.plist|*.appex/Info.plist)
                 set_plist_string "$plist" CFBundleVersion "$BUILD_NUMBER"
-                set_plist_string "$plist" CFBundleShortVersionString "0.1.0"
+                set_plist_string "$plist" CFBundleShortVersionString "$MARKETING_VERSION"
                 BUNDLE_ID=$(/usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$plist" 2>/dev/null || echo "unknown")
                 BUNDLE_VERSION=$(/usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "$plist")
                 echo "$BUNDLE_ID CFBundleVersion=$BUNDLE_VERSION ($plist)"
@@ -405,6 +437,14 @@ jobs:
             echo "::error::No app or app extension Info.plist files were patched in the archive."
             exit 1
           fi
+
+          ARCHIVE_INFO="$ARCHIVE_PATH/Info.plist"
+          /usr/libexec/PlistBuddy -c "Set :ApplicationProperties:CFBundleVersion $BUILD_NUMBER" "$ARCHIVE_INFO" 2>/dev/null \
+            || /usr/libexec/PlistBuddy -c "Add :ApplicationProperties:CFBundleVersion string $BUILD_NUMBER" "$ARCHIVE_INFO" 2>/dev/null \
+            || true
+          /usr/libexec/PlistBuddy -c "Set :ApplicationProperties:CFBundleShortVersionString $MARKETING_VERSION" "$ARCHIVE_INFO" 2>/dev/null \
+            || /usr/libexec/PlistBuddy -c "Add :ApplicationProperties:CFBundleShortVersionString string $MARKETING_VERSION" "$ARCHIVE_INFO" 2>/dev/null \
+            || true
 
       - name: Ensure app icon plist metadata
         if: ${{ env.APPLE_TEAM_ID != '' && env.APPLE_CERTIFICATE_BASE64 != '' }}
@@ -555,6 +595,12 @@ jobs:
           APP_MARKETING=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$APP_DIR/Info.plist" 2>/dev/null || true)
           echo "App CFBundleShortVersionString: ${APP_MARKETING:-not found}"
           echo "App CFBundleVersion: ${APP_BUILD:-not found}"
+          if [ "$APP_MARKETING" = "$MARKETING_VERSION" ]; then
+            echo "App marketing version: OK"
+          else
+            echo "::error::App CFBundleShortVersionString = '${APP_MARKETING:-missing}'. Expected '$MARKETING_VERSION'."
+            VALIDATION_FAILED=1
+          fi
           if [ "$APP_BUILD" = "$BUILD_NUMBER" ]; then
             echo "App build number: OK"
           else
