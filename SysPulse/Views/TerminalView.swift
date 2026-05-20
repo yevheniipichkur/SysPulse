@@ -474,13 +474,7 @@ struct TerminalView: View {
         pty.connect(to: server, using: appStateRef.sshClient)
     }
 
-    private func welcomeTranscript(for server: ServerProfile) -> String {
-        """
-        SysPulse SSH — \(server.username)@\(server.host):\(server.port)
-        Connecting…
-
-        """
-    }
+    private func welcomeTranscript(for server: ServerProfile) -> String { "" }
 
     // Applies PTY output to a session's transcript, correctly handling \r (carriage return)
     // as "overwrite current line" — the same way a real VT100 terminal does.
