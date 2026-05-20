@@ -5,8 +5,7 @@ struct TerminalView: View {
     @EnvironmentObject private var appState: AppState
     @State private var selectedSessionID: UUID?
     @State private var commandLine = ""
-    @State private var isRunning = false
-    @State private var workingDirectories: [UUID: String] = [:]
+    @State private var ptySessions: [UUID: PTYSession] = [:]
     @FocusState private var inputFocused: Bool
 
     private var selectedSession: TerminalSession? {
@@ -22,6 +21,11 @@ struct TerminalView: View {
             return server
         }
         return appState.selectedServer
+    }
+
+    private var isConnected: Bool {
+        guard let id = selectedSessionID else { return false }
+        return ptySessions[id] != nil
     }
 
     var body: some View {
@@ -118,7 +122,7 @@ struct TerminalView: View {
     private func topChrome(palette: TerminalThemePalette) -> some View {
         HStack(spacing: 10) {
             Circle()
-                .fill(sessionServer == nil ? Color(UIColor.secondaryLabel) : Color.green)
+                .fill(isConnected ? Color.green : Color(UIColor.secondaryLabel))
                 .frame(width: 8, height: 8)
 
             Text(sessionServer.map { "\($0.username)@\($0.host)" } ?? "SysPulse SSH")
@@ -127,12 +131,6 @@ struct TerminalView: View {
                 .lineLimit(1)
 
             Spacer()
-
-            if isRunning {
-                ProgressView()
-                    .controlSize(.small)
-                    .tint(palette.glow)
-            }
 
             Button {
                 UIPasteboard.general.string = selectedSession?.transcript ?? ""
@@ -245,7 +243,7 @@ struct TerminalView: View {
 
     private var commandComposer: some View {
         HStack(spacing: 8) {
-            TextField("Ask AI to generate a command", text: $commandLine)
+            TextField("Enter command", text: $commandLine)
                 .font(.system(size: 15, weight: .regular, design: .rounded))
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
@@ -305,6 +303,9 @@ struct TerminalView: View {
     private func ensureSession(for server: ServerProfile) {
         if let existing = appState.terminalSessions.first(where: { $0.serverID == server.id }) {
             selectedSessionID = existing.id
+            if ptySessions[existing.id] == nil {
+                connectPTY(sessionID: existing.id, server: server)
+            }
         } else {
             createSession(for: server)
         }
@@ -318,23 +319,43 @@ struct TerminalView: View {
         )
         appState.terminalSessions.append(session)
         selectedSessionID = session.id
-        workingDirectories[session.id] = nil
         appState.haptic(.light)
         inputFocused = true
+        connectPTY(sessionID: session.id, server: server)
+    }
+
+    private func connectPTY(sessionID: UUID, server: ServerProfile) {
+        let pty = PTYSession()
+        let appStateRef = appState
+        pty.onOutput = { [appStateRef] text in
+            let cleaned = stripAnsi(text)
+            guard !cleaned.isEmpty,
+                  let idx = appStateRef.terminalSessions.firstIndex(where: { $0.id == sessionID }) else { return }
+            appStateRef.terminalSessions[idx].transcript += cleaned
+        }
+        pty.onDisconnect = { [appStateRef] error in
+            guard let idx = appStateRef.terminalSessions.firstIndex(where: { $0.id == sessionID }) else { return }
+            if let error {
+                appStateRef.terminalSessions[idx].transcript += "\n[Disconnected: \(error.localizedDescription)]\n"
+            } else {
+                appStateRef.terminalSessions[idx].transcript += "\n[Session ended]\n"
+            }
+        }
+        ptySessions[sessionID] = pty
+        pty.connect(to: server, using: appStateRef.sshClient)
     }
 
     private func welcomeTranscript(for server: ServerProfile) -> String {
         """
-        SysPulse SSH
-        Profile: \(server.username)@\(server.host):\(server.port)
-        Commands are executed on the remote Linux server over SSH.
+        SysPulse SSH — \(server.username)@\(server.host):\(server.port)
+        Connecting…
 
         """
     }
 
     private func runCommand() {
         let text = commandLine.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !text.isEmpty, !isRunning else { return }
+        guard !text.isEmpty else { return }
         guard let server = sessionServer ?? appState.selectedServer else {
             append("No server selected. Add a server profile first.\n")
             commandLine = ""
@@ -345,81 +366,29 @@ struct TerminalView: View {
             createSession(for: server)
         }
 
-        let sessionID = selectedSessionID
-        append("\(prompt(for: server))\(text)\n", to: sessionID)
         commandLine = ""
-        isRunning = true
         inputFocused = true
 
-        // cd is a shell built-in that produces no output over stateless SSH.
-        // Simulate it by resolving the new path with pwd and tracking it locally.
-        if text == "cd" || text.hasPrefix("cd ") || text.hasPrefix("cd\t") {
-            let arg = String(text.dropFirst(2)).trimmingCharacters(in: .whitespaces)
-            let resolveCmd = arg.isEmpty ? "pwd" : "cd \(arg) && pwd"
-            Task {
-                do {
-                    let raw = try await appState.sshClient.run(prefixedCommand(resolveCmd, session: sessionID), on: server)
-                    let newPath = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-                    await MainActor.run {
-                        if let id = sessionID { workingDirectories[id] = newPath }
-                        isRunning = false
-                    }
-                } catch {
-                    await MainActor.run {
-                        append("cd: \(error.localizedDescription)\n", to: sessionID)
-                        isRunning = false
-                    }
-                }
-            }
-            return
+        guard let sessionID = selectedSessionID else { return }
+
+        if ptySessions[sessionID] == nil {
+            connectPTY(sessionID: sessionID, server: server)
         }
 
-        Task {
-            do {
-                let output = try await appState.sshClient.run(prefixedCommand(text, session: sessionID), on: server)
-                await MainActor.run {
-                    append(normalizedOutput(output), to: sessionID)
-                    isRunning = false
-                }
-            } catch {
-                await MainActor.run {
-                    append("Error: \(error.localizedDescription)\n", to: sessionID)
-                    isRunning = false
-                }
-            }
-        }
-    }
-
-    private func prefixedCommand(_ command: String, session: UUID?) -> String {
-        guard let id = session, let cwd = workingDirectories[id], !cwd.isEmpty else {
-            return command
-        }
-        return "cd \(cwd) && \(command)"
-    }
-
-    private func prompt(for server: ServerProfile) -> String {
-        let cwd = selectedSessionID.flatMap { workingDirectories[$0] } ?? "~"
-        let home = "/home/\(server.username)"
-        let display = (cwd == home || cwd == "/root") ? "~" : cwd
-        return "\(server.username)@\(server.host):\(display)$ "
-    }
-
-    private func normalizedOutput(_ output: String) -> String {
-        let stripped = stripAnsi(output)
-        if stripped.isEmpty { return "\n" }
-        return stripped.hasSuffix("\n") ? stripped : "\(stripped)\n"
+        ptySessions[sessionID]?.send(text + "\r")
     }
 
     private func stripAnsi(_ text: String) -> String {
-        guard text.contains("\u{1B}") || text.contains("\r") else { return text }
-        guard let regex = try? NSRegularExpression(
-            pattern: "\u{1B}\\[[0-9;?]*[A-Za-z]|\u{1B}[()][B012]|\u{1B}[=>]|\\r(?!\\n)"
-        ) else { return text }
-        return regex.stringByReplacingMatches(
-            in: text,
-            range: NSRange(text.startIndex..., in: text),
+        var result = text.replacingOccurrences(of: "\r\n", with: "\n")
+        guard result.contains("\u{1B}") || result.contains("\r") else { return result }
+        let pattern = "\u{1B}\\[[\\d;?]*[A-Za-z]|\u{1B}[()][B012]|\u{1B}[=>78M]|\u{1B}\\][^\u{07}]*\u{07}|\\r"
+        guard let regex = try? NSRegularExpression(pattern: pattern) else { return result }
+        result = regex.stringByReplacingMatches(
+            in: result,
+            range: NSRange(result.startIndex..., in: result),
             withTemplate: ""
         )
+        return result
     }
 
     private func append(_ text: String, to sessionID: UUID? = nil) {
@@ -440,21 +409,35 @@ struct TerminalView: View {
 
     private func closeCurrentSession() {
         guard let id = selectedSessionID else { return }
+        ptySessions[id]?.disconnect()
+        ptySessions.removeValue(forKey: id)
         appState.terminalSessions.removeAll { $0.id == id }
         selectedSessionID = appState.terminalSessions.first?.id
     }
 
     private func insertAccessory(_ key: String) {
+        let sessionID = selectedSessionID
+        let pty = sessionID.flatMap { ptySessions[$0] }
+
         switch key {
-        case "tab":
-            commandLine += "\t"
-        case "esc":
-            commandLine += "\u{1b}"
+        case "↑":
+            pty?.send("\u{1B}[A")
+        case "↓":
+            pty?.send("\u{1B}[B")
+        case "←":
+            pty?.send("\u{1B}[D")
+        case "→":
+            pty?.send("\u{1B}[C")
         case "^C":
+            pty?.send("\u{03}")
             commandLine = ""
-            append("^C\n")
-        case "ctrl", "alt", "↑", "↓", "←", "→":
-            break
+        case "tab":
+            if pty != nil { pty?.send("\t") }
+            else { commandLine += "\t" }
+        case "esc":
+            pty?.send("\u{1B}")
+        case "ctrl", "alt":
+            commandLine += key + " "
         default:
             commandLine += key
         }

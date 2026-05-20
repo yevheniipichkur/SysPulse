@@ -26,6 +26,7 @@ protocol SSHClientProtocol {
     func connect(to server: ServerProfile) async throws
     func run(_ command: String, on server: ServerProfile) async throws -> String
     func disconnect(from server: ServerProfile) async
+    func makeCitadelClient(for server: ServerProfile) async throws -> SSHClient
 }
 
 struct RealSSHClient: SSHClientProtocol {
@@ -36,12 +37,12 @@ struct RealSSHClient: SSHClientProtocol {
     }
 
     func connect(to server: ServerProfile) async throws {
-        let client = try await makeClient(for: server)
+        let client = try await makeCitadelClient(for: server)
         try await client.close()
     }
 
     func run(_ command: String, on server: ServerProfile) async throws -> String {
-        let client = try await makeClient(for: server)
+        let client = try await makeCitadelClient(for: server)
         defer {
             Task {
                 try? await client.close()
@@ -53,7 +54,7 @@ struct RealSSHClient: SSHClientProtocol {
 
     func disconnect(from server: ServerProfile) async {}
 
-    private func makeClient(for server: ServerProfile) async throws -> SSHClient {
+    func makeCitadelClient(for server: ServerProfile) async throws -> SSHClient {
         let authentication = try authenticationMethod(for: server)
         return try await SSHClient.connect(
             host: server.host,
