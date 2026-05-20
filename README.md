@@ -99,8 +99,9 @@ xcodebuild build -project SysPulse.xcodeproj -scheme SysPulse -destination "gene
 2. Перейдите в **Actions**.
 3. Выберите **iOS Build**.
 4. Нажмите **Run workflow**.
-5. Дождитесь сборки.
-6. Скачайте artifact или проверьте TestFlight, если настроены signing secrets.
+5. Оставьте `run_tests` выключенным для быстрой TestFlight-сборки или включите для XCTest.
+6. Дождитесь сборки.
+7. Скачайте artifact или проверьте TestFlight, если настроены signing secrets.
 
 Подробнее: [BUILD.md](BUILD.md) и [GITHUB_SETUP.md](GITHUB_SETUP.md).
 

@@ -5,6 +5,12 @@ on:
     branches:
       - main
   workflow_dispatch:
+    inputs:
+      run_tests:
+        description: Run XCTest suite before packaging
+        required: false
+        default: false
+        type: boolean
 
 concurrency:
   group: ios-build-${{ github.ref }}
@@ -26,6 +32,7 @@ env:
   APPSTORE_CONNECT_API_KEY_ID: ${{ secrets.APPSTORE_CONNECT_API_KEY_ID }}
   APPSTORE_CONNECT_API_ISSUER_ID: ${{ secrets.APPSTORE_CONNECT_API_ISSUER_ID }}
   APPSTORE_CONNECT_API_KEY_BASE64: ${{ secrets.APPSTORE_CONNECT_API_KEY_BASE64 }}
+  RUN_TESTS: ${{ github.event_name == 'workflow_dispatch' && inputs.run_tests == true }}
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
@@ -77,6 +84,19 @@ jobs:
       - name: Generate Xcode project
         run: xcodegen generate
 
+      - name: Prepare build directories
+        run: mkdir -p build/logs build/SourcePackages
+
+      - name: Cache Swift packages
+        uses: actions/cache@v4
+        with:
+          path: |
+            build/SourcePackages
+            ~/Library/Caches/org.swift.swiftpm
+          key: ${{ runner.os }}-spm-${{ hashFiles('project.yml', '**/Package.resolved') }}
+          restore-keys: |
+            ${{ runner.os }}-spm-
+
       - name: Resolve simulator destination
         run: |
           SIMULATOR_DESTINATION=$(xcrun simctl list devices available | awk -F '[()]' '/iPhone/ {print "id="$2; exit}')
@@ -92,7 +112,8 @@ jobs:
         run: |
           echo "Marketing version: 0.1.0"
           echo "Build number: $BUILD_NUMBER"
-          echo "Unsigned compile check always runs with CODE_SIGNING_ALLOWED=NO."
+          echo "Run tests: $RUN_TESTS"
+          echo "Unsigned compile check runs when signing secrets are missing or manual tests are requested."
           if [ -z "${APPLE_TEAM_ID:-}" ] || [ -z "${APPLE_CERTIFICATE_BASE64:-}" ] || [ -z "${APPLE_PROVISIONING_PROFILE_BASE64:-}" ]; then
             echo "IPA export is skipped until signing secrets are configured."
             echo "Required for IPA: APPLE_TEAM_ID, APPLE_BUNDLE_ID, APPLE_CERTIFICATE_BASE64, APPLE_CERTIFICATE_PASSWORD, APPLE_PROVISIONING_PROFILE_BASE64."
@@ -102,6 +123,7 @@ jobs:
           fi
 
       - name: Build unsigned debug
+        if: ${{ env.APPLE_TEAM_ID == '' || env.APPLE_CERTIFICATE_BASE64 == '' || env.RUN_TESTS == 'true' }}
         run: |
           set -o pipefail
           mkdir -p build/logs
@@ -111,9 +133,13 @@ jobs:
             -scheme "$SCHEME" \
             -configuration Debug \
             -destination "$SIMULATOR_DESTINATION" \
+            -clonedSourcePackagesDirPath build/SourcePackages \
+            -skipPackagePluginValidation \
+            -skipMacroValidation \
             CURRENT_PROJECT_VERSION="$BUILD_NUMBER" \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
+            ONLY_ACTIVE_ARCH=YES \
             | tee build/logs/build-debug.log
           BUILD_STATUS=${PIPESTATUS[0]}
           set -e
@@ -129,6 +155,7 @@ jobs:
           exit "$BUILD_STATUS"
 
       - name: Run tests
+        if: ${{ env.RUN_TESTS == 'true' }}
         timeout-minutes: 8
         continue-on-error: true
         run: |
@@ -143,9 +170,13 @@ jobs:
             -scheme "$SCHEME" \
             -configuration Debug \
             -destination "$SIMULATOR_DESTINATION" \
+            -clonedSourcePackagesDirPath build/SourcePackages \
+            -skipPackagePluginValidation \
+            -skipMacroValidation \
             CURRENT_PROJECT_VERSION="$BUILD_NUMBER" \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
+            ONLY_ACTIVE_ARCH=YES \
             | tee build/logs/test.log
           TEST_STATUS=${PIPESTATUS[0]}
           set -e
@@ -161,6 +192,7 @@ jobs:
           exit 0
 
       - name: Create unsigned archive
+        if: ${{ env.APPLE_TEAM_ID == '' || env.APPLE_CERTIFICATE_BASE64 == '' }}
         run: |
           set -o pipefail
           mkdir -p build
@@ -170,6 +202,9 @@ jobs:
             -configuration Release \
             -destination "generic/platform=iOS" \
             -archivePath "$ARCHIVE_PATH" \
+            -clonedSourcePackagesDirPath build/SourcePackages \
+            -skipPackagePluginValidation \
+            -skipMacroValidation \
             CURRENT_PROJECT_VERSION="$BUILD_NUMBER" \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
@@ -295,6 +330,9 @@ jobs:
             -configuration Release \
             -destination "generic/platform=iOS" \
             -archivePath "$ARCHIVE_PATH" \
+            -clonedSourcePackagesDirPath build/SourcePackages \
+            -skipPackagePluginValidation \
+            -skipMacroValidation \
             DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
             CURRENT_PROJECT_VERSION="$BUILD_NUMBER" \
             CODE_SIGN_STYLE=Manual \
@@ -328,6 +366,43 @@ jobs:
           if [ -z "$APP_PATH" ] || [ ! -d "$APP_PRODUCT_PATH" ]; then
             echo "::error::Signed archive is not an exportable iOS app archive. Check SKIP_INSTALL settings for non-app targets."
             find "$ARCHIVE_PATH/Products" -maxdepth 4 -print || true
+            exit 1
+          fi
+
+      - name: Patch archive bundle versions
+        if: ${{ env.APPLE_TEAM_ID != '' && env.APPLE_CERTIFICATE_BASE64 != '' }}
+        run: |
+          set -euo pipefail
+          echo "Patching CFBundleVersion to build number $BUILD_NUMBER in archived app bundles."
+
+          set_plist_string() {
+            local plist="$1"
+            local key="$2"
+            local value="$3"
+            /usr/libexec/PlistBuddy -c "Set :$key $value" "$plist" 2>/dev/null \
+              || /usr/libexec/PlistBuddy -c "Add :$key string $value" "$plist"
+          }
+
+          PATCHED=0
+          while IFS= read -r -d '' plist; do
+            case "$plist" in
+              *.app/Info.plist|*.appex/Info.plist)
+                set_plist_string "$plist" CFBundleVersion "$BUILD_NUMBER"
+                set_plist_string "$plist" CFBundleShortVersionString "0.1.0"
+                BUNDLE_ID=$(/usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$plist" 2>/dev/null || echo "unknown")
+                BUNDLE_VERSION=$(/usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "$plist")
+                echo "$BUNDLE_ID CFBundleVersion=$BUNDLE_VERSION ($plist)"
+                if [ "$BUNDLE_VERSION" != "$BUILD_NUMBER" ]; then
+                  echo "::error::$plist has CFBundleVersion=$BUNDLE_VERSION, expected $BUILD_NUMBER."
+                  exit 1
+                fi
+                PATCHED=$((PATCHED + 1))
+                ;;
+            esac
+          done < <(find "$ARCHIVE_PATH/Products/Applications" -name Info.plist -print0)
+
+          if [ "$PATCHED" -eq 0 ]; then
+            echo "::error::No app or app extension Info.plist files were patched in the archive."
             exit 1
           fi
 
@@ -475,6 +550,19 @@ jobs:
           fi
           echo ""
 
+          echo "--- Bundle versions ---"
+          APP_BUILD=$(/usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "$APP_DIR/Info.plist" 2>/dev/null || true)
+          APP_MARKETING=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$APP_DIR/Info.plist" 2>/dev/null || true)
+          echo "App CFBundleShortVersionString: ${APP_MARKETING:-not found}"
+          echo "App CFBundleVersion: ${APP_BUILD:-not found}"
+          if [ "$APP_BUILD" = "$BUILD_NUMBER" ]; then
+            echo "App build number: OK"
+          else
+            echo "::error::App CFBundleVersion = '${APP_BUILD:-missing}'. Expected '$BUILD_NUMBER'. TestFlight requires every upload to have a higher build number."
+            VALIDATION_FAILED=1
+          fi
+          echo ""
+
           echo "--- CFBundleIconName ---"
           ICON_NAME=$(/usr/libexec/PlistBuddy -c "Print :CFBundleIconName" "$APP_DIR/Info.plist" 2>/dev/null || true)
           echo "CFBundleIconName: ${ICON_NAME:-not found}"
@@ -556,6 +644,14 @@ jobs:
             echo "CFBundleDisplayName: ${WIDGET_DISPLAY_NAME:-not found}"
             if [ -z "$WIDGET_DISPLAY_NAME" ]; then
               echo "::error::Widget extension is missing CFBundleDisplayName."
+              VALIDATION_FAILED=1
+            fi
+            WIDGET_BUILD=$(/usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "$WIDGET_PLUGIN/Info.plist" 2>/dev/null || true)
+            echo "CFBundleVersion: ${WIDGET_BUILD:-not found}"
+            if [ "$WIDGET_BUILD" = "$BUILD_NUMBER" ]; then
+              echo "Widget build number: OK"
+            else
+              echo "::error::Widget CFBundleVersion = '${WIDGET_BUILD:-missing}'. Expected '$BUILD_NUMBER'."
               VALIDATION_FAILED=1
             fi
             WIDGET_POINT=$(/usr/libexec/PlistBuddy -c "Print :NSExtension:NSExtensionPointIdentifier" "$WIDGET_PLUGIN/Info.plist" 2>/dev/null || true)

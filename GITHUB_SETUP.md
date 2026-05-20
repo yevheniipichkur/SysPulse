@@ -47,7 +47,10 @@ Push в `main` автоматически запускает workflow **iOS Buil
 3. Выберите **iOS Build**.
 4. Нажмите **Run workflow**.
 5. Выберите branch `main`.
-6. Нажмите зелёную кнопку **Run workflow**.
+6. Включите `run_tests`, только если хотите отдельно прогнать XCTest перед упаковкой.
+7. Нажмите зелёную кнопку **Run workflow**.
+
+Для быстрых TestFlight-сборок оставляйте `run_tests` выключенным. Workflow всё равно соберёт signed archive, экспортирует IPA и перед upload проверит bundle version, icon metadata и widget extension.
 
 ## Где скачать artifact
 

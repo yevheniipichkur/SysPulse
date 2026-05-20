@@ -79,12 +79,14 @@ Workflow: `.github/workflows/ios-build.yml`.
 3. Print Xcode version.
 4. Install XcodeGen.
 5. Generate `SysPulse.xcodeproj`.
-6. Build unsigned debug.
-7. Run tests.
-8. Create archive.
-9. Export IPA при наличии signing secrets.
-10. Upload artifacts.
-11. Upload to TestFlight при наличии App Store Connect secrets.
+6. Cache Swift packages.
+7. Build unsigned debug, если signing secrets отсутствуют или включён ручной `run_tests`.
+8. Run tests только при ручном запуске с `run_tests=true`.
+9. Create signed archive при наличии signing secrets.
+10. Patch archive `CFBundleVersion` номером GitHub Actions run.
+11. Export IPA при наличии signing secrets.
+12. Upload artifacts.
+13. Upload to TestFlight при наличии App Store Connect secrets.
 
 ## Signing secrets
 
@@ -99,7 +101,7 @@ Workflow: `.github/workflows/ios-build.yml`.
 - `APPSTORE_CONNECT_API_ISSUER_ID`
 - `APPSTORE_CONNECT_API_KEY_BASE64`
 
-Если secrets отсутствуют, workflow всё равно выполняет unsigned compile check и tests.
+Если secrets отсутствуют, workflow всё равно выполняет unsigned compile check. Тесты по умолчанию отключены для ускорения TestFlight-сборок; включите `run_tests` при ручном запуске workflow.
 
 ## Генерация IPA
 
