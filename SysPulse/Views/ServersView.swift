@@ -157,7 +157,7 @@ struct ServerCardView: View {
                     StatusPill(status: server.status)
                 }
 
-                HStack(spacing: 10) {
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 76), spacing: 10)], spacing: 10) {
                     CompactMetric(title: "CPU", value: metrics.cpuUsage, color: .cyan)
                     CompactMetric(title: "RAM", value: metrics.ramUsage, color: .green)
                     CompactMetric(title: "Disk", value: metrics.diskUsage, color: metrics.diskUsage > 80 ? .orange : .blue)
@@ -166,17 +166,20 @@ struct ServerCardView: View {
 
                 Sparkline(values: metrics.cpuHistory, color: accent)
 
-                HStack(spacing: 10) {
-                    Label(metrics.uptime, systemImage: "clock")
-                    Label("\(Int(metrics.temperatureCelsius ?? 0))°C", systemImage: "thermometer.medium")
-                    Label("\(metrics.dockerRunning)/\(metrics.dockerTotal)", systemImage: "shippingbox")
-                    if metrics.failedServices > 0 {
-                        Label("\(metrics.failedServices)", systemImage: "exclamationmark.triangle")
-                            .foregroundStyle(.orange)
+                ScrollView(.horizontal) {
+                    HStack(spacing: 10) {
+                        Label(metrics.uptime, systemImage: "clock")
+                        Label("\(Int(metrics.temperatureCelsius ?? 0))°C", systemImage: "thermometer.medium")
+                        Label("\(metrics.dockerRunning)/\(metrics.dockerTotal)", systemImage: "shippingbox")
+                        if metrics.failedServices > 0 {
+                            Label("\(metrics.failedServices)", systemImage: "exclamationmark.triangle")
+                                .foregroundStyle(.orange)
+                        }
                     }
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
                 }
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.secondary)
+                .scrollIndicators(.hidden)
             }
         }
     }

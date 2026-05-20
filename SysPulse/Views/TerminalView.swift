@@ -20,35 +20,36 @@ struct TerminalView: View {
             ZStack {
                 AppBackground()
 
-                VStack(spacing: 14) {
-                    PageHeader(
-                        title: "Terminal",
-                        subtitle: "Secure SSH sessions with command history.",
-                        actionSymbol: "plus"
-                    ) {
-                        createSession()
+                GeometryReader { proxy in
+                    ScrollView {
+                        VStack(spacing: 14) {
+                            PageHeader(
+                                title: "Terminal",
+                                subtitle: "Secure SSH sessions with command history.",
+                                actionSymbol: "plus"
+                            ) {
+                                createSession()
+                            }
+                            .padding(.top, 8)
+
+                            sessionTabs
+
+                            TextField("Search terminal output", text: $searchText)
+                                .textInputAutocapitalization(.never)
+                                .padding(.horizontal, 14)
+                                .padding(.vertical, 11)
+                                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+
+                            terminalSurface(height: terminalHeight(for: proxy.size))
+
+                            keyboardAccessory
+
+                            commandInput
+                        }
+                        .padding(.horizontal, SysPulseDesign.pagePadding)
+                        .padding(.bottom, 16)
                     }
-                    .padding(.horizontal, SysPulseDesign.pagePadding)
-                    .padding(.top, 8)
-
-                    sessionTabs
-                        .padding(.horizontal, SysPulseDesign.pagePadding)
-
-                    TextField("Search terminal output", text: $searchText)
-                        .textInputAutocapitalization(.never)
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 11)
-                        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-                        .padding(.horizontal, SysPulseDesign.pagePadding)
-
-                    terminalSurface
-                        .padding(.horizontal, SysPulseDesign.pagePadding)
-
-                    keyboardAccessory
-                        .padding(.horizontal, SysPulseDesign.pagePadding)
-
-                    commandInput
-                        .padding(.horizontal, SysPulseDesign.pagePadding)
+                    .scrollIndicators(.hidden)
                 }
             }
         }
@@ -83,7 +84,7 @@ struct TerminalView: View {
         .scrollIndicators(.hidden)
     }
 
-    private var terminalSurface: some View {
+    private func terminalSurface(height: CGFloat) -> some View {
         let palette = TerminalThemePalette(theme: appState.settings.terminalTheme)
         return GlassCard(cornerRadius: 26, padding: 0) {
             VStack(spacing: 0) {
@@ -139,7 +140,7 @@ struct TerminalView: View {
                 }
             }
             .frame(maxWidth: .infinity)
-            .frame(minHeight: 360, maxHeight: .infinity)
+            .frame(height: height)
             .background(
                 LinearGradient(colors: palette.background, startPoint: .topLeading, endPoint: .bottomTrailing),
                 in: RoundedRectangle(cornerRadius: 26, style: .continuous)
@@ -150,6 +151,10 @@ struct TerminalView: View {
             }
             .shadow(color: palette.glow.opacity(0.22), radius: 24)
         }
+    }
+
+    private func terminalHeight(for size: CGSize) -> CGFloat {
+        max(260, min(520, size.height * 0.44))
     }
 
     private var commandInput: some View {

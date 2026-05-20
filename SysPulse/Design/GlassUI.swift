@@ -217,10 +217,13 @@ struct PageHeader: View {
             VStack(alignment: .leading, spacing: 5) {
                 Text(title)
                     .font(.largeTitle.weight(.bold))
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.72)
                 if let subtitle {
                     Text(subtitle)
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
+                        .lineLimit(2)
                 }
             }
             Spacer()

@@ -28,7 +28,7 @@ struct MainShellView: View {
     @EnvironmentObject private var appState: AppState
 
     var body: some View {
-        ZStack(alignment: .bottom) {
+        ZStack {
             AppBackground()
 
             Group {
@@ -45,12 +45,15 @@ struct MainShellView: View {
                     SettingsView()
                 }
             }
-            .padding(.bottom, 86)
+            .safeAreaPadding(.bottom, 88)
             .transition(.opacity.combined(with: .scale(scale: 0.98)))
-
+        }
+        .safeAreaInset(edge: .bottom) {
             FloatingTabBar()
-                .padding(.horizontal, 16)
-                .padding(.bottom, 10)
+                .padding(.horizontal, 14)
+                .padding(.top, 8)
+                .padding(.bottom, 8)
+                .background(.clear)
         }
     }
 }
@@ -60,6 +63,13 @@ struct FloatingTabBar: View {
     @Namespace private var namespace
 
     var body: some View {
+        ViewThatFits(in: .horizontal) {
+            tabBar(showLabels: true)
+            tabBar(showLabels: false)
+        }
+    }
+
+    private func tabBar(showLabels: Bool) -> some View {
         HStack(spacing: 6) {
             ForEach(AppTab.allCases) { tab in
                 Button {
@@ -71,20 +81,23 @@ struct FloatingTabBar: View {
                     VStack(spacing: 4) {
                         Image(systemName: tab.symbol)
                             .font(.system(size: 18, weight: .semibold))
-                        Text(tab.title)
-                            .font(.caption2.weight(.semibold))
-                            .lineLimit(1)
+                        if showLabels {
+                            Text(tab.title)
+                                .font(.caption2.weight(.semibold))
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.75)
+                        }
                     }
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 58)
+                    .frame(minWidth: showLabels ? 58 : 44, maxWidth: .infinity)
+                    .frame(height: showLabels ? 58 : 52)
                     .foregroundStyle(appState.selectedTab == tab ? .primary : .secondary)
                     .background {
                         if appState.selectedTab == tab {
-                            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                            RoundedRectangle(cornerRadius: showLabels ? 20 : 18, style: .continuous)
                                 .fill(.thinMaterial)
                                 .matchedGeometryEffect(id: "selectedTab", in: namespace)
                                 .overlay(
-                                    RoundedRectangle(cornerRadius: 20, style: .continuous)
+                                    RoundedRectangle(cornerRadius: showLabels ? 20 : 18, style: .continuous)
                                         .stroke(.white.opacity(0.22), lineWidth: 1)
                                 )
                         }
@@ -94,6 +107,7 @@ struct FloatingTabBar: View {
             }
         }
         .padding(8)
+        .frame(maxWidth: showLabels ? 620 : 360)
         .background {
             Capsule()
                 .fill(.ultraThinMaterial)
