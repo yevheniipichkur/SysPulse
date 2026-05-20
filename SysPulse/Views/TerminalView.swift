@@ -4,9 +4,10 @@ import UIKit
 struct TerminalView: View {
     @EnvironmentObject private var appState: AppState
     @State private var selectedSessionID: UUID?
-    @State private var commandLine = ""
+    @State private var currentInput: String = ""
+    @State private var commandHistory: [String] = []
+    @State private var keyboardActive: Bool = false
     @State private var ptySessions: [UUID: PTYSession] = [:]
-    @FocusState private var inputFocused: Bool
 
     private var selectedSession: TerminalSession? {
         if let selectedSessionID {
@@ -28,6 +29,11 @@ struct TerminalView: View {
         return ptySessions[id] != nil
     }
 
+    private var activePTY: PTYSession? {
+        let id = selectedSessionID ?? appState.terminalSessions.first?.id
+        return id.flatMap { ptySessions[$0] }
+    }
+
     var body: some View {
         NavigationStack {
             ZStack {
@@ -35,6 +41,16 @@ struct TerminalView: View {
                     .ignoresSafeArea()
 
                 terminalCanvas
+
+                // Invisible keyboard capture — sits in ZStack, not in hit-test chain
+                TerminalKeyboardCapture(
+                    onInsert: handleInsert,
+                    onDeleteBackward: handleDeleteBackward,
+                    isActive: $keyboardActive
+                )
+                .frame(width: 1, height: 1)
+                .opacity(0)
+                .allowsHitTesting(false)
             }
             .safeAreaInset(edge: .bottom, spacing: 0) {
                 bottomConsole
@@ -44,7 +60,7 @@ struct TerminalView: View {
             ensureSessionForSelectedServer()
             Task { @MainActor in
                 try? await Task.sleep(for: .seconds(0.5))
-                inputFocused = true
+                keyboardActive = true
             }
         }
         .onChange(of: appState.selectedServer?.id) {
@@ -54,7 +70,7 @@ struct TerminalView: View {
             guard newTab == .terminal else { return }
             Task { @MainActor in
                 try? await Task.sleep(for: .seconds(0.35))
-                inputFocused = true
+                keyboardActive = true
             }
         }
     }
@@ -99,6 +115,8 @@ struct TerminalView: View {
                             .id("terminal-bottom")
                     }
                     .scrollIndicators(.hidden)
+                    .contentShape(Rectangle())
+                    .onTapGesture { keyboardActive = true }
                     .onChange(of: selectedSession?.transcript ?? "") {
                         withAnimation(.easeOut(duration: 0.18)) {
                             proxy.scrollTo("terminal-bottom", anchor: .bottom)
@@ -159,7 +177,8 @@ struct TerminalView: View {
     private var bottomConsole: some View {
         VStack(spacing: 8) {
             connectionBar
-            commandComposer
+            if keyboardActive { historySuggestions }
+            inputPreviewBar
             keyboardAccessory
         }
         .padding(.horizontal, 8)
@@ -241,22 +260,69 @@ struct TerminalView: View {
         }
     }
 
-    private var commandComposer: some View {
+    // Shows recent commands or prefix-filtered history when typing
+    private var historySuggestions: some View {
+        let suggestions: [String]
+        if currentInput.isEmpty {
+            suggestions = Array(commandHistory.reversed().prefix(6))
+        } else {
+            suggestions = Array(
+                commandHistory.reversed()
+                    .filter { $0.hasPrefix(currentInput) && $0 != currentInput }
+                    .prefix(6)
+            )
+        }
+
+        return Group {
+            if !suggestions.isEmpty {
+                ScrollView(.horizontal) {
+                    HStack(spacing: 6) {
+                        ForEach(suggestions, id: \.self) { cmd in
+                            Button(cmd) {
+                                applySuggestion(cmd)
+                            }
+                            .font(.caption.monospaced())
+                            .lineLimit(1)
+                            .padding(.horizontal, 10)
+                            .frame(height: 28)
+                            .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.horizontal, 2)
+                }
+                .scrollIndicators(.hidden)
+            }
+        }
+    }
+
+    // Replaces the old TextField — shows a local mirror of what's being typed
+    private var inputPreviewBar: some View {
         HStack(spacing: 8) {
-            TextField("Enter command", text: $commandLine)
-                .font(.system(size: 15, weight: .regular, design: .rounded))
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
-                .focused($inputFocused)
-                .submitLabel(.send)
-                .padding(.horizontal, 12)
-                .frame(height: 38)
-                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-                .onSubmit(runCommand)
+            HStack(spacing: 6) {
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(.cyan.opacity(0.7))
+                Text(currentInput.isEmpty ? "Tap to type…" : currentInput)
+                    .font(.system(size: 15, design: .monospaced))
+                    .foregroundStyle(currentInput.isEmpty ? Color.secondary : Color.primary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .lineLimit(1)
+            }
+            .padding(.horizontal, 12)
+            .frame(height: 38)
+            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .contentShape(Rectangle())
+            .onTapGesture { keyboardActive = true }
 
             Button("Paste") {
-                commandLine += UIPasteboard.general.string ?? ""
-                inputFocused = true
+                guard let text = UIPasteboard.general.string else { return }
+                for char in text {
+                    let s = String(char)
+                    currentInput += s
+                    activePTY?.send(s)
+                }
+                keyboardActive = true
             }
             .font(.caption.weight(.bold))
             .buttonStyle(.plain)
@@ -292,6 +358,72 @@ struct TerminalView: View {
         .scrollIndicators(.hidden)
     }
 
+    // MARK: - Input handling
+
+    private func handleInsert(_ text: String) {
+        guard let server = sessionServer ?? appState.selectedServer else { return }
+        if selectedSession == nil { createSession(for: server) }
+        let sessionID = selectedSessionID ?? appState.terminalSessions.first?.id
+        guard let sessionID else { return }
+        if selectedSessionID == nil { selectedSessionID = sessionID }
+        if ptySessions[sessionID] == nil {
+            append("[Reconnecting PTY…]\n", to: sessionID)
+            connectPTY(sessionID: sessionID, server: server)
+        }
+        let pty = ptySessions[sessionID]
+
+        if text == "\n" || text == "\r" {
+            let cmd = currentInput
+            if !cmd.isEmpty && commandHistory.last != cmd {
+                commandHistory.append(cmd)
+            }
+            currentInput = ""
+            pty?.send("\n")
+        } else {
+            currentInput += text
+            pty?.send(text)
+        }
+    }
+
+    private func handleDeleteBackward() {
+        if !currentInput.isEmpty {
+            currentInput.removeLast()
+        }
+        activePTY?.send("\u{7F}")
+    }
+
+    private func applySuggestion(_ cmd: String) {
+        // ctrl-U clears current line on server, then we type the suggestion
+        activePTY?.send("\u{15}")
+        activePTY?.send(cmd)
+        currentInput = cmd
+        keyboardActive = true
+    }
+
+    private func insertAccessory(_ key: String) {
+        let pty = activePTY
+        switch key {
+        case "↑": pty?.send("\u{1B}[A")
+        case "↓": pty?.send("\u{1B}[B")
+        case "←": pty?.send("\u{1B}[D")
+        case "→": pty?.send("\u{1B}[C")
+        case "^C":
+            pty?.send("\u{03}")
+            currentInput = ""
+        case "tab":
+            pty?.send("\t")
+        case "esc":
+            pty?.send("\u{1B}")
+        default:
+            // /  |  ~  - ctrl alt
+            currentInput += key
+            pty?.send(key)
+        }
+        keyboardActive = true
+    }
+
+    // MARK: - Session management
+
     private func ensureSessionForSelectedServer() {
         guard let server = appState.selectedServer else {
             selectedSessionID = appState.terminalSessions.first?.id
@@ -320,7 +452,7 @@ struct TerminalView: View {
         appState.terminalSessions.append(session)
         selectedSessionID = session.id
         appState.haptic(.light)
-        inputFocused = true
+        keyboardActive = true
         connectPTY(sessionID: session.id, server: server)
     }
 
@@ -353,35 +485,6 @@ struct TerminalView: View {
         """
     }
 
-    private func runCommand() {
-        let text = commandLine.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !text.isEmpty else { return }
-        guard let server = sessionServer ?? appState.selectedServer else {
-            append("No server selected. Add a server profile first.\n")
-            commandLine = ""
-            return
-        }
-
-        if selectedSession == nil {
-            createSession(for: server)
-        }
-
-        commandLine = ""
-        inputFocused = true
-
-        // selectedSessionID may be nil while selectedSession returns .first fallback
-        let sessionID = selectedSessionID ?? selectedSession?.id
-        guard let sessionID else { return }
-        if selectedSessionID == nil { selectedSessionID = sessionID }
-
-        if ptySessions[sessionID] == nil {
-            append("[Reconnecting PTY…]\n", to: sessionID)
-            connectPTY(sessionID: sessionID, server: server)
-        }
-
-        ptySessions[sessionID]?.send(text + "\n")
-    }
-
     private func stripAnsi(_ text: String) -> String {
         var result = text.replacingOccurrences(of: "\r\n", with: "\n")
         guard result.contains("\u{1B}") || result.contains("\r") else { return result }
@@ -397,17 +500,13 @@ struct TerminalView: View {
 
     private func append(_ text: String, to sessionID: UUID? = nil) {
         guard let id = sessionID ?? selectedSessionID ?? appState.terminalSessions.first?.id,
-              let index = appState.terminalSessions.firstIndex(where: { $0.id == id }) else {
-            return
-        }
+              let index = appState.terminalSessions.firstIndex(where: { $0.id == id }) else { return }
         appState.terminalSessions[index].transcript += text
     }
 
     private func clearTranscript() {
         guard let id = selectedSessionID,
-              let index = appState.terminalSessions.firstIndex(where: { $0.id == id }) else {
-            return
-        }
+              let index = appState.terminalSessions.firstIndex(where: { $0.id == id }) else { return }
         appState.terminalSessions[index].transcript = ""
     }
 
@@ -418,36 +517,81 @@ struct TerminalView: View {
         appState.terminalSessions.removeAll { $0.id == id }
         selectedSessionID = appState.terminalSessions.first?.id
     }
+}
 
-    private func insertAccessory(_ key: String) {
-        let sessionID = selectedSessionID
-        let pty = sessionID.flatMap { ptySessions[$0] }
+// MARK: - Keyboard input capture
 
-        switch key {
-        case "↑":
-            pty?.send("\u{1B}[A")
-        case "↓":
-            pty?.send("\u{1B}[B")
-        case "←":
-            pty?.send("\u{1B}[D")
-        case "→":
-            pty?.send("\u{1B}[C")
-        case "^C":
-            pty?.send("\u{03}")
-            commandLine = ""
-        case "tab":
-            if pty != nil { pty?.send("\t") }
-            else { commandLine += "\t" }
-        case "esc":
-            pty?.send("\u{1B}")
-        case "ctrl", "alt":
-            commandLine += key + " "
-        default:
-            commandLine += key
-        }
-        inputFocused = true
+private final class TerminalKeyView: UIView, UIKeyInput {
+    var onInsert: ((String) -> Void)?
+    var onDeleteBackward: (() -> Void)?
+    var onResign: (() -> Void)?
+
+    override var canBecomeFirstResponder: Bool { true }
+    override var keyboardType: UIKeyboardType { .asciiCapable }
+    override var autocorrectionType: UITextAutocorrectionType { .no }
+    override var autocapitalizationType: UITextAutocapitalizationType { .none }
+    override var spellCheckingType: UITextSpellCheckingType { .no }
+    override var smartQuotesType: UITextSmartQuotesType { .no }
+    override var smartDashesType: UITextSmartDashesType { .no }
+
+    // Always true so the system never disables the delete key
+    var hasText: Bool { true }
+
+    func insertText(_ text: String) { onInsert?(text) }
+    func deleteBackward() { onDeleteBackward?() }
+
+    @discardableResult
+    override func resignFirstResponder() -> Bool {
+        let result = super.resignFirstResponder()
+        if result { onResign?() }
+        return result
+    }
+
+    override var inputAssistantItem: UITextInputAssistantItem {
+        let item = super.inputAssistantItem
+        item.leadingBarButtonGroups = []
+        item.trailingBarButtonGroups = []
+        return item
     }
 }
+
+private struct TerminalKeyboardCapture: UIViewRepresentable {
+    var onInsert: (String) -> Void
+    var onDeleteBackward: () -> Void
+    @Binding var isActive: Bool
+
+    func makeCoordinator() -> Coordinator { Coordinator(parent: self) }
+
+    func makeUIView(context: Context) -> TerminalKeyView {
+        let view = TerminalKeyView()
+        view.onInsert = onInsert
+        view.onDeleteBackward = onDeleteBackward
+        view.onResign = { context.coordinator.didResign() }
+        return view
+    }
+
+    func updateUIView(_ uiView: TerminalKeyView, context: Context) {
+        uiView.onInsert = onInsert
+        uiView.onDeleteBackward = onDeleteBackward
+        DispatchQueue.main.async {
+            if isActive, !uiView.isFirstResponder {
+                uiView.becomeFirstResponder()
+            } else if !isActive, uiView.isFirstResponder {
+                uiView.resignFirstResponder()
+            }
+        }
+    }
+
+    final class Coordinator {
+        var parent: TerminalKeyboardCapture
+        init(parent: TerminalKeyboardCapture) { self.parent = parent }
+        func didResign() {
+            DispatchQueue.main.async { self.parent.isActive = false }
+        }
+    }
+}
+
+// MARK: - Sub-views
 
 private struct TerminalKeyStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
