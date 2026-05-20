@@ -460,10 +460,7 @@ struct TerminalView: View {
         let pty = PTYSession()
         let appStateRef = appState
         pty.onOutput = { [appStateRef] text in
-            let cleaned = stripAnsi(text)
-            guard !cleaned.isEmpty,
-                  let idx = appStateRef.terminalSessions.firstIndex(where: { $0.id == sessionID }) else { return }
-            appStateRef.terminalSessions[idx].transcript += cleaned
+            applyOutput(text, sessionID: sessionID, appState: appStateRef)
         }
         pty.onDisconnect = { [appStateRef] error in
             guard let idx = appStateRef.terminalSessions.firstIndex(where: { $0.id == sessionID }) else { return }
@@ -485,17 +482,43 @@ struct TerminalView: View {
         """
     }
 
-    private func stripAnsi(_ text: String) -> String {
-        var result = text.replacingOccurrences(of: "\r\n", with: "\n")
-        guard result.contains("\u{1B}") || result.contains("\r") else { return result }
-        let pattern = "\u{1B}\\[[\\d;?]*[A-Za-z]|\u{1B}[()][B012]|\u{1B}[=>78M]|\u{1B}\\][^\u{07}]*\u{07}|\\r"
-        guard let regex = try? NSRegularExpression(pattern: pattern) else { return result }
-        result = regex.stringByReplacingMatches(
-            in: result,
-            range: NSRange(result.startIndex..., in: result),
-            withTemplate: ""
-        )
-        return result
+    // Applies PTY output to a session's transcript, correctly handling \r (carriage return)
+    // as "overwrite current line" — the same way a real VT100 terminal does.
+    private func applyOutput(_ text: String, sessionID: UUID, appState: AppState) {
+        guard let idx = appState.terminalSessions.firstIndex(where: { $0.id == sessionID }) else { return }
+
+        // \r\n → \n first, then strip ANSI escape sequences (keep bare \r for CR handling)
+        var processed = text.replacingOccurrences(of: "\r\n", with: "\n")
+        if processed.contains("\u{1B}") {
+            let pattern = "\u{1B}\\[[\\d;?]*[A-Za-z]|\u{1B}[()][B012]|\u{1B}[=>78M]|\u{1B}\\][^\u{07}]*\u{07}"
+            if let regex = try? NSRegularExpression(pattern: pattern) {
+                processed = regex.stringByReplacingMatches(
+                    in: processed,
+                    range: NSRange(processed.startIndex..., in: processed),
+                    withTemplate: ""
+                )
+            }
+        }
+        guard !processed.isEmpty else { return }
+
+        guard processed.contains("\r") else {
+            appState.terminalSessions[idx].transcript += processed
+            return
+        }
+
+        // \r means "go to start of current line and overwrite"
+        var t = appState.terminalSessions[idx].transcript
+        let parts = processed.components(separatedBy: "\r")
+        t += parts[0]
+        for part in parts.dropFirst() {
+            if let lastNL = t.lastIndex(of: "\n") {
+                t = String(t[t.startIndex...lastNL])
+            } else {
+                t = ""
+            }
+            t += part
+        }
+        appState.terminalSessions[idx].transcript = t
     }
 
     private func append(_ text: String, to sessionID: UUID? = nil) {
