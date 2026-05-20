@@ -21,13 +21,8 @@ targets:
           - Resources/**
           - Info.plist
           - SysPulse.entitlements
-    resources:
-      - path: SysPulse/Resources/Assets.xcassets
-      - path: SysPulse/Resources/PrivacyInfo.xcprivacy
-      - path: SysPulse/Resources/en.lproj
-      - path: SysPulse/Resources/pl.lproj
-      - path: SysPulse/Resources/ru.lproj
-      - path: SysPulse/Resources/uk.lproj
+      - path: SysPulse/Resources
+        buildPhase: resources
     entitlements:
       path: SysPulse/SysPulse.entitlements
     info:
@@ -36,6 +31,7 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.yevheniipichkur.syspulse
         PRODUCT_NAME: SysPulse
+        GENERATE_INFOPLIST_FILE: NO
         INFOPLIST_KEY_CFBundleDisplayName: SysPulse
         INFOPLIST_KEY_CFBundleIconName: AppIcon
         TARGETED_DEVICE_FAMILY: 1
