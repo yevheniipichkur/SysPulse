@@ -369,13 +369,16 @@ struct TerminalView: View {
         commandLine = ""
         inputFocused = true
 
-        guard let sessionID = selectedSessionID else { return }
+        // selectedSessionID may be nil while selectedSession returns .first fallback
+        let sessionID = selectedSessionID ?? selectedSession?.id
+        guard let sessionID else { return }
+        if selectedSessionID == nil { selectedSessionID = sessionID }
 
         if ptySessions[sessionID] == nil {
             connectPTY(sessionID: sessionID, server: server)
         }
 
-        ptySessions[sessionID]?.send(text + "\r")
+        ptySessions[sessionID]?.send(text + "\r\n")
     }
 
     private func stripAnsi(_ text: String) -> String {

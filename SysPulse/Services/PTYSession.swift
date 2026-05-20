@@ -18,30 +18,27 @@ final class PTYSession {
             do {
                 let client = try await sshClient.makeCitadelClient(for: server)
                 defer { Task { try? await client.close() } }
-                try await client.withTTY { ttyOutput, stdinWriter in
-                    try await withThrowingTaskGroup(of: Void.self) { group in
-                        group.addTask {
-                            for await buffer in inputStream {
-                                try Task.checkCancellation()
-                                try await stdinWriter.write(buffer)
-                            }
+                try await client.withTTY { [weak self] ttyOutput, stdinWriter in
+                    // stdin: unstructured task avoids Sendability issues with stdinWriter
+                    let stdinTask = Task {
+                        for await buffer in inputStream {
+                            guard !Task.isCancelled else { break }
+                            try? await stdinWriter.write(buffer)
                         }
-                        group.addTask { [weak self] in
-                            for try await chunk in ttyOutput {
-                                try Task.checkCancellation()
-                                let text: String
-                                switch chunk {
-                                case .stdout(var b):
-                                    text = b.readString(length: b.readableBytes) ?? ""
-                                case .stderr(var b):
-                                    text = b.readString(length: b.readableBytes) ?? ""
-                                }
-                                guard !text.isEmpty else { continue }
-                                let cb = self?.onOutput
-                                await MainActor.run { cb?(text) }
-                            }
+                    }
+                    defer { stdinTask.cancel() }
+
+                    // stdout: read inline so stdinWriter stays on its original context
+                    for try await chunk in ttyOutput {
+                        guard !Task.isCancelled else { break }
+                        let text: String
+                        switch chunk {
+                        case .stdout(var b): text = b.readString(length: b.readableBytes) ?? ""
+                        case .stderr(var b): text = b.readString(length: b.readableBytes) ?? ""
                         }
-                        try await group.waitForAll()
+                        guard !text.isEmpty else { continue }
+                        let cb = self?.onOutput
+                        await MainActor.run { cb?(text) }
                     }
                 }
                 let cb = self.onDisconnect
