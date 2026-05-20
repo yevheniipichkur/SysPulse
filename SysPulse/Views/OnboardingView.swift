@@ -34,6 +34,7 @@ struct OnboardingView: View {
     var body: some View {
         ZStack {
             AppBackground()
+                .ignoresSafeArea()
 
             VStack(spacing: 0) {
                 TabView(selection: $page) {

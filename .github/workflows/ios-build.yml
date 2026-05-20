@@ -470,6 +470,11 @@ jobs:
           /usr/libexec/PlistBuddy -c "Print :CFBundleIconName" "$APP_PLIST"
           /usr/libexec/PlistBuddy -c "Print :CFBundleIcons:CFBundlePrimaryIcon:CFBundleIconName" "$APP_PLIST"
 
+          # UILaunchScreen must be present or iOS shows black bars (letterboxing)
+          /usr/libexec/PlistBuddy -c "Add :UILaunchScreen dict" "$APP_PLIST" 2>/dev/null || true
+          /usr/libexec/PlistBuddy -c "Add :UILaunchScreen:UIColorName string LaunchBackground" "$APP_PLIST" 2>/dev/null || true
+          echo "UILaunchScreen: $(/usr/libexec/PlistBuddy -c "Print :UILaunchScreen" "$APP_PLIST" 2>/dev/null || echo 'not found')"
+
       - name: Export IPA
         if: ${{ env.APPLE_TEAM_ID != '' && env.APPLE_CERTIFICATE_BASE64 != '' }}
         env:
@@ -678,6 +683,16 @@ jobs:
           ICON_ALPHA_STATUS=$?
           set -e
           if [ "$ICON_ALPHA_STATUS" -ne 0 ]; then
+            VALIDATION_FAILED=1
+          fi
+          echo ""
+
+          echo "--- UILaunchScreen (letterboxing check) ---"
+          LAUNCH_SCREEN=$(/usr/libexec/PlistBuddy -c "Print :UILaunchScreen" "$APP_DIR/Info.plist" 2>/dev/null || true)
+          if [ -n "$LAUNCH_SCREEN" ]; then
+            echo "UILaunchScreen: OK"
+          else
+            echo "::error::UILaunchScreen key missing from Info.plist — iOS will show black bars (letterboxing) on device."
             VALIDATION_FAILED=1
           fi
           echo ""

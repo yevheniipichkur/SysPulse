@@ -30,6 +30,7 @@ struct MainShellView: View {
     var body: some View {
         ZStack {
             AppBackground()
+                .ignoresSafeArea()
 
             Group {
                 switch appState.selectedTab {
