@@ -94,6 +94,7 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.yevheniipichkur.syspulse.tests
+        SKIP_INSTALL: YES
     dependencies:
       - target: SysPulse
 schemes:
@@ -101,7 +102,6 @@ schemes:
     build:
       targets:
         SysPulse: all
-        SysPulseWidgets: all
         SysPulseTests: [test]
     test:
       gatherCoverageData: true

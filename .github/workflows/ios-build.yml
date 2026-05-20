@@ -173,7 +173,6 @@ jobs:
             CURRENT_PROJECT_VERSION="$BUILD_NUMBER" \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
-            SKIP_INSTALL=NO \
             | tee build/logs/archive-unsigned.log
 
       - name: Require iOS 26 SDK for distribution
@@ -300,7 +299,6 @@ jobs:
             CURRENT_PROJECT_VERSION="$BUILD_NUMBER" \
             CODE_SIGN_STYLE=Manual \
             CODE_SIGN_IDENTITY="Apple Distribution" \
-            SKIP_INSTALL=NO \
             | tee build/logs/archive-signed.log
           ARCHIVE_STATUS=${PIPESTATUS[0]}
           set -e
@@ -314,6 +312,20 @@ jobs:
             done
           fi
           exit "$ARCHIVE_STATUS"
+
+      - name: Validate signed archive shape
+        if: ${{ env.APPLE_TEAM_ID != '' && env.APPLE_CERTIFICATE_BASE64 != '' }}
+        run: |
+          set -euo pipefail
+          ARCHIVE_PLIST="$ARCHIVE_PATH/Info.plist"
+          echo "Archive application properties:"
+          /usr/libexec/PlistBuddy -c "Print :ApplicationProperties" "$ARCHIVE_PLIST"
+          APP_PATH=$(/usr/libexec/PlistBuddy -c "Print :ApplicationProperties:ApplicationPath" "$ARCHIVE_PLIST")
+          if [ -z "$APP_PATH" ] || [ ! -d "$ARCHIVE_PATH/Products/Applications/$APP_PATH" ]; then
+            echo "::error::Signed archive is not an exportable iOS app archive. Check SKIP_INSTALL settings for non-app targets."
+            find "$ARCHIVE_PATH/Products" -maxdepth 4 -print || true
+            exit 1
+          fi
 
       - name: Ensure app icon plist metadata
         if: ${{ env.APPLE_TEAM_ID != '' && env.APPLE_CERTIFICATE_BASE64 != '' }}
