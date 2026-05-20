@@ -1,12 +1,15 @@
 import Foundation
 import NIOCore
+import NIOSSH
 import Citadel
 
 final class PTYSession {
     var onOutput: ((String) -> Void)?
+    var onData: (([UInt8]) -> Void)?
     var onDisconnect: ((Error?) -> Void)?
 
     private var task: Task<Void, Never>?
+    private var stdinWriter: TTYStdinWriter?
     // Use String stream to avoid ByteBuffer Sendability concerns
     private var textContinuation: AsyncStream<String>.Continuation?
 
@@ -19,7 +22,8 @@ final class PTYSession {
             do {
                 let client = try await sshClient.makeCitadelClient(for: server)
                 defer { Task { try? await client.close() } }
-                try await client.withTTY { [weak self] ttyOutput, stdinWriter in
+                try await client.withPTY(Self.defaultPTYRequest) { [weak self] ttyOutput, stdinWriter in
+                    self?.stdinWriter = stdinWriter
                     try? await stdinWriter.changeSize(cols: 120, rows: 40, pixelWidth: 960, pixelHeight: 640)
                     try? await stdinWriter.write(Self.bootstrapCommandBuffer)
 
@@ -41,14 +45,19 @@ final class PTYSession {
 
                     for try await chunk in ttyOutput {
                         guard !Task.isCancelled else { break }
-                        let text: String
+                        let bytes: [UInt8]
                         switch chunk {
-                        case .stdout(var b): text = b.readString(length: b.readableBytes) ?? ""
-                        case .stderr(var b): text = b.readString(length: b.readableBytes) ?? ""
+                        case .stdout(var b): bytes = b.readBytes(length: b.readableBytes) ?? []
+                        case .stderr(var b): bytes = b.readBytes(length: b.readableBytes) ?? []
                         }
-                        guard !text.isEmpty else { continue }
+                        guard !bytes.isEmpty else { continue }
+                        let text = String(decoding: bytes, as: UTF8.self)
                         let cb = self?.onOutput
-                        await MainActor.run { cb?(text) }
+                        let dataCallback = self?.onData
+                        await MainActor.run {
+                            dataCallback?(bytes)
+                            cb?(text)
+                        }
                     }
                 }
                 let cb = self.onDisconnect
@@ -66,10 +75,28 @@ final class PTYSession {
         textContinuation?.yield(text)
     }
 
+    func send(_ bytes: [UInt8]) {
+        guard !bytes.isEmpty else { return }
+        textContinuation?.yield(String(decoding: bytes, as: UTF8.self))
+    }
+
+    func resize(cols: Int, rows: Int) {
+        guard cols > 0, rows > 0, let stdinWriter else { return }
+        Task {
+            try? await stdinWriter.changeSize(
+                cols: cols,
+                rows: rows,
+                pixelWidth: cols * 8,
+                pixelHeight: rows * 16
+            )
+        }
+    }
+
     func disconnect() {
         textContinuation?.finish()
         task?.cancel()
         task = nil
+        stdinWriter = nil
     }
 
     private static var bootstrapCommandBuffer: ByteBuffer {
@@ -78,7 +105,31 @@ final class PTYSession {
         return buffer
     }
 
+    private static var defaultPTYRequest: SSHChannelRequestEvent.PseudoTerminalRequest {
+        SSHChannelRequestEvent.PseudoTerminalRequest(
+            wantReply: true,
+            term: "xterm-256color",
+            terminalCharacterWidth: 120,
+            terminalRowHeight: 40,
+            terminalPixelWidth: 0,
+            terminalPixelHeight: 0,
+            terminalModes: SSHTerminalModes([
+                .ECHO: 0,
+                .ICANON: 1,
+                .ISIG: 1,
+                .IEXTEN: 1,
+                .OPOST: 1,
+                .ONLCR: 1,
+                .ICRNL: 1,
+                .IXON: 1,
+                .CS8: 1,
+                .TTY_OP_ISPEED: 38400,
+                .TTY_OP_OSPEED: 38400
+            ])
+        )
+    }
+
     private static let bootstrapCommand = """
-    stty -echo cols 120 rows 40 2>/dev/null; export TERM=xterm-256color CLICOLOR=1; export LS_COLORS='di=1;34:ln=1;36:ex=1;32:*.sh=1;32:*.py=1;32:*.rb=1;32:*.js=1;32:*.swift=1;35:*.json=0;33:*.log=0;90:*.conf=0;36:*.yml=0;36:*.yaml=0;36:*.md=0;37'; export PS1=''; export PROMPT_COMMAND=''; alias ls='ls --color=always -C' 2>/dev/null || true; printf '\\033]777;cwd:%s;home:%s;host:%s\\007' "$PWD" "$HOME" "$(hostname 2>/dev/null || uname -n)"
+    export TERM=xterm-256color CLICOLOR=1; stty echo cols 120 rows 40 2>/dev/null || true; export LS_COLORS='di=1;34:ln=1;36:ex=1;32:*.sh=1;32:*.py=1;32:*.rb=1;32:*.js=1;32:*.swift=1;35:*.json=0;33:*.log=0;90:*.conf=0;36:*.yml=0;36:*.yaml=0;36:*.md=0;37'; alias ls='ls --color=always -C' 2>/dev/null || true; export PROMPT_COMMAND='printf "\\033]777;cwd:%s;home:%s;host:%s\\007" "$PWD" "$HOME" "$(hostname 2>/dev/null || uname -n)"'; export PS1='\\u@\\h:\\w \\$ '; printf '\\033]777;cwd:%s;home:%s;host:%s\\007' "$PWD" "$HOME" "$(hostname 2>/dev/null || uname -n)"
     """
 }

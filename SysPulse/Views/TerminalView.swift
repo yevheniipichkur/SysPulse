@@ -1,5 +1,6 @@
 import SwiftUI
 import UIKit
+import SwiftTerm
 
 struct TerminalView: View {
     @EnvironmentObject private var appState: AppState
@@ -7,8 +8,11 @@ struct TerminalView: View {
     @State private var currentInput: String = ""
     @State private var commandHistory: [String] = []
     @State private var keyboardActive: Bool = false
+    @State private var controlModifierActive: Bool = false
+    @State private var altModifierActive: Bool = false
     @State private var ptySessions: [UUID: PTYSession] = [:]
     @State private var runtimeStates: [UUID: TerminalRuntimeState] = [:]
+    @StateObject private var terminalBridgeStore = TerminalBridgeStore()
 
     private var selectedSession: TerminalSession? {
         if let selectedSessionID {
@@ -119,30 +123,24 @@ struct TerminalView: View {
                 }
                 .padding(.horizontal, 28)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else {
-                ScrollViewReader { proxy in
-                    ScrollView {
-                        TerminalANSIText(
-                            rawText: displayedTranscript,
-                            fontSize: CGFloat(appState.settings.terminalFontSize),
-                            palette: palette
-                        )
-                            .textSelection(.enabled)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.horizontal, 14)
-                            .padding(.top, 10)
-                            .padding(.bottom, 180)
-                            .id("terminal-bottom")
+            } else if let session = selectedSession {
+                SwiftTermTerminalSurface(
+                    bridge: terminalBridgeStore.bridge(for: session.id),
+                    fontSize: CGFloat(appState.settings.terminalFontSize),
+                    palette: palette,
+                    onInput: { bytes in
+                        mirrorTerminalInput(bytes)
+                        activePTY?.send(bytes)
+                    },
+                    onResize: { cols, rows in
+                        ptySessions[session.id]?.resize(cols: cols, rows: rows)
                     }
-                    .scrollIndicators(.hidden)
-                    .contentShape(Rectangle())
-                    .onTapGesture { keyboardActive = true }
-                    .onChange(of: displayedTranscript) {
-                        withAnimation(.easeOut(duration: 0.18)) {
-                            proxy.scrollTo("terminal-bottom", anchor: .bottom)
-                        }
-                    }
-                }
+                )
+                .padding(.horizontal, 10)
+                .padding(.top, 8)
+                .padding(.bottom, 174)
+                .contentShape(Rectangle())
+                .onTapGesture { keyboardActive = true }
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -360,7 +358,7 @@ struct TerminalView: View {
     private var keyboardAccessory: some View {
         ScrollView(.horizontal) {
             HStack(spacing: 6) {
-                ForEach(["esc", "tab", "ctrl", "alt", "/", "|", "~", "-", "^C", "↑", "↓", "←", "→"], id: \.self) { key in
+                ForEach(["esc", "tab", "ctrl", "alt", "/", "|", "~", "-", "^C", "^X", "^O", "↑", "↓", "←", "→"], id: \.self) { key in
                     Button {
                         insertAccessory(key)
                     } label: {
@@ -390,15 +388,20 @@ struct TerminalView: View {
         }
         let pty = ptySessions[sessionID]
 
+        if applyPendingModifier(to: text, pty: pty) {
+            return
+        }
+
         if text == "\n" || text == "\r" {
             let cmd = currentInput
             if !cmd.isEmpty && commandHistory.last != cmd {
                 commandHistory.append(cmd)
             }
-            append("\(activePrompt)\(cmd)\n", to: sessionID)
+            if pty == nil {
+                append("\(activePrompt)\(cmd)\n", to: sessionID)
+            }
             currentInput = ""
             pty?.send("\n")
-            pty?.send(Self.cwdProbeCommand)
             if cmd.trimmingCharacters(in: .whitespacesAndNewlines) == "clear" {
                 clearTranscript()
             }
@@ -438,17 +441,68 @@ struct TerminalView: View {
         case "^C":
             pty?.send("\u{03}")
             currentInput = ""
+            controlModifierActive = false
+            altModifierActive = false
+        case "^X":
+            pty?.send("\u{18}")
+            controlModifierActive = false
+            altModifierActive = false
+        case "^O":
+            pty?.send("\u{0F}")
+            controlModifierActive = false
+            altModifierActive = false
         case "tab":
             pty?.send("\t")
         case "esc":
             pty?.send("\u{1B}")
-        case "ctrl", "alt":
-            break
+        case "ctrl":
+            controlModifierActive.toggle()
+            if controlModifierActive { altModifierActive = false }
+        case "alt":
+            altModifierActive.toggle()
+            if altModifierActive { controlModifierActive = false }
         default:
+            if applyPendingModifier(to: key, pty: pty) {
+                break
+            }
             currentInput += key
             pty?.send(key)
         }
         keyboardActive = true
+    }
+
+    private func applyPendingModifier(to text: String, pty: PTYSession?) -> Bool {
+        guard controlModifierActive || altModifierActive else { return false }
+        defer {
+            controlModifierActive = false
+            altModifierActive = false
+        }
+
+        if controlModifierActive, let control = controlCharacter(for: text) {
+            pty?.send(control)
+            if control == "\u{03}" || control == "\u{15}" {
+                currentInput = ""
+            }
+            return true
+        }
+
+        if altModifierActive {
+            pty?.send("\u{1B}")
+            pty?.send(text)
+            currentInput += text
+            return true
+        }
+
+        return false
+    }
+
+    private func controlCharacter(for text: String) -> String? {
+        guard let scalar = text.unicodeScalars.first else { return nil }
+        let value = scalar.value
+        if value == 91 { return "\u{1B}" } // Ctrl-[
+        if value == 63 { return "\u{7F}" } // Ctrl-?
+        guard value >= 64, value <= 126 else { return nil }
+        return String(UnicodeScalar(value & 0x1F)!)
     }
 
     // MARK: - Session management
@@ -509,12 +563,20 @@ struct TerminalView: View {
                 to: appStateRef.terminalSessions[idx].transcript
             )
         }
+        let bridge = terminalBridgeStore.bridge(for: sessionID)
+        pty.onData = { [weak bridge] bytes in
+            bridge?.feed(bytes)
+        }
         pty.onDisconnect = { [appStateRef] error in
             guard let idx = appStateRef.terminalSessions.firstIndex(where: { $0.id == sessionID }) else { return }
             if let error {
-                appStateRef.terminalSessions[idx].transcript += "\n[Disconnected: \(error.localizedDescription)]\n"
+                let message = "\n[Disconnected: \(error.localizedDescription)]\n"
+                appStateRef.terminalSessions[idx].transcript += message
+                bridge.feed(Array(message.utf8))
             } else {
-                appStateRef.terminalSessions[idx].transcript += "\n[Session ended]\n"
+                let message = "\n[Session ended]\n"
+                appStateRef.terminalSessions[idx].transcript += message
+                bridge.feed(Array(message.utf8))
             }
         }
         ptySessions[sessionID] = pty
@@ -535,6 +597,7 @@ struct TerminalView: View {
         guard let id = selectedSessionID,
               let index = appState.terminalSessions.firstIndex(where: { $0.id == id }) else { return }
         appState.terminalSessions[index].transcript = ""
+        terminalBridgeStore.bridge(for: id).reset()
     }
 
     private func closeCurrentSession() {
@@ -542,8 +605,31 @@ struct TerminalView: View {
         ptySessions[id]?.disconnect()
         ptySessions.removeValue(forKey: id)
         runtimeStates.removeValue(forKey: id)
+        terminalBridgeStore.remove(id)
         appState.terminalSessions.removeAll { $0.id == id }
         selectedSessionID = appState.terminalSessions.first?.id
+    }
+
+    private func mirrorTerminalInput(_ bytes: [UInt8]) {
+        guard !bytes.isEmpty else { return }
+        for byte in bytes {
+            switch byte {
+            case 10, 13:
+                let cmd = currentInput.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !cmd.isEmpty && commandHistory.last != cmd {
+                    commandHistory.append(cmd)
+                }
+                currentInput = ""
+            case 3, 21:
+                currentInput = ""
+            case 8, 127:
+                if !currentInput.isEmpty { currentInput.removeLast() }
+            case 32...126:
+                currentInput.append(Character(UnicodeScalar(byte)))
+            default:
+                break
+            }
+        }
     }
 
     private func extractSysPulseControlMessages(from text: String, sessionID: UUID, server: ServerProfile) -> (visibleText: String, didUpdateState: Bool) {
@@ -630,6 +716,156 @@ private struct TerminalRuntimeState {
     }
 }
 
+private final class TerminalBridgeStore: ObservableObject {
+    private var bridges: [UUID: TerminalFeedBridge] = [:]
+
+    func bridge(for id: UUID) -> TerminalFeedBridge {
+        if let bridge = bridges[id] { return bridge }
+        let bridge = TerminalFeedBridge()
+        bridges[id] = bridge
+        return bridge
+    }
+
+    func remove(_ id: UUID) {
+        bridges[id]?.reset()
+        bridges.removeValue(forKey: id)
+    }
+}
+
+private final class TerminalFeedBridge: ObservableObject {
+    private var feedHandler: (([UInt8]) -> Void)?
+    private var resetHandler: (() -> Void)?
+    private var pending: [[UInt8]] = []
+
+    func bind(feed: @escaping ([UInt8]) -> Void, reset: @escaping () -> Void) {
+        feedHandler = feed
+        resetHandler = reset
+        guard !pending.isEmpty else { return }
+        let buffered = pending
+        pending.removeAll(keepingCapacity: true)
+        buffered.forEach(feed)
+    }
+
+    func feed(_ bytes: [UInt8]) {
+        guard !bytes.isEmpty else { return }
+        if let feedHandler {
+            feedHandler(bytes)
+        } else {
+            pending.append(bytes)
+        }
+    }
+
+    func reset() {
+        pending.removeAll()
+        if let resetHandler {
+            resetHandler()
+        } else {
+            feedHandler?(Array("\u{1B}[2J\u{1B}[H".utf8))
+        }
+    }
+}
+
+private struct SwiftTermTerminalSurface: UIViewRepresentable {
+    @ObservedObject var bridge: TerminalFeedBridge
+    var fontSize: CGFloat
+    var palette: TerminalThemePalette
+    var onInput: ([UInt8]) -> Void
+    var onResize: (Int, Int) -> Void
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(onInput: onInput, onResize: onResize)
+    }
+
+    func makeUIView(context: Context) -> SwiftTerm.TerminalView {
+        let view = SwiftTerm.TerminalView(
+            frame: .zero,
+            font: UIFont.monospacedSystemFont(ofSize: fontSize, weight: .regular)
+        )
+        view.terminalDelegate = context.coordinator
+        view.isOpaque = false
+        view.backgroundColor = .clear
+        view.nativeBackgroundColor = .clear
+        view.nativeForegroundColor = UIColor(palette.foreground)
+        view.keyboardType = .asciiCapable
+        view.autocorrectionType = .no
+        view.autocapitalizationType = .none
+        view.spellCheckingType = .no
+        view.smartQuotesType = .no
+        view.smartDashesType = .no
+        view.inputAccessoryView = nil
+        view.changeScrollback(5000)
+        bindBridge(to: view)
+        return view
+    }
+
+    func updateUIView(_ uiView: SwiftTerm.TerminalView, context: Context) {
+        context.coordinator.onInput = onInput
+        context.coordinator.onResize = onResize
+        uiView.font = UIFont.monospacedSystemFont(ofSize: fontSize, weight: .regular)
+        uiView.nativeForegroundColor = UIColor(palette.foreground)
+        uiView.nativeBackgroundColor = .clear
+        uiView.backgroundColor = .clear
+        uiView.inputAccessoryView = nil
+        bindBridge(to: uiView)
+    }
+
+    private func bindBridge(to terminalView: SwiftTerm.TerminalView) {
+        bridge.bind(
+            feed: { [weak terminalView] bytes in
+                terminalView?.feed(byteArray: ArraySlice(bytes))
+            },
+            reset: { [weak terminalView] in
+                terminalView?.feed(text: "\u{1B}[2J\u{1B}[H")
+            }
+        )
+    }
+
+    final class Coordinator: NSObject, SwiftTerm.TerminalViewDelegate {
+        var onInput: ([UInt8]) -> Void
+        var onResize: (Int, Int) -> Void
+
+        init(onInput: @escaping ([UInt8]) -> Void, onResize: @escaping (Int, Int) -> Void) {
+            self.onInput = onInput
+            self.onResize = onResize
+        }
+
+        func sizeChanged(source: SwiftTerm.TerminalView, newCols: Int, newRows: Int) {
+            onResize(newCols, newRows)
+        }
+
+        func setTerminalTitle(source: SwiftTerm.TerminalView, title: String) {}
+
+        func hostCurrentDirectoryUpdate(source: SwiftTerm.TerminalView, directory: String?) {}
+
+        func send(source: SwiftTerm.TerminalView, data: ArraySlice<UInt8>) {
+            onInput(Array(data))
+        }
+
+        func scrolled(source: SwiftTerm.TerminalView, position: Double) {}
+
+        func requestOpenLink(source: SwiftTerm.TerminalView, link: String, params: [String: String]) {
+            guard let url = URL(string: link) else { return }
+            UIApplication.shared.open(url)
+        }
+
+        func bell(source: SwiftTerm.TerminalView) {
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        }
+
+        func clipboardCopy(source: SwiftTerm.TerminalView, content: Data) {
+            UIPasteboard.general.string = String(data: content, encoding: .utf8)
+        }
+
+        func clipboardRead(source: SwiftTerm.TerminalView) -> Data? {
+            UIPasteboard.general.string?.data(using: .utf8)
+        }
+
+        func iTermContent(source: SwiftTerm.TerminalView, content: ArraySlice<UInt8>) {}
+
+        func rangeChanged(source: SwiftTerm.TerminalView, startY: Int, endY: Int) {}
+    }
+}
+
 private func sanitizeTerminalStream(_ text: String) -> String {
     var output = ""
     var index = text.startIndex
@@ -692,7 +928,7 @@ private func sanitizeTerminalStream(_ text: String) -> String {
         index = text.index(after: index)
     }
 
-    if let regex = try? NSRegularExpression(pattern: #"(?m)^.*stty -echo cols 120 rows 40.*\n?"#) {
+    if let regex = try? NSRegularExpression(pattern: #"(?m)^.*export TERM=xterm-256color.*PROMPT_COMMAND.*\n?"#) {
         output = regex.stringByReplacingMatches(
             in: output,
             range: NSRange(output.startIndex..., in: output),

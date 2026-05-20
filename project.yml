@@ -15,6 +15,12 @@ packages:
   Citadel:
     url: https://github.com/orlandos-nl/Citadel.git
     exactVersion: "0.12.1"
+  swift-nio-ssh:
+    url: https://github.com/Wellz26/swift-nio-ssh.git
+    exactVersion: "0.3.6"
+  SwiftTerm:
+    url: https://github.com/migueldeicaza/SwiftTerm.git
+    exactVersion: "1.13.0"
 targets:
   SysPulse:
     type: application
@@ -47,6 +53,9 @@ targets:
       - target: SysPulseWidgets
         embed: true
       - package: Citadel
+      - package: swift-nio-ssh
+        product: NIOSSH
+      - package: SwiftTerm
   SysPulseWidgets:
     type: app-extension
     platform: iOS
