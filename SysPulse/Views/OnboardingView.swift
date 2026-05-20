@@ -35,12 +35,12 @@ struct OnboardingView: View {
         ZStack {
             AppBackground()
 
-            VStack(spacing: 20) {
-                Spacer(minLength: 22)
-
+            VStack(spacing: 0) {
                 TabView(selection: $page) {
                     ForEach(Array(pages.enumerated()), id: \.offset) { index, item in
                         VStack(spacing: 28) {
+                            Spacer()
+
                             ZStack {
                                 Circle()
                                     .fill(item.accent.opacity(0.18))
@@ -65,6 +65,8 @@ struct OnboardingView: View {
                                     .multilineTextAlignment(.center)
                                     .frame(maxWidth: 320)
                             }
+
+                            Spacer()
                         }
                         .padding(.horizontal, 28)
                         .tag(index)
@@ -98,7 +100,7 @@ struct OnboardingView: View {
                     .buttonStyle(.plain)
                 }
                 .padding(.horizontal, 22)
-                .padding(.bottom, 24)
+                .padding(.bottom, 34)
             }
         }
     }
