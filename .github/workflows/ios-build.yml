@@ -321,7 +321,11 @@ jobs:
           echo "Archive application properties:"
           /usr/libexec/PlistBuddy -c "Print :ApplicationProperties" "$ARCHIVE_PLIST"
           APP_PATH=$(/usr/libexec/PlistBuddy -c "Print :ApplicationProperties:ApplicationPath" "$ARCHIVE_PLIST")
-          if [ -z "$APP_PATH" ] || [ ! -d "$ARCHIVE_PATH/Products/Applications/$APP_PATH" ]; then
+          APP_PRODUCT_PATH="$ARCHIVE_PATH/Products/$APP_PATH"
+          if [ ! -d "$APP_PRODUCT_PATH" ] && [ -n "$APP_PATH" ]; then
+            APP_PRODUCT_PATH="$ARCHIVE_PATH/Products/Applications/$APP_PATH"
+          fi
+          if [ -z "$APP_PATH" ] || [ ! -d "$APP_PRODUCT_PATH" ]; then
             echo "::error::Signed archive is not an exportable iOS app archive. Check SKIP_INSTALL settings for non-app targets."
             find "$ARCHIVE_PATH/Products" -maxdepth 4 -print || true
             exit 1
