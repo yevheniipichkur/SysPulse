@@ -244,6 +244,7 @@ struct ServerDetailView: View {
             if !appState.isProUnlocked {
                 PremiumLockedCard(title: "Docker monitoring is Pro", message: "Unlock live container stats, logs and restart actions.")
             }
+            commandPreview(title: "Docker scan", command: dockerService.listContainersCommand())
             ForEach(dockerService.containers(for: server)) { container in
                 GlassCard {
                     VStack(alignment: .leading, spacing: 12) {
@@ -261,9 +262,9 @@ struct ServerDetailView: View {
                             CompactMetric(title: "Memory", value: container.memoryUsage, color: .green)
                         }
                         HStack {
-                            Button("Start") { confirm("Start container \(container.name)?") }
-                            Button("Stop", role: .destructive) { confirm("Stop container \(container.name)?") }
-                            Button("Restart") { confirm("Restart container \(container.name)?") }
+                            Button("Start") { confirm(dockerService.actionCommand(action: "start", containerName: container.name)) }
+                            Button("Stop", role: .destructive) { confirm(dockerService.actionCommand(action: "stop", containerName: container.name)) }
+                            Button("Restart") { confirm(dockerService.actionCommand(action: "restart", containerName: container.name)) }
                             Spacer()
                         }
                         .font(.caption.weight(.semibold))
@@ -278,6 +279,7 @@ struct ServerDetailView: View {
             if !appState.isProUnlocked {
                 PremiumLockedCard(title: "Advanced systemd is Pro", message: "Unlock restart/start/stop actions and failed service diagnostics.")
             }
+            commandPreview(title: "Failed units", command: systemdService.failedUnitsCommand())
             ForEach(systemdService.services(for: server)) { service in
                 GlassCard {
                     HStack(spacing: 12) {
@@ -293,9 +295,9 @@ struct ServerDetailView: View {
                         }
                         Spacer()
                         Menu {
-                            Button("Start") { confirm("Start service \(service.name)?") }
-                            Button("Restart") { confirm("Restart service \(service.name)?") }
-                            Button("Stop", role: .destructive) { confirm("Stop service \(service.name)?") }
+                            Button("Start") { confirm(systemdService.actionCommand(action: "start", serviceName: service.name)) }
+                            Button("Restart") { confirm(systemdService.actionCommand(action: "restart", serviceName: service.name)) }
+                            Button("Stop", role: .destructive) { confirm(systemdService.actionCommand(action: "stop", serviceName: service.name)) }
                         } label: {
                             Image(systemName: "ellipsis.circle")
                         }
@@ -322,6 +324,12 @@ struct ServerDetailView: View {
                             Image(systemName: "square.and.arrow.up")
                         }
                     }
+                    Text(logsService.journalCommand(lines: 200))
+                        .font(.caption.monospaced())
+                        .foregroundStyle(.secondary)
+                        .padding(10)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(.black.opacity(0.12), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
                     ForEach(logsService.recentLogs(for: server), id: \.self) { line in
                         Text(line)
                             .font(.caption.monospaced())
@@ -330,6 +338,19 @@ struct ServerDetailView: View {
                             .padding(.vertical, 3)
                     }
                 }
+            }
+        }
+    }
+
+    private func commandPreview(title: String, command: String) -> some View {
+        GlassCard(cornerRadius: 18, padding: 12) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text(title)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                Text(command)
+                    .font(.caption.monospaced())
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
     }
@@ -398,6 +419,13 @@ struct ServerDetailView: View {
                 }
                 Button("Refresh Metrics") {
                     appState.metricsByServer[server.id]?.timestamp = .now
+                    appState.updateLiveActivity(message: "Metrics refreshed")
+                }
+                Button("Start Live Activity") {
+                    appState.startMonitoringLiveActivity()
+                }
+                Button("End Live Activity") {
+                    appState.endLiveActivity()
                 }
                 Button("Reboot Server", role: .destructive) {
                     confirm("Reboot \(server.name)? SysPulse will show a final confirmation before running sudo reboot.")

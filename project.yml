@@ -23,6 +23,7 @@ targets:
           - SysPulse.entitlements
       - path: SysPulse/Resources
         buildPhase: resources
+      - path: Shared
     entitlements:
       path: SysPulse/SysPulse.entitlements
     info:
@@ -50,6 +51,7 @@ targets:
           - Resources/**
           - Info.plist
           - SysPulseWidgets.entitlements
+      - path: Shared
     resources:
       - path: SysPulseWidgets/Resources
     entitlements:

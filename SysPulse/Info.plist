@@ -40,6 +40,8 @@
 	<string>SysPulse uses Face ID to protect saved server profiles and credentials.</string>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>SysPulse can connect to Linux servers on your local network when you add them.</string>
+	<key>NSSupportsLiveActivities</key>
+	<true/>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

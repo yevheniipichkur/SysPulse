@@ -3,25 +3,24 @@ import WidgetKit
 
 struct SysPulseWidgetEntry: TimelineEntry {
     let date: Date
-    let serverName: String
-    let status: String
-    let cpu: Double
-    let ram: Double
-    let disk: Double
-    let health: Int
+    let envelope: WidgetSnapshotEnvelope
+
+    var primary: WidgetServerSnapshot {
+        envelope.servers.first ?? .placeholder
+    }
 }
 
 struct SysPulseWidgetProvider: TimelineProvider {
     func placeholder(in context: Context) -> SysPulseWidgetEntry {
-        SysPulseWidgetEntry(date: .now, serverName: "Raspberry Pi", status: "Online", cpu: 27, ram: 54, disk: 68, health: 91)
+        SysPulseWidgetEntry(date: .now, envelope: .placeholder)
     }
 
     func getSnapshot(in context: Context, completion: @escaping (SysPulseWidgetEntry) -> Void) {
-        completion(placeholder(in: context))
+        completion(SysPulseWidgetEntry(date: .now, envelope: WidgetSnapshotStore().load() ?? .placeholder))
     }
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<SysPulseWidgetEntry>) -> Void) {
-        let entry = SysPulseWidgetEntry(date: .now, serverName: "Demo Server", status: "Online", cpu: 42, ram: 63, disk: 57, health: 84)
+        let entry = SysPulseWidgetEntry(date: .now, envelope: WidgetSnapshotStore().load() ?? .placeholder)
         completion(Timeline(entries: [entry], policy: .after(.now.addingTimeInterval(900))))
     }
 }
@@ -46,13 +45,13 @@ struct SysPulseWidgetView: View {
             HStack {
                 Image(systemName: "server.rack")
                 Spacer()
-                Circle().fill(.green).frame(width: 8, height: 8)
+                Circle().fill(statusColor(entry.primary.status)).frame(width: 8, height: 8)
             }
-            Text(entry.serverName)
+            Text(entry.primary.name)
                 .font(.headline)
                 .lineLimit(2)
             Spacer()
-            Text("Health \(entry.health)")
+            Text("Health \(entry.primary.health)")
                 .font(.title3.weight(.bold))
         }
         .sysPulseWidgetBackground()
@@ -61,16 +60,17 @@ struct SysPulseWidgetView: View {
     private var medium: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
-                Text(entry.serverName)
+                Text(entry.primary.name)
                     .font(.headline)
+                    .lineLimit(1)
                 Spacer()
-                Text(entry.status)
+                Text(entry.primary.status)
                     .font(.caption.weight(.bold))
-                    .foregroundStyle(.green)
+                    .foregroundStyle(statusColor(entry.primary.status))
             }
-            metricRow("CPU", entry.cpu, .cyan)
-            metricRow("RAM", entry.ram, .green)
-            metricRow("Disk", entry.disk, entry.disk > 80 ? .orange : .blue)
+            metricRow("CPU", entry.primary.cpu, .cyan)
+            metricRow("RAM", entry.primary.ram, .green)
+            metricRow("Disk", entry.primary.disk, entry.primary.disk > 80 ? .orange : .blue)
         }
         .sysPulseWidgetBackground()
     }
@@ -79,14 +79,14 @@ struct SysPulseWidgetView: View {
         VStack(alignment: .leading, spacing: 12) {
             Text("SysPulse")
                 .font(.title3.weight(.bold))
-            ForEach(["Raspberry Pi Home", "VPS Production", "Docker Lab"], id: \.self) { name in
+            ForEach(entry.envelope.servers.prefix(5)) { server in
                 HStack {
                     Image(systemName: "server.rack")
-                        .foregroundStyle(.cyan)
-                    Text(name)
+                        .foregroundStyle(statusColor(server.status))
+                    Text(server.name)
                         .lineLimit(1)
                     Spacer()
-                    Text(name == "VPS Production" ? "66" : "91")
+                    Text("\(server.health)")
                         .font(.headline.monospacedDigit())
                 }
             }
@@ -112,6 +112,15 @@ struct SysPulseWidgetView: View {
             Text("\(Int(value))%")
                 .font(.caption.monospacedDigit())
                 .frame(width: 38, alignment: .trailing)
+        }
+    }
+
+    private func statusColor(_ status: String) -> Color {
+        switch status.lowercased() {
+        case "online": .green
+        case "warning": .orange
+        case "offline": .red
+        default: .secondary
         }
     }
 }

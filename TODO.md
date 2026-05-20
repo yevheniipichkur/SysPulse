@@ -21,15 +21,17 @@
 
 - [ ] Real SSH integration.
 - [ ] Move profile persistence fully into SwiftData-backed repository.
-- [ ] Docker monitoring.
-- [ ] systemd monitoring.
-- [ ] Widgets with shared App Group data.
-- [ ] Live Activities updates from active app usage.
+- [x] Docker monitoring demo flow and command builders.
+- [x] systemd monitoring demo flow and command builders.
+- [x] Widgets snapshot data bridge with App Group-ready fallback.
+- [x] Live Activities updates from active app usage.
 - [ ] iCloud sync.
-- [ ] TestFlight upload with production signing profiles.
+- [x] TestFlight upload with production signing profiles.
 - [ ] StoreKit product configuration in App Store Connect.
 - [ ] Real server profile persistence through SwiftData UI.
-- [ ] App icon and App Store screenshots.
+- [x] App icon.
+- [ ] App Store screenshots.
+- [ ] Enable App Group capability in Apple Developer and provisioning profiles.
 
 ## Future
 

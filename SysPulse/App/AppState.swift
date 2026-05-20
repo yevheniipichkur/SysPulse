@@ -7,8 +7,16 @@ final class AppState: ObservableObject {
     @AppStorage("hasSeenOnboarding") var hasSeenOnboarding: Bool = false
     @Published var selectedTab: AppTab = .servers
     @Published var selectedServer: ServerProfile?
-    @Published var serverProfiles: [ServerProfile]
-    @Published var metricsByServer: [UUID: ServerMetrics]
+    @Published var serverProfiles: [ServerProfile] {
+        didSet {
+            publishWidgetSnapshots()
+        }
+    }
+    @Published var metricsByServer: [UUID: ServerMetrics] {
+        didSet {
+            publishWidgetSnapshots()
+        }
+    }
     @Published var quickCommands: [QuickCommand]
     @Published var terminalSessions: [TerminalSession]
     @Published var settings: AppSettings {
@@ -27,6 +35,8 @@ final class AppState: ObservableObject {
 
     private let profileStorage = ProfileStorageService()
     private let settingsStorage = SettingsStorageService()
+    private let widgetDataService = WidgetDataService()
+    private let liveActivityService = LiveActivityService()
     let demoDataService = DemoDataService()
     let healthScoreService = HealthScoreService()
     let insightsService = InsightsService()
@@ -60,6 +70,7 @@ final class AppState: ObservableObject {
         self.settings = SettingsStorageService().loadSettings()
         self.subscription = SettingsStorageService().loadSubscription()
         self.selectedServer = allProfiles.first
+        publishWidgetSnapshots()
     }
 
     var isProUnlocked: Bool {
@@ -92,6 +103,7 @@ final class AppState: ObservableObject {
             metricsByServer[profile.id] = ServerMetrics.empty(serverID: profile.id)
         }
         selectedServer = servers.first
+        publishWidgetSnapshots()
     }
 
     func metric(for server: ServerProfile?) -> ServerMetrics {
@@ -154,6 +166,7 @@ final class AppState: ObservableObject {
         metrics.cpuUsage = 94
         metrics.healthScore = 48
         metricsByServer[server.id] = metrics
+        updateLiveActivity(message: "High CPU simulated")
     }
 
     func simulateDiskFull() {
@@ -162,6 +175,7 @@ final class AppState: ObservableObject {
         metrics.diskUsage = 93
         metrics.healthScore = 42
         metricsByServer[server.id] = metrics
+        updateLiveActivity(message: "Disk warning simulated")
     }
 
     func simulateOfflineServer() {
@@ -179,6 +193,37 @@ final class AppState: ObservableObject {
             .forEach { try? KeychainService.shared.deleteSecret(account: $0) }
         profileStorage.clearProfiles()
         enableDemoModeData()
+    }
+
+    func startMonitoringLiveActivity() {
+        guard isProUnlocked else {
+            isPaywallPresented = true
+            return
+        }
+        guard let server = selectedServer else { return }
+        let metrics = metric(for: server)
+        Task {
+            await liveActivityService.startMonitoring(server: server, metrics: metrics)
+        }
+    }
+
+    func updateLiveActivity(message: String = "Monitoring refreshed") {
+        guard isProUnlocked else { return }
+        guard let server = selectedServer else { return }
+        let metrics = metric(for: server)
+        Task {
+            await liveActivityService.update(metrics: metrics, message: "\(server.name): \(message)")
+        }
+    }
+
+    func endLiveActivity() {
+        Task {
+            await liveActivityService.end()
+        }
+    }
+
+    private func publishWidgetSnapshots() {
+        widgetDataService.save(profiles: serverProfiles, metricsByServer: metricsByServer)
     }
 
     func haptic(_ style: UIImpactFeedbackGenerator.FeedbackStyle) {

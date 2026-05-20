@@ -245,21 +245,68 @@ struct PackageDetector {
     func checkCommandsPreview() -> [String] {
         ["command -v sensors", "command -v docker", "command -v jq", "command -v htop", "command -v smartctl", "command -v sar"]
     }
+
+    func installCommand(for distribution: LinuxDistribution) -> String {
+        distribution.installCommand
+    }
 }
 
 struct DockerService {
+    func listContainersCommand() -> String {
+        "docker ps --format '{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}'"
+    }
+
+    func statsCommand() -> String {
+        "docker stats --no-stream --format '{{.Name}}|{{.CPUPerc}}|{{.MemPerc}}'"
+    }
+
+    func logsCommand(containerName: String, lines: Int = 200) -> String {
+        "docker logs --tail \(lines) \(containerName)"
+    }
+
+    func actionCommand(action: String, containerName: String) -> String {
+        "docker \(action) \(containerName)"
+    }
+
     func containers(for server: ServerProfile) -> [DockerContainer] {
         DemoDataService.makeContainers()
     }
 }
 
 struct SystemdService {
+    func failedUnitsCommand() -> String {
+        "systemctl --failed --no-pager"
+    }
+
+    func statusCommand(serviceName: String) -> String {
+        "systemctl status \(serviceName) --no-pager"
+    }
+
+    func actionCommand(action: String, serviceName: String) -> String {
+        "sudo systemctl \(action) \(serviceName)"
+    }
+
     func services(for server: ServerProfile) -> [SystemdServiceItem] {
         DemoDataService.makeServices()
     }
 }
 
 struct LogsService {
+    func journalCommand(unit: String? = nil, lines: Int = 200) -> String {
+        if let unit, !unit.isEmpty {
+            return "journalctl -u \(unit) -n \(lines) --no-pager"
+        }
+        return "journalctl -n \(lines) --no-pager"
+    }
+
+    func dmesgCommand(lines: Int = 120) -> String {
+        "dmesg --ctime | tail -n \(lines)"
+    }
+
+    func nginxErrorLogCommand(lines: Int = 200) -> String {
+        "tail -n \(lines) /var/log/nginx/error.log"
+    }
+
     func recentLogs(for server: ServerProfile) -> [String] {
         [
             "May 19 19:23:42 \(server.name) systemd[1]: Started Docker Application Container Engine.",
@@ -270,16 +317,33 @@ struct LogsService {
 }
 
 struct WidgetDataService {
-    private let key = "SysPulse.latestWidgetMetrics"
+    private let store: WidgetSnapshotStore
 
-    func save(metrics: ServerMetrics) {
-        guard let data = try? JSONEncoder().encode(metrics) else { return }
-        UserDefaults.standard.set(data, forKey: key)
+    init(store: WidgetSnapshotStore = WidgetSnapshotStore()) {
+        self.store = store
     }
 
-    func load() -> ServerMetrics? {
-        guard let data = UserDefaults.standard.data(forKey: key) else { return nil }
-        return try? JSONDecoder().decode(ServerMetrics.self, from: data)
+    func save(profiles: [ServerProfile], metricsByServer: [UUID: ServerMetrics]) {
+        let snapshots = profiles.prefix(8).map { profile in
+            let metrics = metricsByServer[profile.id] ?? .empty(serverID: profile.id)
+            return WidgetServerSnapshot(
+                id: profile.id,
+                name: profile.name,
+                status: profile.status.title,
+                cpu: metrics.cpuUsage,
+                ram: metrics.ramUsage,
+                disk: metrics.diskUsage,
+                health: metrics.healthScore,
+                uptime: metrics.uptime,
+                osName: metrics.osName,
+                updatedAt: metrics.timestamp
+            )
+        }
+        store.save(WidgetSnapshotEnvelope(generatedAt: .now, servers: snapshots))
+    }
+
+    func load() -> WidgetSnapshotEnvelope {
+        store.load() ?? .placeholder
     }
 }
 
