@@ -126,9 +126,127 @@ struct InsightsService {
 }
 
 struct MetricsCollector {
-    func collect(server: ServerProfile, using client: SSHClientProtocol) async throws -> ServerMetrics {
-        _ = try await client.run("uptime", on: server)
-        return DemoDataService.makeMetrics(for: [server])[server.id] ?? .empty(serverID: server.id)
+    func collect(server: ServerProfile, using client: SSHClientProtocol, previous: ServerMetrics? = nil) async throws -> ServerMetrics {
+        if server.isDemo {
+            return DemoDataService.makeMetrics(for: [server])[server.id] ?? .empty(serverID: server.id)
+        }
+
+        let output = try await client.run(Self.metricsCommand, on: server)
+        return parseMetrics(output, serverID: server.id, previous: previous)
+    }
+
+    func parseMetrics(_ output: String, serverID: UUID, previous: ServerMetrics? = nil) -> ServerMetrics {
+        let values = Dictionary(
+            uniqueKeysWithValues: output
+                .split(whereSeparator: \.isNewline)
+                .compactMap { line -> (String, String)? in
+                    let parts = line.split(separator: "=", maxSplits: 1, omittingEmptySubsequences: false)
+                    guard parts.count == 2 else { return nil }
+                    return (String(parts[0]), String(parts[1]))
+                }
+        )
+
+        let cpu = values.double("CPU")
+        let ram = values.double("RAM")
+        let disk = values.double("DISK")
+        let swap = values.double("SWAP")
+        let temperature = values.doubleOptional("TEMP")
+        let failedServices = values.int("FAILED_SERVICES")
+        let dockerRunning = values.int("DOCKER_RUNNING")
+        let dockerTotal = values.int("DOCKER_TOTAL")
+        let loadAverage = values["LOAD"]?.nonEmpty ?? "-"
+        let metrics = ServerMetrics(
+            serverID: serverID,
+            timestamp: .now,
+            cpuUsage: cpu,
+            ramUsage: ram,
+            swapUsage: swap,
+            diskUsage: disk,
+            networkInMB: values.double("NET_RX_MB"),
+            networkOutMB: values.double("NET_TX_MB"),
+            temperatureCelsius: temperature,
+            uptime: values["UPTIME"]?.nonEmpty ?? "Unknown",
+            osName: values["OS"]?.nonEmpty ?? "Unknown Linux",
+            kernel: values["KERNEL"]?.nonEmpty ?? "-",
+            loadAverage: loadAverage,
+            ipAddresses: values["IPS"]?
+                .split(separator: " ")
+                .map(String.init)
+                .filter { !$0.isEmpty } ?? [],
+            healthScore: HealthScoreService.calculate(
+                cpu: cpu,
+                ram: ram,
+                disk: disk,
+                temperature: temperature,
+                failedServices: failedServices,
+                dockerRunning: dockerRunning,
+                dockerTotal: dockerTotal,
+                loadAverage: loadAverage
+            ),
+            cpuHistory: (previous?.cpuHistory ?? []).appending(cpu, keepingLast: 18),
+            ramHistory: (previous?.ramHistory ?? []).appending(ram, keepingLast: 18),
+            diskHistory: (previous?.diskHistory ?? []).appending(disk, keepingLast: 18),
+            failedServices: failedServices,
+            dockerRunning: dockerRunning,
+            dockerTotal: dockerTotal
+        )
+        return metrics
+    }
+
+    static let metricsCommand = #"""
+    sh <<'SYSPULSE'
+    read _ u1 n1 s1 i1 w1 q1 r1 st1 _ < /proc/stat
+    idle1=$((i1+w1)); total1=$((u1+n1+s1+i1+w1+q1+r1+st1))
+    sleep 1
+    read _ u2 n2 s2 i2 w2 q2 r2 st2 _ < /proc/stat
+    idle2=$((i2+w2)); total2=$((u2+n2+s2+i2+w2+q2+r2+st2))
+    totald=$((total2-total1)); idled=$((idle2-idle1))
+    if [ "$totald" -gt 0 ]; then cpu=$((100*(totald-idled)/totald)); else cpu=0; fi
+    printf "CPU=%s\n" "$cpu"
+    awk '/MemTotal/{t=$2}/MemAvailable/{a=$2}END{if(t>0) printf "RAM=%.0f\n", (t-a)*100/t; else print "RAM=0"}' /proc/meminfo
+    awk '/SwapTotal/{t=$2}/SwapFree/{f=$2}END{if(t>0) printf "SWAP=%.0f\n", (t-f)*100/t; else print "SWAP=0"}' /proc/meminfo
+    df -P / 2>/dev/null | awk 'NR==2{gsub(/%/,"",$5); print "DISK="$5}'
+    load=$(awk '{print $1" "$2" "$3}' /proc/loadavg 2>/dev/null)
+    printf "LOAD=%s\n" "$load"
+    uptime_value=$(uptime -p 2>/dev/null || uptime 2>/dev/null || echo Unknown)
+    printf "UPTIME=%s\n" "$uptime_value"
+    os_value=$(awk -F= '/^PRETTY_NAME=/{gsub(/"/,"",$2); print $2}' /etc/os-release 2>/dev/null)
+    printf "OS=%s\n" "${os_value:-Unknown Linux}"
+    printf "KERNEL=%s\n" "$(uname -r 2>/dev/null || echo -)"
+    printf "IPS=%s\n" "$(hostname -I 2>/dev/null | xargs)"
+    if [ -r /sys/class/thermal/thermal_zone0/temp ]; then awk '{printf "TEMP=%.0f\n", $1/1000}' /sys/class/thermal/thermal_zone0/temp; else echo "TEMP="; fi
+    systemctl --failed --no-legend >/tmp/syspulse_failed_$$ 2>/dev/null; printf "FAILED_SERVICES=%s\n" "$(wc -l < /tmp/syspulse_failed_$$ 2>/dev/null | xargs)"; rm -f /tmp/syspulse_failed_$$
+    printf "DOCKER_RUNNING=%s\n" "$(docker ps -q 2>/dev/null | wc -l | xargs)"
+    printf "DOCKER_TOTAL=%s\n" "$(docker ps -aq 2>/dev/null | wc -l | xargs)"
+    awk -F'[: ]+' 'NR>2{rx+=$3; tx+=$11}END{printf "NET_RX_MB=%.0f\nNET_TX_MB=%.0f\n", rx/1024/1024, tx/1024/1024}' /proc/net/dev 2>/dev/null
+    SYSPULSE
+    """#
+}
+
+private extension Dictionary where Key == String, Value == String {
+    func double(_ key: String) -> Double {
+        Double(self[key]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "") ?? 0
+    }
+
+    func doubleOptional(_ key: String) -> Double? {
+        Double(self[key]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "")
+    }
+
+    func int(_ key: String) -> Int {
+        Int(self[key]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "") ?? 0
+    }
+}
+
+private extension String {
+    var nonEmpty: String? {
+        let trimmed = trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+}
+
+private extension Array where Element == Double {
+    func appending(_ value: Double, keepingLast limit: Int) -> [Double] {
+        Array((self + [value]).suffix(limit))
     }
 }
 

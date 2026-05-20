@@ -11,6 +11,10 @@ settings:
     MARKETING_VERSION: 0.1.0
     CURRENT_PROJECT_VERSION: 1
     ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS: YES
+packages:
+  Citadel:
+    url: https://github.com/orlandos-nl/Citadel.git
+    exactVersion: "0.12.1"
 targets:
   SysPulse:
     type: application
@@ -42,6 +46,7 @@ targets:
     dependencies:
       - target: SysPulseWidgets
         embed: true
+      - package: Citadel
   SysPulseWidgets:
     type: app-extension
     platform: iOS

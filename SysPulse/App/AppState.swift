@@ -37,11 +37,12 @@ final class AppState: ObservableObject {
     private let settingsStorage = SettingsStorageService()
     private let widgetDataService = WidgetDataService()
     private let liveActivityService = LiveActivityService()
+    private let metricsCollector = MetricsCollector()
     let demoDataService = DemoDataService()
     let healthScoreService = HealthScoreService()
     let insightsService = InsightsService()
     let packageDetector = PackageDetector()
-    let sshClient: SSHClientProtocol = MockSSHClient()
+    let sshClient: SSHClientProtocol = HybridSSHClient()
 
     init() {
         let demoServers = DemoDataService.makeDemoServers()
@@ -158,6 +159,38 @@ final class AppState: ObservableObject {
         selectedServer = server
         selectedTab = tab
         haptic(.light)
+    }
+
+    func testConnection(to server: ServerProfile) async throws -> String {
+        try await sshClient.connect(to: server)
+        return try await sshClient.run("uname -a", on: server)
+    }
+
+    func refreshMetrics(for server: ServerProfile) {
+        lastCommandOutput = "Refreshing metrics for \(server.name)..."
+        Task {
+            do {
+                let previous = await MainActor.run {
+                    metricsByServer[server.id]
+                }
+                let metrics = try await metricsCollector.collect(server: server, using: sshClient, previous: previous)
+                await MainActor.run {
+                    metricsByServer[server.id] = metrics
+                    if selectedServer?.id == server.id {
+                        selectedServer?.status = .online
+                    }
+                    lastCommandOutput = "Metrics refreshed for \(server.name)."
+                    updateLiveActivity(message: "Metrics refreshed")
+                }
+            } catch {
+                await MainActor.run {
+                    if selectedServer?.id == server.id {
+                        selectedServer?.status = .warning
+                    }
+                    lastCommandOutput = "Metrics refresh failed for \(server.name): \(error.localizedDescription)"
+                }
+            }
+        }
     }
 
     func simulateHighCPU() {

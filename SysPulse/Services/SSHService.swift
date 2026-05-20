@@ -1,8 +1,11 @@
 import Foundation
+import Citadel
 
 enum SSHClientError: LocalizedError {
     case realClientNotConfigured
     case notConnected
+    case missingCredentials
+    case unsupportedAuthentication(String)
 
     var errorDescription: String? {
         switch self {
@@ -10,6 +13,10 @@ enum SSHClientError: LocalizedError {
             "Real SSH client is not configured yet. Integrate SwiftNIO SSH, NMSSH or libssh2-compatible layer here."
         case .notConnected:
             "SSH session is not connected."
+        case .missingCredentials:
+            "No saved SSH credential was found for this server."
+        case .unsupportedAuthentication(let message):
+            message
         }
     }
 }
@@ -80,13 +87,87 @@ struct MockSSHClient: SSHClientProtocol {
 }
 
 struct RealSSHClient: SSHClientProtocol {
+    private let keychain: KeychainService
+
+    init(keychain: KeychainService = .shared) {
+        self.keychain = keychain
+    }
+
     func connect(to server: ServerProfile) async throws {
-        throw SSHClientError.realClientNotConfigured
+        let client = try await makeClient(for: server)
+        try await client.close()
     }
 
     func run(_ command: String, on server: ServerProfile) async throws -> String {
-        throw SSHClientError.realClientNotConfigured
+        let client = try await makeClient(for: server)
+        defer {
+            Task {
+                try? await client.close()
+            }
+        }
+        var buffer = try await client.executeCommand(command, maxResponseSize: 256 * 1024)
+        return buffer.readString(length: buffer.readableBytes) ?? ""
     }
 
     func disconnect(from server: ServerProfile) async {}
+
+    private func makeClient(for server: ServerProfile) async throws -> SSHClient {
+        let authentication = try authenticationMethod(for: server)
+        return try await SSHClient.connect(
+            host: server.host,
+            port: server.port,
+            authenticationMethod: authentication,
+            hostKeyValidator: .acceptAnything(),
+            reconnect: .never,
+            algorithms: .all
+        )
+    }
+
+    private func authenticationMethod(for server: ServerProfile) throws -> SSHAuthenticationMethod {
+        guard let credentialIdentifier = server.credentialIdentifier,
+              let secret = try keychain.readSecret(
+                account: credentialIdentifier,
+                prompt: "Unlock SSH credentials for \(server.name)"
+              ),
+              !secret.isEmpty else {
+            throw SSHClientError.missingCredentials
+        }
+
+        switch server.authenticationType {
+        case .password:
+            return .passwordBased(username: server.username, password: secret)
+        case .privateKey, .privateKeyWithPassphrase:
+            throw SSHClientError.unsupportedAuthentication(
+                "Private key SSH is prepared in the profile UI but this build currently supports real password SSH. Use password auth for the first TestFlight server connection."
+            )
+        }
+    }
+}
+
+struct HybridSSHClient: SSHClientProtocol {
+    private let mock = MockSSHClient()
+    private let real = RealSSHClient()
+
+    func connect(to server: ServerProfile) async throws {
+        if server.isDemo {
+            try await mock.connect(to: server)
+        } else {
+            try await real.connect(to: server)
+        }
+    }
+
+    func run(_ command: String, on server: ServerProfile) async throws -> String {
+        if server.isDemo {
+            return try await mock.run(command, on: server)
+        }
+        return try await real.run(command, on: server)
+    }
+
+    func disconnect(from server: ServerProfile) async {
+        if server.isDemo {
+            await mock.disconnect(from: server)
+        } else {
+            await real.disconnect(from: server)
+        }
+    }
 }

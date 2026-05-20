@@ -337,7 +337,7 @@ struct AddServerView: View {
 
                         HStack(spacing: 12) {
                             Button {
-                                statusMessage = "Demo check complete. Real SSH test will use SSHClientProtocol integration."
+                                testConnection()
                             } label: {
                                 Label("Test Connection", systemImage: "checkmark.shield")
                                     .frame(maxWidth: .infinity)
@@ -419,6 +419,7 @@ struct AddServerView: View {
             appState.updateServer(editingServer)
             if connectAfterSave {
                 appState.select(editingServer, tab: .terminal)
+                appState.refreshMetrics(for: editingServer)
             }
             dismiss()
             return
@@ -445,7 +446,58 @@ struct AddServerView: View {
         }
         if connectAfterSave {
             appState.select(server, tab: .terminal)
+            appState.refreshMetrics(for: server)
         }
         dismiss()
+    }
+
+    private func testConnection() {
+        guard canSave else {
+            statusMessage = "Enter server name, host and username first."
+            return
+        }
+
+        let targetID = editingServer?.id ?? UUID()
+        let temporaryCredentialID = "server-test-\(targetID.uuidString)"
+        let credentialID = editingServer?.credentialIdentifier ?? temporaryCredentialID
+
+        if !secret.isEmpty {
+            do {
+                try KeychainService.shared.saveSecret(secret, account: credentialID)
+            } catch {
+                statusMessage = error.localizedDescription
+                return
+            }
+        }
+
+        let server = ServerProfile(
+            id: targetID,
+            name: name.isEmpty ? "Connection Test" : name,
+            host: host,
+            port: Int(port) ?? 22,
+            username: username,
+            authenticationType: authType,
+            credentialIdentifier: credentialID,
+            serverType: serverType,
+            status: .unknown,
+            isDemo: false
+        )
+
+        statusMessage = "Connecting to \(host)..."
+        Task {
+            do {
+                let output = try await appState.testConnection(to: server)
+                await MainActor.run {
+                    statusMessage = "Connected. \(output.split(whereSeparator: \.isNewline).first.map(String.init) ?? "SSH is ready.")"
+                }
+            } catch {
+                await MainActor.run {
+                    statusMessage = error.localizedDescription
+                }
+            }
+            if editingServer == nil {
+                try? KeychainService.shared.deleteSecret(account: temporaryCredentialID)
+            }
+        }
     }
 }

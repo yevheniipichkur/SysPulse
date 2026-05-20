@@ -88,7 +88,18 @@ struct ServerDetailView: View {
                             .foregroundStyle(.secondary)
                     }
                     Spacer()
-                    StatusPill(status: server.status)
+                    VStack(alignment: .trailing, spacing: 8) {
+                        StatusPill(status: server.status)
+                        Button {
+                            appState.refreshMetrics(for: server)
+                        } label: {
+                            Image(systemName: "arrow.clockwise")
+                                .frame(width: 34, height: 34)
+                                .background(.thinMaterial, in: Circle())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Refresh metrics")
+                    }
                 }
 
                 HStack(spacing: 12) {
@@ -418,8 +429,7 @@ struct ServerDetailView: View {
                     appState.select(server, tab: .commands)
                 }
                 Button("Refresh Metrics") {
-                    appState.metricsByServer[server.id]?.timestamp = .now
-                    appState.updateLiveActivity(message: "Metrics refreshed")
+                    appState.refreshMetrics(for: server)
                 }
                 Button("Start Live Activity") {
                     appState.startMonitoringLiveActivity()

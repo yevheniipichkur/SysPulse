@@ -19,7 +19,9 @@
 
 ## Next
 
-- [ ] Real SSH integration.
+- [x] Real SSH integration for password auth and command execution.
+- [ ] Private key SSH authentication.
+- [x] Real Linux metrics collection over SSH.
 - [ ] Move profile persistence fully into SwiftData-backed repository.
 - [x] Docker monitoring demo flow and command builders.
 - [x] systemd monitoring demo flow and command builders.
