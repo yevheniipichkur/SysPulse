@@ -168,7 +168,6 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             SKIP_INSTALL=NO \
-            GENERATE_INFOPLIST_FILE=NO \
             | tee build/logs/archive-unsigned.log
 
       - name: Require iOS 26 SDK for distribution
@@ -295,7 +294,6 @@ jobs:
             CODE_SIGN_STYLE=Manual \
             CODE_SIGN_IDENTITY="Apple Distribution" \
             SKIP_INSTALL=NO \
-            GENERATE_INFOPLIST_FILE=NO \
             | tee build/logs/archive-signed.log
           ARCHIVE_STATUS=${PIPESTATUS[0]}
           set -e
