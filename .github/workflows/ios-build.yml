@@ -380,7 +380,11 @@ jobs:
           set -e
           if [ "$EXPORT_STATUS" -ne 0 ]; then
             echo "IPA export failed. Extracting export diagnostics:"
-            grep -E "error:|warning:|Provisioning|provisioning|Signing|signing|No profiles|requires a provisioning profile|exportArchive|method|teamID" build/logs/export-ipa.log | tail -n 160 | while IFS= read -r line; do
+            {
+              grep -E "error:|warning:|Provisioning|provisioning|Signing|signing|No profiles|requires a provisioning profile|exportArchive|method|teamID|ipatool|Export failed|IDEDistribution" build/logs/export-ipa.log || true
+              echo "--- tail export-ipa.log ---"
+              tail -n 180 build/logs/export-ipa.log || true
+            } | tail -n 220 | while IFS= read -r line; do
               escaped=${line//'%'/'%25'}
               escaped=${escaped//$'\n'/'%0A'}
               escaped=${escaped//$'\r'/'%0D'}
