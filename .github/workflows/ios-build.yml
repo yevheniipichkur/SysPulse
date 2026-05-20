@@ -451,12 +451,66 @@ jobs:
             echo "::error::Assets.car not found anywhere in bundle. Asset catalog was not compiled."
             VALIDATION_FAILED=1
           fi
+          echo "Checking source app icons for alpha channels:"
+          set +e
+          python3 <<'PY'
+          import json
+          import pathlib
+          import struct
+          import sys
+
+          iconset = pathlib.Path("SysPulse/Resources/Assets.xcassets/AppIcon.appiconset")
+          contents = json.loads((iconset / "Contents.json").read_text())
+          failed = False
+
+          def png_has_alpha(path: pathlib.Path) -> bool:
+              data = path.read_bytes()
+              if data[:8] != b"\x89PNG\r\n\x1a\n":
+                  raise ValueError(f"{path} is not a PNG")
+              index = 8
+              transparent_chunk = False
+              color_type = None
+              while index + 8 <= len(data):
+                  length = struct.unpack(">I", data[index:index + 4])[0]
+                  chunk_type = data[index + 4:index + 8]
+                  chunk_data = data[index + 8:index + 8 + length]
+                  if chunk_type == b"IHDR":
+                      color_type = chunk_data[9]
+                  elif chunk_type == b"tRNS":
+                      transparent_chunk = True
+                  index += 12 + length
+              return color_type in (4, 6) or transparent_chunk
+
+          for image in contents.get("images", []):
+              filename = image.get("filename")
+              if not filename:
+                  continue
+              path = iconset / filename
+              has_alpha = png_has_alpha(path)
+              print(f"{filename}: {'alpha channel found' if has_alpha else 'opaque'}")
+              failed = failed or has_alpha
+
+          if failed:
+              print("::error::One or more AppIcon PNG files contain alpha. App Store Connect rejects large app icons with alpha.")
+              sys.exit(1)
+          PY
+          ICON_ALPHA_STATUS=$?
+          set -e
+          if [ "$ICON_ALPHA_STATUS" -ne 0 ]; then
+            VALIDATION_FAILED=1
+          fi
           echo ""
 
           echo "--- Widget NSExtensionPointIdentifier ---"
           WIDGET_PLUGIN=$(find "$APP_DIR/PlugIns" -maxdepth 1 -name "*.appex" 2>/dev/null | head -n 1 || true)
           if [ -n "$WIDGET_PLUGIN" ]; then
             echo "Widget plugin: $WIDGET_PLUGIN"
+            WIDGET_DISPLAY_NAME=$(/usr/libexec/PlistBuddy -c "Print :CFBundleDisplayName" "$WIDGET_PLUGIN/Info.plist" 2>/dev/null || true)
+            echo "CFBundleDisplayName: ${WIDGET_DISPLAY_NAME:-not found}"
+            if [ -z "$WIDGET_DISPLAY_NAME" ]; then
+              echo "::error::Widget extension is missing CFBundleDisplayName."
+              VALIDATION_FAILED=1
+            fi
             WIDGET_POINT=$(/usr/libexec/PlistBuddy -c "Print :NSExtension:NSExtensionPointIdentifier" "$WIDGET_PLUGIN/Info.plist" 2>/dev/null || true)
             echo "NSExtensionPointIdentifier: ${WIDGET_POINT:-not found}"
             if [ "$WIDGET_POINT" = "com.apple.widgetkit-extension" ]; then

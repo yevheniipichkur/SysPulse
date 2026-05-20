@@ -58,6 +58,7 @@ targets:
       path: SysPulseWidgets/Info.plist
       properties:
         CFBundleDevelopmentRegion: en
+        CFBundleDisplayName: SysPulse
         CFBundleExecutable: $(EXECUTABLE_NAME)
         CFBundleIdentifier: $(PRODUCT_BUNDLE_IDENTIFIER)
         CFBundleInfoDictionaryVersion: "6.0"
