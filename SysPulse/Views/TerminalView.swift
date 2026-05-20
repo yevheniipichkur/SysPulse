@@ -158,7 +158,7 @@ struct TerminalView: View {
     private func topChrome(palette: TerminalThemePalette) -> some View {
         HStack(spacing: 10) {
             Circle()
-                .fill(isConnected ? Color.green : Color(UIColor.secondaryLabel))
+                .fill(isConnected ? SwiftUI.Color.green : SwiftUI.Color(UIColor.secondaryLabel))
                 .frame(width: 8, height: 8)
 
             Text(sessionServer == nil ? "SysPulse SSH" : activePrompt.trimmingCharacters(in: .whitespaces))
@@ -322,7 +322,7 @@ struct TerminalView: View {
                     .foregroundStyle(.cyan.opacity(0.82))
                 Text(currentInput + "█")
                     .font(.system(size: 15, design: .monospaced))
-                    .foregroundStyle(Color.primary)
+                    .foregroundStyle(SwiftUI.Color.primary)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .lineLimit(1)
             }
@@ -1095,10 +1095,10 @@ private struct TerminalANSIText: View {
 }
 
 private struct ANSIStyle {
-    var color: Color
+    var color: SwiftUI.Color
     var isBold: Bool
 
-    mutating func applySGR(_ parameterText: String, fallback: Color) {
+    mutating func applySGR(_ parameterText: String, fallback: SwiftUI.Color) {
         let codes = parameterText.isEmpty ? [0] : parameterText
             .split(separator: ";", omittingEmptySubsequences: false)
             .map { Int($0) ?? 0 }
@@ -1120,7 +1120,7 @@ private struct ANSIStyle {
                 color = fallback
             case 38:
                 if index + 4 < codes.count, codes[index + 1] == 2 {
-                    color = Color(
+                    color = SwiftUI.Color(
                         red: Double(codes[index + 2]) / 255.0,
                         green: Double(codes[index + 3]) / 255.0,
                         blue: Double(codes[index + 4]) / 255.0
@@ -1134,23 +1134,23 @@ private struct ANSIStyle {
         }
     }
 
-    private static func color(for code: Int) -> Color {
+    private static func color(for code: Int) -> SwiftUI.Color {
         switch code {
-        case 30: Color(red: 0.32, green: 0.36, blue: 0.42)
-        case 31: Color(red: 1.0, green: 0.35, blue: 0.36)
-        case 32: Color(red: 0.42, green: 0.95, blue: 0.54)
-        case 33: Color(red: 1.0, green: 0.82, blue: 0.36)
-        case 34: Color(red: 0.38, green: 0.68, blue: 1.0)
-        case 35: Color(red: 0.88, green: 0.55, blue: 1.0)
-        case 36: Color(red: 0.38, green: 0.95, blue: 1.0)
-        case 37: Color(red: 0.86, green: 0.90, blue: 0.95)
-        case 90: Color(red: 0.45, green: 0.50, blue: 0.58)
-        case 91: Color(red: 1.0, green: 0.50, blue: 0.50)
-        case 92: Color(red: 0.55, green: 1.0, blue: 0.62)
-        case 93: Color(red: 1.0, green: 0.88, blue: 0.48)
-        case 94: Color(red: 0.50, green: 0.76, blue: 1.0)
-        case 95: Color(red: 0.96, green: 0.64, blue: 1.0)
-        case 96: Color(red: 0.55, green: 1.0, blue: 1.0)
+        case 30: SwiftUI.Color(red: 0.32, green: 0.36, blue: 0.42)
+        case 31: SwiftUI.Color(red: 1.0, green: 0.35, blue: 0.36)
+        case 32: SwiftUI.Color(red: 0.42, green: 0.95, blue: 0.54)
+        case 33: SwiftUI.Color(red: 1.0, green: 0.82, blue: 0.36)
+        case 34: SwiftUI.Color(red: 0.38, green: 0.68, blue: 1.0)
+        case 35: SwiftUI.Color(red: 0.88, green: 0.55, blue: 1.0)
+        case 36: SwiftUI.Color(red: 0.38, green: 0.95, blue: 1.0)
+        case 37: SwiftUI.Color(red: 0.86, green: 0.90, blue: 0.95)
+        case 90: SwiftUI.Color(red: 0.45, green: 0.50, blue: 0.58)
+        case 91: SwiftUI.Color(red: 1.0, green: 0.50, blue: 0.50)
+        case 92: SwiftUI.Color(red: 0.55, green: 1.0, blue: 0.62)
+        case 93: SwiftUI.Color(red: 1.0, green: 0.88, blue: 0.48)
+        case 94: SwiftUI.Color(red: 0.50, green: 0.76, blue: 1.0)
+        case 95: SwiftUI.Color(red: 0.96, green: 0.64, blue: 1.0)
+        case 96: SwiftUI.Color(red: 0.55, green: 1.0, blue: 1.0)
         case 97: .white
         default: .primary
         }
@@ -1191,31 +1191,31 @@ private struct TerminalIconButton: View {
 private struct TerminalThemePalette {
     var theme: TerminalTheme
 
-    var background: [Color] {
+    var background: [SwiftUI.Color] {
         switch theme {
-        case .liquidDark: [Color(red: 0.01, green: 0.02, blue: 0.06), Color(red: 0.02, green: 0.05, blue: 0.09)]
+        case .liquidDark: [SwiftUI.Color(red: 0.01, green: 0.02, blue: 0.06), SwiftUI.Color(red: 0.02, green: 0.05, blue: 0.09)]
         case .matrix: [.black, .green.opacity(0.18)]
-        case .midnight: [Color(red: 0.02, green: 0.02, blue: 0.08), Color(red: 0.05, green: 0.05, blue: 0.18)]
-        case .ice: [Color(red: 0.90, green: 0.97, blue: 1.0), Color(red: 0.70, green: 0.88, blue: 0.98)]
-        case .solarized: [Color(red: 0.00, green: 0.17, blue: 0.21), Color(red: 0.03, green: 0.21, blue: 0.25)]
+        case .midnight: [SwiftUI.Color(red: 0.02, green: 0.02, blue: 0.08), SwiftUI.Color(red: 0.05, green: 0.05, blue: 0.18)]
+        case .ice: [SwiftUI.Color(red: 0.90, green: 0.97, blue: 1.0), SwiftUI.Color(red: 0.70, green: 0.88, blue: 0.98)]
+        case .solarized: [SwiftUI.Color(red: 0.00, green: 0.17, blue: 0.21), SwiftUI.Color(red: 0.03, green: 0.21, blue: 0.25)]
         case .neon: [.black, .purple.opacity(0.28)]
-        case .classic: [.black, Color(red: 0.05, green: 0.05, blue: 0.05)]
-        case .raspberry: [Color(red: 0.16, green: 0.02, blue: 0.08), Color(red: 0.32, green: 0.04, blue: 0.14)]
-        case .cyberGlass: [Color(red: 0.02, green: 0.08, blue: 0.11), Color(red: 0.08, green: 0.03, blue: 0.15)]
-        case .terminalPro: [Color(red: 0.02, green: 0.02, blue: 0.03), Color(red: 0.10, green: 0.11, blue: 0.13)]
+        case .classic: [.black, SwiftUI.Color(red: 0.05, green: 0.05, blue: 0.05)]
+        case .raspberry: [SwiftUI.Color(red: 0.16, green: 0.02, blue: 0.08), SwiftUI.Color(red: 0.32, green: 0.04, blue: 0.14)]
+        case .cyberGlass: [SwiftUI.Color(red: 0.02, green: 0.08, blue: 0.11), SwiftUI.Color(red: 0.08, green: 0.03, blue: 0.15)]
+        case .terminalPro: [SwiftUI.Color(red: 0.02, green: 0.02, blue: 0.03), SwiftUI.Color(red: 0.10, green: 0.11, blue: 0.13)]
         }
     }
 
-    var foreground: Color {
+    var foreground: SwiftUI.Color {
         switch theme {
         case .ice: .black
         case .matrix: .green
-        case .solarized: Color(red: 0.51, green: 0.58, blue: 0.59)
-        default: Color(red: 0.62, green: 0.82, blue: 1.0)
+        case .solarized: SwiftUI.Color(red: 0.51, green: 0.58, blue: 0.59)
+        default: SwiftUI.Color(red: 0.62, green: 0.82, blue: 1.0)
         }
     }
 
-    var glow: Color {
+    var glow: SwiftUI.Color {
         switch theme {
         case .matrix: .green
         case .raspberry: .pink
