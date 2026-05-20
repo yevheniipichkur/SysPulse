@@ -38,39 +38,26 @@ final class AppState: ObservableObject {
     private let widgetDataService = WidgetDataService()
     private let liveActivityService = LiveActivityService()
     private let metricsCollector = MetricsCollector()
-    let demoDataService = DemoDataService()
     let healthScoreService = HealthScoreService()
     let insightsService = InsightsService()
     let packageDetector = PackageDetector()
-    let sshClient: SSHClientProtocol = HybridSSHClient()
+    let sshClient: SSHClientProtocol = RealSSHClient()
+    @Published var packageStatuses: [PackageStatus]
 
     init() {
-        let demoServers = DemoDataService.makeDemoServers()
         let savedProfiles = ProfileStorageService().loadProfiles()
-        let allProfiles = demoServers + savedProfiles
-        var metrics = DemoDataService.makeMetrics(for: demoServers)
+        var metrics: [UUID: ServerMetrics] = [:]
         for profile in savedProfiles {
             metrics[profile.id] = ServerMetrics.empty(serverID: profile.id)
         }
-        self.serverProfiles = allProfiles
+        self.serverProfiles = savedProfiles
         self.metricsByServer = metrics
-        self.quickCommands = DemoDataService.makeQuickCommands()
-        self.terminalSessions = [
-            TerminalSession(
-                serverID: demoServers.first?.id,
-                title: "Demo SSH",
-                transcript: """
-                SysPulse Demo Terminal
-                Connected to Raspberry Pi Home Server
-
-                pi@home:~ $ uptime
-                 19:26:11 up 42 days,  3:11,  1 user,  load average: 0.18, 0.21, 0.19
-                """
-            )
-        ]
+        self.quickCommands = QuickCommandCatalog.makeQuickCommands()
+        self.terminalSessions = []
         self.settings = SettingsStorageService().loadSettings()
         self.subscription = SettingsStorageService().loadSubscription()
-        self.selectedServer = allProfiles.first
+        self.packageStatuses = PackageDetector.defaultStatuses
+        self.selectedServer = savedProfiles.first
         publishWidgetSnapshots()
     }
 
@@ -86,25 +73,9 @@ final class AppState: ObservableObject {
         }
     }
 
-    func completeOnboarding(enableDemoMode: Bool) {
+    func completeOnboarding() {
         hasSeenOnboarding = true
-        settings.demoMetricsEnabled = enableDemoMode
-        if enableDemoMode {
-            enableDemoModeData()
-        }
         haptic(.medium)
-    }
-
-    func enableDemoModeData() {
-        let servers = DemoDataService.makeDemoServers()
-        let savedProfiles = profileStorage.loadProfiles()
-        serverProfiles = servers + savedProfiles
-        metricsByServer = DemoDataService.makeMetrics(for: servers)
-        for profile in savedProfiles {
-            metricsByServer[profile.id] = ServerMetrics.empty(serverID: profile.id)
-        }
-        selectedServer = servers.first
-        publishWidgetSnapshots()
     }
 
     func metric(for server: ServerProfile?) -> ServerMetrics {
@@ -120,7 +91,7 @@ final class AppState: ObservableObject {
 
     @discardableResult
     func addServer(_ server: ServerProfile) -> Bool {
-        if !isProUnlocked && serverProfiles.filter({ !$0.isDemo }).count >= 1 {
+        if !isProUnlocked && serverProfiles.count >= 1 {
             isPaywallPresented = true
             return false
         }
@@ -145,7 +116,8 @@ final class AppState: ObservableObject {
     func deleteServer(_ server: ServerProfile) {
         serverProfiles.removeAll { $0.id == server.id }
         metricsByServer.removeValue(forKey: server.id)
-        if let credentialIdentifier = server.credentialIdentifier, !server.isDemo {
+        terminalSessions.removeAll { $0.serverID == server.id }
+        if let credentialIdentifier = server.credentialIdentifier {
             try? KeychainService.shared.deleteSecret(account: credentialIdentifier)
         }
         profileStorage.saveProfiles(serverProfiles)
@@ -193,6 +165,50 @@ final class AppState: ObservableObject {
         }
     }
 
+    func runRemoteCommand(_ command: String, on server: ServerProfile? = nil) {
+        guard let targetServer = server ?? selectedServer else {
+            lastCommandOutput = "Select a server before running commands."
+            return
+        }
+
+        lastCommandOutput = "Running on \(targetServer.name):\n\(command)"
+        Task {
+            do {
+                let output = try await sshClient.run(command, on: targetServer)
+                await MainActor.run {
+                    lastCommandOutput = output.isEmpty ? "Command completed with no output." : output
+                }
+            } catch {
+                await MainActor.run {
+                    lastCommandOutput = error.localizedDescription
+                }
+            }
+        }
+    }
+
+    func refreshPackageStatuses(for server: ServerProfile? = nil) {
+        guard let targetServer = server ?? selectedServer else {
+            lastCommandOutput = "Select a server before checking packages."
+            return
+        }
+
+        lastCommandOutput = "Checking packages on \(targetServer.name)..."
+        Task {
+            do {
+                let output = try await sshClient.run(packageDetector.detectionCommand(), on: targetServer)
+                let statuses = packageDetector.parseStatuses(output)
+                await MainActor.run {
+                    packageStatuses = statuses
+                    lastCommandOutput = output
+                }
+            } catch {
+                await MainActor.run {
+                    lastCommandOutput = error.localizedDescription
+                }
+            }
+        }
+    }
+
     func simulateHighCPU() {
         guard let server = selectedServer else { return }
         var metrics = metric(for: server)
@@ -221,11 +237,14 @@ final class AppState: ObservableObject {
 
     func clearSavedProfiles() {
         serverProfiles
-            .filter { !$0.isDemo }
             .compactMap(\.credentialIdentifier)
             .forEach { try? KeychainService.shared.deleteSecret(account: $0) }
         profileStorage.clearProfiles()
-        enableDemoModeData()
+        serverProfiles = []
+        metricsByServer = [:]
+        terminalSessions = []
+        selectedServer = nil
+        publishWidgetSnapshots()
     }
 
     func startMonitoringLiveActivity() {

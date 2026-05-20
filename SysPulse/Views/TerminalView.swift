@@ -5,7 +5,7 @@ struct TerminalView: View {
     @EnvironmentObject private var appState: AppState
     @State private var selectedSessionID: UUID?
     @State private var commandLine = ""
-    @State private var searchText = ""
+    @State private var isRunning = false
     @FocusState private var inputFocused: Bool
 
     private var selectedSession: TerminalSession? {
@@ -15,248 +15,359 @@ struct TerminalView: View {
         return appState.terminalSessions.first
     }
 
+    private var sessionServer: ServerProfile? {
+        if let serverID = selectedSession?.serverID,
+           let server = appState.serverProfiles.first(where: { $0.id == serverID }) {
+            return server
+        }
+        return appState.selectedServer
+    }
+
     var body: some View {
         NavigationStack {
             ZStack {
                 AppBackground()
+                    .ignoresSafeArea()
 
-                GeometryReader { proxy in
-                    ScrollView {
-                        VStack(spacing: 14) {
-                            PageHeader(
-                                title: "Terminal",
-                                subtitle: "Secure SSH sessions with command history.",
-                                actionSymbol: "plus"
-                            ) {
-                                createSession()
-                            }
-                            .padding(.top, 8)
-
-                            sessionTabs
-
-                            TextField("Search terminal output", text: $searchText)
-                                .textInputAutocapitalization(.never)
-                                .padding(.horizontal, 14)
-                                .padding(.vertical, 11)
-                                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-
-                            terminalSurface(height: terminalHeight(for: proxy.size))
-
-                            keyboardAccessory
-
-                            commandInput
-                        }
-                        .padding(.horizontal, SysPulseDesign.pagePadding)
-                        .padding(.bottom, 16)
-                    }
-                    .scrollIndicators(.hidden)
-                }
+                terminalCanvas
+            }
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                bottomConsole
             }
         }
         .onAppear {
-            selectedSessionID = selectedSessionID ?? appState.terminalSessions.first?.id
+            ensureSessionForSelectedServer()
+            inputFocused = true
+        }
+        .onChange(of: appState.selectedServer?.id) {
+            ensureSessionForSelectedServer()
         }
     }
 
-    private var sessionTabs: some View {
-        ScrollView(.horizontal) {
-            HStack(spacing: 8) {
-                ForEach(appState.terminalSessions) { session in
-                    Button {
-                        selectedSessionID = session.id
-                    } label: {
-                        HStack(spacing: 8) {
-                            Circle()
-                                .fill(session.isActive ? .green : .secondary)
-                                .frame(width: 7, height: 7)
-                            Text(session.title)
-                                .font(.caption.weight(.semibold))
-                                .lineLimit(1)
-                        }
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 9)
-                        .background(selectedSessionID == session.id ? .thinMaterial : .ultraThinMaterial, in: Capsule())
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-        }
-        .scrollIndicators(.hidden)
-    }
-
-    private func terminalSurface(height: CGFloat) -> some View {
+    private var terminalCanvas: some View {
         let palette = TerminalThemePalette(theme: appState.settings.terminalTheme)
-        return GlassCard(cornerRadius: 26, padding: 0) {
-            VStack(spacing: 0) {
-                HStack(spacing: 8) {
-                    Circle().fill(.red.opacity(0.85)).frame(width: 11, height: 11)
-                    Circle().fill(.yellow.opacity(0.85)).frame(width: 11, height: 11)
-                    Circle().fill(.green.opacity(0.85)).frame(width: 11, height: 11)
-                    Spacer()
-                    Text(selectedSession?.title ?? "No Session")
-                        .font(.caption.monospaced())
-                        .foregroundStyle(.secondary)
-                    Spacer()
-                    Button {
-                        UIPasteboard.general.string = selectedSession?.transcript ?? ""
-                    } label: {
-                        Image(systemName: "doc.on.doc")
-                    }
-                    .buttonStyle(.plain)
-                    Button {
-                        clearTranscript()
-                    } label: {
-                        Image(systemName: "trash")
-                    }
-                    .buttonStyle(.plain)
-                }
-                .padding(.horizontal, 14)
-                .padding(.vertical, 12)
-                .background(.white.opacity(0.05))
 
-                if selectedSession == nil {
-                    EmptyStateView(
-                        title: "No terminal session",
-                        message: "Create a session or select a server to connect.",
-                        symbol: "terminal"
-                    )
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                } else {
-                    ScrollViewReader { proxy in
-                        ScrollView {
-                            Text(highlightedTranscript)
-                                .font(.system(size: CGFloat(appState.settings.terminalFontSize), weight: .regular, design: .monospaced))
-                                .foregroundStyle(palette.foreground)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .padding(16)
-                                .id("bottom")
-                        }
-                        .onChange(of: selectedSession?.transcript ?? "") {
-                            withAnimation(.easeOut(duration: 0.2)) {
-                                proxy.scrollTo("bottom", anchor: .bottom)
-                            }
+        return VStack(spacing: 0) {
+            topChrome(palette: palette)
+
+            if selectedSession == nil {
+                VStack(spacing: 16) {
+                    Image(systemName: "terminal")
+                        .font(.system(size: 46, weight: .semibold))
+                        .foregroundStyle(palette.glow)
+                    VStack(spacing: 6) {
+                        Text("Select or add a server to open SSH terminal.")
+                            .font(.headline)
+                        Text("Saved SSH profiles run commands directly on your Linux machine.")
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center)
+                    }
+                    GlassPrimaryButton(title: "Add Server", symbol: "plus") {
+                        appState.selectedTab = .servers
+                    }
+                    .frame(maxWidth: 260)
+                }
+                .padding(.horizontal, 28)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        Text(selectedSession?.transcript ?? "")
+                            .font(.system(size: CGFloat(appState.settings.terminalFontSize), weight: .regular, design: .monospaced))
+                            .foregroundStyle(palette.foreground)
+                            .textSelection(.enabled)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal, 14)
+                            .padding(.top, 10)
+                            .padding(.bottom, 180)
+                            .id("terminal-bottom")
+                    }
+                    .scrollIndicators(.hidden)
+                    .onChange(of: selectedSession?.transcript ?? "") {
+                        withAnimation(.easeOut(duration: 0.18)) {
+                            proxy.scrollTo("terminal-bottom", anchor: .bottom)
                         }
                     }
                 }
             }
-            .frame(maxWidth: .infinity)
-            .frame(height: height)
-            .background(
-                LinearGradient(colors: palette.background, startPoint: .topLeading, endPoint: .bottomTrailing),
-                in: RoundedRectangle(cornerRadius: 26, style: .continuous)
-            )
-            .overlay {
-                RoundedRectangle(cornerRadius: 26, style: .continuous)
-                    .stroke(palette.glow.opacity(0.28), lineWidth: 1)
-            }
-            .shadow(color: palette.glow.opacity(0.22), radius: 24)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(
+            LinearGradient(colors: palette.background, startPoint: .topLeading, endPoint: .bottomTrailing)
+                .ignoresSafeArea()
+        )
+        .overlay(alignment: .bottom) {
+            LinearGradient(colors: [.clear, .black.opacity(0.24)], startPoint: .top, endPoint: .bottom)
+                .frame(height: 110)
+                .allowsHitTesting(false)
         }
     }
 
-    private func terminalHeight(for size: CGSize) -> CGFloat {
-        max(260, min(520, size.height * 0.44))
+    private func topChrome(palette: TerminalThemePalette) -> some View {
+        HStack(spacing: 10) {
+            Circle()
+                .fill(sessionServer == nil ? .secondary : .green)
+                .frame(width: 8, height: 8)
+
+            Text(sessionServer.map { "\($0.username)@\($0.host)" } ?? "SysPulse SSH")
+                .font(.caption.monospaced())
+                .foregroundStyle(palette.foreground.opacity(0.82))
+                .lineLimit(1)
+
+            Spacer()
+
+            if isRunning {
+                ProgressView()
+                    .controlSize(.small)
+                    .tint(palette.glow)
+            }
+
+            Button {
+                UIPasteboard.general.string = selectedSession?.transcript ?? ""
+            } label: {
+                Image(systemName: "doc.on.doc")
+                    .font(.caption.weight(.semibold))
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(palette.foreground.opacity(0.82))
+
+            Button {
+                clearTranscript()
+            } label: {
+                Image(systemName: "trash")
+                    .font(.caption.weight(.semibold))
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(palette.foreground.opacity(0.82))
+        }
+        .padding(.horizontal, 14)
+        .padding(.top, 10)
+        .padding(.bottom, 8)
+        .background(.black.opacity(0.08))
     }
 
-    private var commandInput: some View {
-        HStack(spacing: 10) {
-            TextField("Command", text: $commandLine)
-                .font(.system(size: CGFloat(appState.settings.terminalFontSize), design: .monospaced))
+    private var bottomConsole: some View {
+        VStack(spacing: 8) {
+            connectionBar
+            commandComposer
+            keyboardAccessory
+        }
+        .padding(.horizontal, 8)
+        .padding(.top, 8)
+        .padding(.bottom, 8)
+        .background(.ultraThinMaterial)
+        .overlay(alignment: .top) {
+            Rectangle()
+                .fill(.white.opacity(0.08))
+                .frame(height: 1)
+        }
+    }
+
+    private var connectionBar: some View {
+        HStack(spacing: 8) {
+            TerminalIconButton(systemName: "chevron.left") {
+                appState.selectedTab = .servers
+            }
+
+            Menu {
+                if appState.serverProfiles.isEmpty {
+                    Button("Add Server") { appState.selectedTab = .servers }
+                } else {
+                    ForEach(appState.serverProfiles) { server in
+                        Button("\(server.name) · \(server.host)") {
+                            appState.select(server, tab: .terminal)
+                            ensureSession(for: server)
+                        }
+                    }
+                }
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "network")
+                    Text(sessionServer?.host ?? "No saved servers")
+                        .lineLimit(1)
+                    Spacer(minLength: 0)
+                    Image(systemName: "chevron.down.circle.fill")
+                        .foregroundStyle(.secondary)
+                }
+                .font(.callout.weight(.semibold))
+                .padding(.horizontal, 12)
+                .frame(height: 38)
+                .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            }
+            .buttonStyle(.plain)
+
+            TerminalIconButton(systemName: "plus") {
+                if let server = appState.selectedServer {
+                    createSession(for: server)
+                } else {
+                    appState.selectedTab = .servers
+                }
+            }
+
+            Menu {
+                if appState.terminalSessions.isEmpty {
+                    Button("New session") {
+                        if let server = appState.selectedServer {
+                            createSession(for: server)
+                        }
+                    }
+                } else {
+                    ForEach(appState.terminalSessions) { session in
+                        Button(session.title) {
+                            selectedSessionID = session.id
+                        }
+                    }
+                    Divider()
+                    Button("Close session", role: .destructive) {
+                        closeCurrentSession()
+                    }
+                }
+            } label: {
+                Image(systemName: "square.grid.2x2")
+                    .frame(width: 38, height: 38)
+                    .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    private var commandComposer: some View {
+        HStack(spacing: 8) {
+            TextField("Ask AI to generate a command", text: $commandLine)
+                .font(.system(size: 15, weight: .regular, design: .rounded))
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
                 .focused($inputFocused)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 13)
-                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                .submitLabel(.send)
+                .padding(.horizontal, 12)
+                .frame(height: 38)
+                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
                 .onSubmit(runCommand)
 
-            Button(action: runCommand) {
-                Image(systemName: "arrow.up.circle.fill")
-                    .font(.system(size: 34))
-                    .foregroundStyle(.cyan)
+            Button("Paste") {
+                commandLine += UIPasteboard.general.string ?? ""
+                inputFocused = true
+            }
+            .font(.caption.weight(.bold))
+            .buttonStyle(.plain)
+
+            Button {
+                appState.isPaywallPresented = true
+            } label: {
+                Text("AI")
+                    .font(.caption.weight(.black))
+                    .frame(width: 30, height: 30)
+                    .background(.thinMaterial, in: Circle())
             }
             .buttonStyle(.plain)
-            .disabled(commandLine.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
         }
     }
 
     private var keyboardAccessory: some View {
         ScrollView(.horizontal) {
-            HStack(spacing: 8) {
-                ForEach(["Esc", "Tab", "Ctrl", "Alt", "←", "→", "↑", "↓", "/", "|", "~"], id: \.self) { key in
+            HStack(spacing: 6) {
+                ForEach(["esc", "tab", "ctrl", "alt", "/", "|", "~", "-", "^C", "↑", "↓", "←", "→"], id: \.self) { key in
                     Button {
                         insertAccessory(key)
                     } label: {
                         Text(key)
                             .font(.caption.weight(.bold))
-                            .frame(width: 46, height: 34)
-                            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                            .frame(width: key.count > 2 ? 44 : 34, height: 30)
+                            .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
                     }
                     .buttonStyle(.plain)
                 }
-                Button {
-                    clearTranscript()
-                } label: {
-                    Image(systemName: "clear")
-                        .frame(width: 46, height: 34)
-                        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-                }
-                .buttonStyle(.plain)
-                Button {
-                    commandLine += UIPasteboard.general.string ?? ""
-                } label: {
-                    Image(systemName: "doc.on.clipboard")
-                        .frame(width: 46, height: 34)
-                        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-                }
-                .buttonStyle(.plain)
             }
+            .padding(.horizontal, 2)
         }
         .scrollIndicators(.hidden)
     }
 
-    private var highlightedTranscript: String {
-        guard !searchText.isEmpty else { return selectedSession?.transcript ?? "" }
-        return selectedSession?.transcript.replacingOccurrences(of: searchText, with: "[\(searchText)]") ?? ""
+    private func ensureSessionForSelectedServer() {
+        guard let server = appState.selectedServer else {
+            selectedSessionID = appState.terminalSessions.first?.id
+            return
+        }
+        ensureSession(for: server)
     }
 
-    private func createSession() {
-        let server = appState.selectedServer
+    private func ensureSession(for server: ServerProfile) {
+        if let existing = appState.terminalSessions.first(where: { $0.serverID == server.id }) {
+            selectedSessionID = existing.id
+        } else {
+            createSession(for: server)
+        }
+    }
+
+    private func createSession(for server: ServerProfile) {
         let session = TerminalSession(
-            serverID: server?.id,
-            title: server?.name ?? "Local Demo",
-            transcript: "SysPulse Terminal\nDemo Mode ready.\n"
+            serverID: server.id,
+            title: server.name,
+            transcript: welcomeTranscript(for: server)
         )
         appState.terminalSessions.append(session)
         selectedSessionID = session.id
+        appState.haptic(.light)
+        inputFocused = true
+    }
+
+    private func welcomeTranscript(for server: ServerProfile) -> String {
+        """
+        SysPulse SSH
+        Profile: \(server.username)@\(server.host):\(server.port)
+        Commands are executed on the remote Linux server over SSH.
+
+        """
     }
 
     private func runCommand() {
         let text = commandLine.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !text.isEmpty else { return }
-        guard let server = appState.selectedServer else {
-            append("$ \(text)\nNo server selected.\n")
+        guard !text.isEmpty, !isRunning else { return }
+        guard let server = sessionServer ?? appState.selectedServer else {
+            append("No server selected. Add a server profile first.\n")
             commandLine = ""
             return
         }
 
-        append("$ \(text)\n")
+        if selectedSession == nil {
+            createSession(for: server)
+        }
+
+        let sessionID = selectedSessionID
+        append("\(prompt(for: server))\(text)\n", to: sessionID)
         commandLine = ""
+        isRunning = true
+
         Task {
             do {
                 let output = try await appState.sshClient.run(text, on: server)
                 await MainActor.run {
-                    append("\(output)\n")
+                    append(normalizedOutput(output), to: sessionID)
+                    isRunning = false
                 }
             } catch {
                 await MainActor.run {
-                    append("Error: \(error.localizedDescription)\n")
+                    append("Error: \(error.localizedDescription)\n", to: sessionID)
+                    isRunning = false
                 }
             }
         }
     }
 
-    private func append(_ text: String) {
-        guard let id = selectedSessionID ?? appState.terminalSessions.first?.id,
+    private func prompt(for server: ServerProfile) -> String {
+        "\(server.username)@\(server.host):~$ "
+    }
+
+    private func normalizedOutput(_ output: String) -> String {
+        if output.isEmpty {
+            return "\n"
+        }
+        return output.hasSuffix("\n") ? output : "\(output)\n"
+    }
+
+    private func append(_ text: String, to sessionID: UUID? = nil) {
+        guard let id = sessionID ?? selectedSessionID ?? appState.terminalSessions.first?.id,
               let index = appState.terminalSessions.firstIndex(where: { $0.id == id }) else {
             return
         }
@@ -271,14 +382,42 @@ struct TerminalView: View {
         appState.terminalSessions[index].transcript = ""
     }
 
+    private func closeCurrentSession() {
+        guard let id = selectedSessionID else { return }
+        appState.terminalSessions.removeAll { $0.id == id }
+        selectedSessionID = appState.terminalSessions.first?.id
+    }
+
     private func insertAccessory(_ key: String) {
         switch key {
-        case "Tab": commandLine += "\t"
-        case "Esc": commandLine += "\u{1b}"
-        case "←", "→", "↑", "↓": break
-        default: commandLine += key
+        case "tab":
+            commandLine += "\t"
+        case "esc":
+            commandLine += "\u{1b}"
+        case "^C":
+            commandLine = ""
+            append("^C\n")
+        case "ctrl", "alt", "↑", "↓", "←", "→":
+            break
+        default:
+            commandLine += key
         }
         inputFocused = true
+    }
+}
+
+private struct TerminalIconButton: View {
+    var systemName: String
+    var action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: systemName)
+                .font(.callout.weight(.bold))
+                .frame(width: 38, height: 38)
+                .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        }
+        .buttonStyle(.plain)
     }
 }
 
@@ -287,7 +426,7 @@ private struct TerminalThemePalette {
 
     var background: [Color] {
         switch theme {
-        case .liquidDark: [Color(red: 0.03, green: 0.05, blue: 0.08), Color(red: 0.02, green: 0.08, blue: 0.10)]
+        case .liquidDark: [Color(red: 0.01, green: 0.02, blue: 0.06), Color(red: 0.02, green: 0.05, blue: 0.09)]
         case .matrix: [.black, .green.opacity(0.18)]
         case .midnight: [Color(red: 0.02, green: 0.02, blue: 0.08), Color(red: 0.05, green: 0.05, blue: 0.18)]
         case .ice: [Color(red: 0.90, green: 0.97, blue: 1.0), Color(red: 0.70, green: 0.88, blue: 0.98)]
@@ -305,7 +444,7 @@ private struct TerminalThemePalette {
         case .ice: .black
         case .matrix: .green
         case .solarized: Color(red: 0.51, green: 0.58, blue: 0.59)
-        default: Color(red: 0.86, green: 0.96, blue: 1.0)
+        default: Color(red: 0.62, green: 0.82, blue: 1.0)
         }
     }
 

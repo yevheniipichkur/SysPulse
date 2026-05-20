@@ -17,9 +17,7 @@ struct ProfileStorageService {
     }
 
     func saveProfiles(_ profiles: [ServerProfile]) {
-        let snapshots = profiles
-            .filter { !$0.isDemo }
-            .map { StoredServerProfile(profile: $0) }
+        let snapshots = profiles.map { StoredServerProfile(profile: $0) }
         guard let data = try? JSONEncoder().encode(snapshots) else { return }
         userDefaults.set(data, forKey: key)
     }
@@ -78,8 +76,7 @@ private struct StoredServerProfile: Codable {
             icon: icon,
             accentHex: accentHex,
             serverType: ServerType(rawValue: serverTypeRaw) ?? .custom,
-            status: ServerStatus(rawValue: statusRaw) ?? .unknown,
-            isDemo: false
+            status: ServerStatus(rawValue: statusRaw) ?? .unknown
         )
         profile.createdAt = createdAt
         profile.updatedAt = updatedAt

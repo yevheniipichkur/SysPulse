@@ -77,11 +77,11 @@ struct OnboardingView: View {
 
                 VStack(spacing: 12) {
                     GlassPrimaryButton(
-                        title: page == pages.count - 1 ? "Start Demo Mode" : "Continue",
-                        symbol: page == pages.count - 1 ? "play.circle.fill" : "arrow.right"
+                        title: page == pages.count - 1 ? "Start SysPulse" : "Continue",
+                        symbol: page == pages.count - 1 ? "terminal.fill" : "arrow.right"
                     ) {
                         if page == pages.count - 1 {
-                            appState.completeOnboarding(enableDemoMode: true)
+                            appState.completeOnboarding()
                         } else {
                             withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
                                 page += 1
@@ -90,9 +90,9 @@ struct OnboardingView: View {
                     }
 
                     Button {
-                        appState.completeOnboarding(enableDemoMode: true)
+                        appState.completeOnboarding()
                     } label: {
-                        Label("Explore with Demo Servers", systemImage: "server.rack")
+                        Label("Add your first server", systemImage: "server.rack")
                             .font(.callout.weight(.semibold))
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 13)

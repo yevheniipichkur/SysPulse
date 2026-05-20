@@ -3,12 +3,13 @@
 ## MVP
 
 - [x] SwiftUI structure.
-- [x] Demo Mode.
+- [x] Auto-seeding removed; app starts from real saved SSH profiles only.
 - [x] Server list.
 - [x] Add/Edit Server profile form.
 - [x] Server details.
-- [x] Mock metrics.
+- [x] Real SSH metrics refresh.
 - [x] Terminal UI.
+- [x] Mobile-first SSH terminal layout with connection bar and accessory keys.
 - [x] Quick Commands.
 - [x] Settings.
 - [x] Paywall.
@@ -25,8 +26,8 @@
 - [x] Private key SSH authentication for OpenSSH RSA and ED25519 keys.
 - [x] Real Linux metrics collection over SSH.
 - [ ] Move profile persistence fully into SwiftData-backed repository.
-- [x] Docker monitoring demo flow and command builders.
-- [x] systemd monitoring demo flow and command builders.
+- [x] Docker monitoring command builders and real SSH run actions.
+- [x] systemd monitoring command builders and real SSH run actions.
 - [x] Widgets snapshot data bridge with App Group-ready fallback.
 - [x] Live Activities updates from active app usage.
 - [ ] iCloud sync.
@@ -36,6 +37,7 @@
 - [x] App icon.
 - [ ] App Store screenshots.
 - [ ] Enable App Group capability in Apple Developer and provisioning profiles.
+- [ ] Parse real Docker/systemd/process/log command output into structured SwiftUI lists.
 
 ## Future
 

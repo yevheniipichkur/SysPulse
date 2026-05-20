@@ -14,7 +14,6 @@
 "Start" = "Запустити";
 "Stop" = "Зупинити";
 "Restart" = "Перезапустити";
-"Demo" = "Демо";
 "System" = "Системна";
 "Light" = "Світла";
 "Dark" = "Темна";
@@ -31,9 +30,7 @@
 "Run safe commands, install missing monitoring tools and automate routine checks." = "Запускайте безпечні команди, перевіряйте інструменти й автоматизуйте рутину.";
 "Unlock SysPulse Pro." = "Відкрийте SysPulse Pro.";
 "Unlimited servers, Docker monitoring, widgets, Live Activities and premium terminal themes." = "Безлімітні сервери, Docker, віджети, Live Activities і преміум-теми.";
-"Start Demo Mode" = "Запустити демо";
 "Continue" = "Далі";
-"Explore with Demo Servers" = "Переглянути демо-сервери";
 
 "Free plan" = "Безкоштовний план";
 "One real server, basic dashboard and basic terminal." = "Один реальний сервер, базова панель і базовий термінал.";
@@ -234,7 +231,6 @@
 "No terminal session" = "Немає термінальної сесії";
 "Create a session or select a server to connect." = "Створіть сесію або виберіть сервер для підключення.";
 "Command" = "Команда";
-"Local Demo" = "Локальне демо";
 "No server selected." = "Сервер не вибрано.";
 
 "Unlock Pro Monitoring" = "Відкрити Pro-моніторинг";
@@ -291,9 +287,7 @@
 "Terms" = "Умови";
 "Contact support" = "Зв'язатися з підтримкою";
 "Debug" = "Налагодження";
-"Local QA controls for demo and App Review." = "Локальні QA-налаштування для демо й App Review.";
 "Force Pro locally" = "Примусово ввімкнути Pro";
-"Enable demo metrics" = "Увімкнути демо-метрики";
 "Reset onboarding" = "Скинути onboarding";
 "Simulate offline server" = "Симулювати офлайн-сервер";
 "Simulate high CPU" = "Симулювати високий CPU";
@@ -303,3 +297,39 @@
 "Clear local database" = "Очистити локальну базу";
 "Export logs" = "Експорт логів";
 "Developer / QA" = "Розробник / QA";
+
+"Start SysPulse" = "Почати роботу";
+"Add your first server" = "Додати перший сервер";
+"Select or add a server to open SSH terminal." = "Виберіть або додайте сервер, щоб відкрити SSH-термінал.";
+"Saved SSH profiles run commands directly on your Linux machine." = "Збережені SSH-профілі запускають команди напряму на вашому Linux-сервері.";
+"No saved servers" = "Немає збережених серверів";
+"New session" = "Нова сесія";
+"Close session" = "Закрити сесію";
+"Ask AI to generate a command" = "Попросити AI створити команду";
+"Paste" = "Вставити";
+"AI" = "AI";
+"SysPulse SSH" = "SysPulse SSH";
+"Commands are executed on the remote Linux server over SSH." = "Команди виконуються на віддаленому Linux-сервері через SSH.";
+"No server selected. Add a server profile first." = "Сервер не вибрано. Спочатку додайте профіль сервера.";
+"Run Diagnostics" = "Запустити діагностику";
+"Top CPU processes" = "Процеси за CPU";
+"Top RAM processes" = "Процеси за RAM";
+"Interactive process viewer" = "Знімок process viewer";
+"Block devices" = "Блокові пристрої";
+"SMART devices" = "SMART-пристрої";
+"Large log files" = "Великі файли логів";
+"Docker stats" = "Статистика Docker";
+"Docker compose projects" = "Проєкти Docker Compose";
+"Recent Docker state" = "Поточний стан Docker";
+"Recent Docker events" = "Останні події Docker";
+"Running services" = "Запущені сервіси";
+"Enabled services" = "Увімкнені сервіси";
+"Recent service errors" = "Останні помилки сервісів";
+"System journal" = "Системний журнал";
+"Kernel ring buffer" = "Буфер ядра";
+"nginx error log" = "Лог помилок nginx";
+"SSH auth log" = "Лог SSH-авторизації";
+"Local QA controls for real-device testing." = "Локальні QA-налаштування для тестування на пристрої.";
+"Select a server before checking packages." = "Виберіть сервер перед перевіркою пакетів.";
+"Checking packages on" = "Перевірка пакетів на";
+"Command completed with no output." = "Команду виконано без виводу.";

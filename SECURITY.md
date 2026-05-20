@@ -58,7 +58,7 @@ Never commit:
 ## Telemetry
 
 - No telemetry should be added without explicit consent.
-- Demo Mode must work offline.
+- The app must not send server metadata or terminal output to analytics without explicit consent.
 - Future analytics must be opt-in and documented in Privacy Policy.
 
 ## Remote execution model

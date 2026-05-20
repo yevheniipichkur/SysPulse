@@ -2,16 +2,15 @@
 
 **Linux Monitor & SSH Terminal** — премиальное iOS-приложение для мониторинга Linux-серверов, Raspberry Pi, VPS, Docker-hosts, NAS и домашней инфраструктуры.
 
-SysPulse создаётся как нативный SwiftUI-продукт: красивый мониторинг, защищённый SSH Terminal, быстрые команды, диагностика missing tools, demo mode для App Store Review и архитектура, готовая к реальной SSH-интеграции.
+SysPulse создаётся как нативный SwiftUI-продукт: красивый мониторинг, защищённый SSH Terminal, быстрые команды, диагностика missing tools и real-first архитектура для подключения к вашим Linux-серверам.
 
 ## Главные функции
 
-- Demo Mode без реального сервера: Raspberry Pi Home Server, VPS Production, Docker Lab.
 - Liquid Glass-style UI: glass cards, floating tab bar, blur materials, soft shadows, dark mode first.
 - Servers screen с CPU, RAM, Disk, Network, Temperature, Uptime, Health Score и sparkline.
 - Add/Edit Server profile form with Keychain-only credential updates.
 - Server details: Overview, Processes, Disks, Docker, Services, Logs, Packages, Terminal, Actions.
-- SSH Terminal UI с tabs, history, accessory bar, themes и mock session.
+- SSH Terminal UI с real SSH command execution, sessions, history, accessory bar and themes.
 - Quick Commands с safety levels и обязательным подтверждением dangerous actions.
 - Command safety analyzer для `reboot`, `rm`, `docker rm`, `systemctl stop`, `kill`, `ufw` changes и package manager actions.
 - Missing Tools screen с preview install commands и ручным подтверждением.
@@ -79,7 +78,7 @@ Pro:
 - В репозитории нет сертификатов, `.p12`, provisioning profiles или `.env`.
 - Dangerous commands требуют подтверждения.
 - Установка пакетов не запускается автоматически.
-- Demo Mode позволяет Apple Review тестировать UI и Pro flows без настоящего SSH-сервера.
+- SSH-команды выполняются только на серверах, которые пользователь добавил сам.
 
 Подробнее: [SECURITY.md](SECURITY.md).
 
@@ -110,10 +109,9 @@ xcodebuild build -project SysPulse.xcodeproj -scheme SysPulse -destination "gene
 MVP:
 
 - SwiftUI structure.
-- Demo Mode.
 - Server list.
 - Server details.
-- Mock metrics.
+- Real SSH metrics.
 - Terminal UI.
 - Quick Commands.
 - Settings.
@@ -123,8 +121,7 @@ MVP:
 
 Next:
 
-- Real SSH integration через SwiftNIO SSH, NMSSH или libssh2-compatible layer.
-- Реальный Docker/systemd/logs monitoring.
+- Structured parsing for Docker/systemd/process/log command output.
 - Widgets with shared App Group storage.
 - Live Activities updates.
 - iCloud sync.

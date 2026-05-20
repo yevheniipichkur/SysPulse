@@ -127,10 +127,6 @@ struct InsightsService {
 
 struct MetricsCollector {
     func collect(server: ServerProfile, using client: SSHClientProtocol, previous: ServerMetrics? = nil) async throws -> ServerMetrics {
-        if server.isDemo {
-            return DemoDataService.makeMetrics(for: [server])[server.id] ?? .empty(serverID: server.id)
-        }
-
         let output = try await client.run(Self.metricsCommand, on: server)
         return parseMetrics(output, serverID: server.id, previous: previous)
     }
@@ -338,17 +334,17 @@ struct CommandSafetyAnalyzer {
 }
 
 struct PackageDetector {
-    let packageStatuses: [PackageStatus] = [
+    static let defaultStatuses: [PackageStatus] = [
         PackageStatus(commandName: "sensors", packageName: "lm-sensors", isInstalled: false, featureImpact: "Temperature monitoring"),
-        PackageStatus(commandName: "docker", packageName: "docker", isInstalled: true, featureImpact: "Docker monitoring"),
-        PackageStatus(commandName: "jq", packageName: "jq", isInstalled: true, featureImpact: "JSON parsing for advanced diagnostics"),
+        PackageStatus(commandName: "docker", packageName: "docker", isInstalled: false, featureImpact: "Docker monitoring"),
+        PackageStatus(commandName: "jq", packageName: "jq", isInstalled: false, featureImpact: "JSON parsing for advanced diagnostics"),
         PackageStatus(commandName: "htop", packageName: "htop", isInstalled: false, featureImpact: "Process diagnostics"),
         PackageStatus(commandName: "smartctl", packageName: "smartmontools", isInstalled: false, featureImpact: "SMART disk health"),
         PackageStatus(commandName: "sar", packageName: "sysstat", isInstalled: false, featureImpact: "Historical CPU and network metrics")
     ]
 
-    func missingTools() -> [MissingTool] {
-        packageStatuses
+    func missingTools(from statuses: [PackageStatus]) -> [MissingTool] {
+        statuses
             .filter { !$0.isInstalled }
             .map {
                 MissingTool(
@@ -362,6 +358,41 @@ struct PackageDetector {
 
     func checkCommandsPreview() -> [String] {
         ["command -v sensors", "command -v docker", "command -v jq", "command -v htop", "command -v smartctl", "command -v sar"]
+    }
+
+    func detectionCommand() -> String {
+        #"""
+        sh <<'SYSPULSE'
+        for tool in sensors docker jq htop smartctl sar; do
+          if command -v "$tool" >/dev/null 2>&1; then
+            printf "%s=1\n" "$tool"
+          else
+            printf "%s=0\n" "$tool"
+          fi
+        done
+        SYSPULSE
+        """#
+    }
+
+    func parseStatuses(_ output: String) -> [PackageStatus] {
+        let installedByCommand = Dictionary(
+            uniqueKeysWithValues: output
+                .split(whereSeparator: \.isNewline)
+                .compactMap { line -> (String, Bool)? in
+                    let parts = line.split(separator: "=", maxSplits: 1, omittingEmptySubsequences: false)
+                    guard parts.count == 2 else { return nil }
+                    return (String(parts[0]), String(parts[1]).trimmingCharacters(in: .whitespacesAndNewlines) == "1")
+                }
+        )
+
+        return Self.defaultStatuses.map { status in
+            PackageStatus(
+                commandName: status.commandName,
+                packageName: status.packageName,
+                isInstalled: installedByCommand[status.commandName] ?? false,
+                featureImpact: status.featureImpact
+            )
+        }
     }
 
     func installCommand(for distribution: LinuxDistribution) -> String {
@@ -387,7 +418,7 @@ struct DockerService {
     }
 
     func containers(for server: ServerProfile) -> [DockerContainer] {
-        DemoDataService.makeContainers()
+        []
     }
 }
 
@@ -405,7 +436,7 @@ struct SystemdService {
     }
 
     func services(for server: ServerProfile) -> [SystemdServiceItem] {
-        DemoDataService.makeServices()
+        []
     }
 }
 
@@ -426,11 +457,7 @@ struct LogsService {
     }
 
     func recentLogs(for server: ServerProfile) -> [String] {
-        [
-            "May 19 19:23:42 \(server.name) systemd[1]: Started Docker Application Container Engine.",
-            "May 19 19:24:08 \(server.name) sshd[9021]: Accepted publickey for \(server.username).",
-            "May 19 19:25:11 \(server.name) kernel: EXT4-fs mounted filesystem with ordered data mode."
-        ]
+        []
     }
 }
 

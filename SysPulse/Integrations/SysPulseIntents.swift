@@ -41,7 +41,7 @@ struct CheckServerStatusIntent: AppIntent {
     var serverName: String
 
     func perform() async throws -> some IntentResult {
-        .result(dialog: "\(serverName) status is available in SysPulse Demo Mode.")
+        .result(dialog: "\(serverName) status is available in SysPulse.")
     }
 }
 

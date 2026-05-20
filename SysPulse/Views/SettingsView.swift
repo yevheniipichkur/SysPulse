@@ -142,12 +142,11 @@ struct DebugMenuView: View {
 
                 ScrollView {
                     VStack(spacing: 16) {
-                        PageHeader(title: "Debug", subtitle: "Local QA controls for demo and App Review.", actionSymbol: nil, action: nil)
+                        PageHeader(title: "Debug", subtitle: "Local QA controls for real-device testing.", actionSymbol: nil, action: nil)
 
                         GlassCard {
                             VStack(alignment: .leading, spacing: 14) {
                                 Toggle("Force Pro locally", isOn: $appState.settings.forceProOverride)
-                                Toggle("Enable demo metrics", isOn: $appState.settings.demoMetricsEnabled)
                                 Button("Reset onboarding") { appState.resetOnboarding() }
                                 Button("Simulate offline server") { appState.simulateOfflineServer() }
                                 Button("Simulate high CPU") { appState.simulateHighCPU() }

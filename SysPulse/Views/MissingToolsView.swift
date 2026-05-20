@@ -8,7 +8,7 @@ struct MissingToolsView: View {
     @State private var showRunConfirmation = false
 
     private var tools: [MissingTool] {
-        appState.packageDetector.missingTools()
+        appState.packageDetector.missingTools(from: appState.packageStatuses)
     }
 
     var body: some View {
@@ -34,6 +34,9 @@ struct MissingToolsView: View {
                                         .font(.caption.monospaced())
                                         .foregroundStyle(.secondary)
                                         .frame(maxWidth: .infinity, alignment: .leading)
+                                }
+                                GlassPrimaryButton(title: "Run Diagnostics", symbol: "stethoscope") {
+                                    appState.refreshPackageStatuses(for: appState.selectedServer)
                                 }
                             }
                         }
@@ -130,7 +133,7 @@ struct MissingToolsView: View {
         .alert("Run install command?", isPresented: $showRunConfirmation) {
             Button("Cancel", role: .cancel) {}
             Button("Run", role: .destructive) {
-                appState.lastCommandOutput = "Demo Mode preview:\n\(distribution.installCommand)"
+                appState.runRemoteCommand(distribution.installCommand, on: appState.selectedServer)
             }
         } message: {
             Text("SysPulse will run the command only on the selected remote server over SSH after this confirmation.")

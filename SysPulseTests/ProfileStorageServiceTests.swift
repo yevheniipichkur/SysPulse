@@ -22,8 +22,7 @@ final class ProfileStorageServiceTests: XCTestCase {
             icon: "cloud",
             accentHex: "#39A7FF",
             serverType: .vps,
-            status: .online,
-            isDemo: false
+            status: .online
         )
 
         service.saveProfiles([profile])
@@ -36,18 +35,5 @@ final class ProfileStorageServiceTests: XCTestCase {
         let rawData = defaults.data(forKey: "SysPulse.savedServerProfiles.v1")
         XCTAssertNotNil(rawData)
         XCTAssertFalse(String(data: rawData ?? Data(), encoding: .utf8)?.contains("PRIVATE KEY") ?? true)
-    }
-
-    func testDemoProfilesAreNotPersisted() {
-        let suiteName = "ProfileStorageServiceTests-\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suiteName)!
-        defer {
-            defaults.removePersistentDomain(forName: suiteName)
-        }
-
-        let service = ProfileStorageService(userDefaults: defaults)
-        service.saveProfiles(DemoDataService.makeDemoServers())
-
-        XCTAssertTrue(service.loadProfiles().isEmpty)
     }
 }

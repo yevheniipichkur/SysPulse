@@ -135,14 +135,6 @@ struct ServerCardView: View {
                             Text(server.name)
                                 .font(.headline.weight(.bold))
                                 .lineLimit(1)
-                            if server.isDemo {
-                                Text("Demo")
-                                    .font(.caption2.weight(.bold))
-                                    .foregroundStyle(.cyan)
-                                    .padding(.horizontal, 7)
-                                    .padding(.vertical, 4)
-                                    .background(.cyan.opacity(0.12), in: Capsule())
-                            }
                         }
                         HStack(spacing: 0) {
                             Text(server.serverType.titleKey)
@@ -484,8 +476,7 @@ struct AddServerView: View {
             icon: icon,
             accentHex: accentHex,
             serverType: serverType,
-            status: .unknown,
-            isDemo: false
+            status: .unknown
         )
         guard appState.addServer(server) else {
             return
@@ -525,8 +516,7 @@ struct AddServerView: View {
             authenticationType: authType,
             credentialIdentifier: credentialID,
             serverType: serverType,
-            status: .unknown,
-            isDemo: false
+            status: .unknown
         )
 
         statusMessage = "Connecting to \(host)..."

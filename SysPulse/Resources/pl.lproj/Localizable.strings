@@ -14,7 +14,6 @@
 "Start" = "Uruchom";
 "Stop" = "Zatrzymaj";
 "Restart" = "Restart";
-"Demo" = "Demo";
 "System Info" = "System";
 "Light" = "Jasny";
 "Dark" = "Ciemny";
@@ -31,9 +30,7 @@
 "Run safe commands, install missing monitoring tools and automate routine checks." = "Uruchamiaj bezpieczne komendy, sprawdzaj narzędzia i automatyzuj rutynę.";
 "Unlock SysPulse Pro." = "Odblokuj SysPulse Pro.";
 "Unlimited servers, Docker monitoring, widgets, Live Activities and premium terminal themes." = "Nielimitowane serwery, Docker, widżety, Live Activities i motywy premium.";
-"Start Demo Mode" = "Uruchom demo";
 "Continue" = "Dalej";
-"Explore with Demo Servers" = "Otwórz serwery demo";
 
 "Free plan" = "Plan darmowy";
 "One real server, basic dashboard and basic terminal." = "Jeden realny serwer, podstawowy dashboard i terminal.";
@@ -234,7 +231,6 @@
 "No terminal session" = "Brak sesji terminala";
 "Create a session or select a server to connect." = "Utwórz sesję albo wybierz serwer do połączenia.";
 "Command" = "Polecenie";
-"Local Demo" = "Lokalne demo";
 "No server selected." = "Nie wybrano serwera.";
 
 "Unlock Pro Monitoring" = "Odblokuj monitoring Pro";
@@ -291,9 +287,7 @@
 "Terms" = "Warunki";
 "Contact support" = "Kontakt z pomocą";
 "Debug" = "Debug";
-"Local QA controls for demo and App Review." = "Lokalne kontrolki QA dla demo i App Review.";
 "Force Pro locally" = "Wymuś Pro lokalnie";
-"Enable demo metrics" = "Włącz metryki demo";
 "Reset onboarding" = "Reset onboardingu";
 "Simulate offline server" = "Symuluj serwer offline";
 "Simulate high CPU" = "Symuluj wysokie CPU";
@@ -303,3 +297,39 @@
 "Clear local database" = "Wyczyść lokalną bazę";
 "Export logs" = "Eksportuj logi";
 "Developer / QA" = "Developer / QA";
+
+"Start SysPulse" = "Rozpocznij";
+"Add your first server" = "Dodaj pierwszy serwer";
+"Select or add a server to open SSH terminal." = "Wybierz lub dodaj serwer, aby otworzyć terminal SSH.";
+"Saved SSH profiles run commands directly on your Linux machine." = "Zapisane profile SSH uruchamiają komendy bezpośrednio na Twoim serwerze Linux.";
+"No saved servers" = "Brak zapisanych serwerów";
+"New session" = "Nowa sesja";
+"Close session" = "Zamknij sesję";
+"Ask AI to generate a command" = "Poproś AI o komendę";
+"Paste" = "Wklej";
+"AI" = "AI";
+"SysPulse SSH" = "SysPulse SSH";
+"Commands are executed on the remote Linux server over SSH." = "Komendy są wykonywane na zdalnym serwerze Linux przez SSH.";
+"No server selected. Add a server profile first." = "Nie wybrano serwera. Najpierw dodaj profil serwera.";
+"Run Diagnostics" = "Uruchom diagnostykę";
+"Top CPU processes" = "Procesy według CPU";
+"Top RAM processes" = "Procesy według RAM";
+"Interactive process viewer" = "Zrzut process viewer";
+"Block devices" = "Urządzenia blokowe";
+"SMART devices" = "Urządzenia SMART";
+"Large log files" = "Duże pliki logów";
+"Docker stats" = "Statystyki Docker";
+"Docker compose projects" = "Projekty Docker Compose";
+"Recent Docker state" = "Bieżący stan Docker";
+"Recent Docker events" = "Ostatnie zdarzenia Docker";
+"Running services" = "Uruchomione usługi";
+"Enabled services" = "Włączone usługi";
+"Recent service errors" = "Ostatnie błędy usług";
+"System journal" = "Dziennik systemowy";
+"Kernel ring buffer" = "Bufor jądra";
+"nginx error log" = "Log błędów nginx";
+"SSH auth log" = "Log autoryzacji SSH";
+"Local QA controls for real-device testing." = "Lokalne narzędzia QA do testów na urządzeniu.";
+"Select a server before checking packages." = "Wybierz serwer przed sprawdzeniem pakietów.";
+"Checking packages on" = "Sprawdzanie pakietów na";
+"Command completed with no output." = "Komenda zakończona bez wyjścia.";

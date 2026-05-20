@@ -231,7 +231,6 @@ final class ServerProfile: Identifiable {
     var accentHex: String
     var serverTypeRaw: String
     var statusRaw: String
-    var isDemo: Bool
     var createdAt: Date
     var updatedAt: Date
 
@@ -248,8 +247,7 @@ final class ServerProfile: Identifiable {
         icon: String = "server.rack",
         accentHex: String = "#33C2EA",
         serverType: ServerType = .custom,
-        status: ServerStatus = .unknown,
-        isDemo: Bool = false
+        status: ServerStatus = .unknown
     ) {
         self.id = id
         self.name = name
@@ -264,7 +262,6 @@ final class ServerProfile: Identifiable {
         self.accentHex = accentHex
         self.serverTypeRaw = serverType.rawValue
         self.statusRaw = status.rawValue
-        self.isDemo = isDemo
         self.createdAt = .now
         self.updatedAt = .now
     }
@@ -505,7 +502,6 @@ struct AppSettings: Codable, Hashable {
     var reduceAnimations: Bool = false
     var language: AppLanguage = .system
     var iCloudSyncEnabled: Bool = false
-    var demoMetricsEnabled: Bool = true
     var forceProOverride: Bool = false
 }
 

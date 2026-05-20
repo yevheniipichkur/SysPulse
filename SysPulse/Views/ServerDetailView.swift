@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 struct ServerDetailView: View {
     @EnvironmentObject private var appState: AppState
@@ -6,6 +7,7 @@ struct ServerDetailView: View {
     @State private var showingMissingTools = false
     @State private var confirmationMessage = ""
     @State private var showingConfirmation = false
+    @State private var pendingRemoteCommand: String?
 
     private let dockerService = DockerService()
     private let systemdService = SystemdService()
@@ -44,6 +46,10 @@ struct ServerDetailView: View {
                                     actions(server: server)
                                 }
                             }
+
+                            if !appState.lastCommandOutput.isEmpty {
+                                remoteOutputCard
+                            }
                         }
                         .padding(.horizontal, SysPulseDesign.pagePadding)
                         .padding(.top, 8)
@@ -66,10 +72,40 @@ struct ServerDetailView: View {
         .alert("Confirmation required", isPresented: $showingConfirmation) {
             Button("Cancel", role: .cancel) {}
             Button("Confirm", role: .destructive) {
-                appState.lastCommandOutput = "Confirmed: \(confirmationMessage)"
+                if let pendingRemoteCommand {
+                    runRemote(pendingRemoteCommand)
+                }
+                pendingRemoteCommand = nil
             }
         } message: {
             Text(confirmationMessage)
+        }
+    }
+
+    private var remoteOutputCard: some View {
+        GlassCard {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack {
+                    Label("Last Output", systemImage: "terminal")
+                        .font(.headline)
+                    Spacer()
+                    Button {
+                        UIPasteboard.general.string = appState.lastCommandOutput
+                    } label: {
+                        Image(systemName: "doc.on.doc")
+                    }
+                    .buttonStyle(.plain)
+                }
+
+                ScrollView(.horizontal) {
+                    Text(appState.lastCommandOutput)
+                        .font(.caption.monospaced())
+                        .foregroundStyle(.secondary)
+                        .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .scrollIndicators(.hidden)
+            }
         }
     }
 
@@ -195,58 +231,28 @@ struct ServerDetailView: View {
     }
 
     private var processes: some View {
-        GlassCard {
-            VStack(alignment: .leading, spacing: 12) {
-                Label("Top Processes", systemImage: "list.bullet.rectangle")
-                    .font(.headline)
-                ForEach(DemoDataService.makeProcesses()) { process in
-                    HStack {
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text(process.command)
-                                .font(.subheadline.weight(.semibold))
-                            Text("#\(process.pid) • \(process.user)")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                        Spacer()
-                        Text("CPU \(process.cpu, specifier: "%.1f")%")
-                            .font(.caption.monospacedDigit())
-                        Text("RAM \(process.memory, specifier: "%.1f")%")
-                            .font(.caption.monospacedDigit())
-                        Button {
-                            confirmationMessage = "Kill process \(process.pid)? This action runs remotely and cannot be undone."
-                            showingConfirmation = true
-                        } label: {
-                            Image(systemName: "xmark.circle")
-                        }
-                        .buttonStyle(.plain)
-                    }
-                    .padding(.vertical, 5)
-                }
-            }
+        VStack(spacing: 12) {
+            commandPreview(
+                title: "Top CPU processes",
+                command: "ps -eo pid,user,comm,%cpu,%mem --sort=-%cpu | head -n 16"
+            )
+            commandPreview(
+                title: "Top RAM processes",
+                command: "ps -eo pid,user,comm,%cpu,%mem --sort=-%mem | head -n 16"
+            )
+            commandPreview(
+                title: "Interactive process viewer",
+                command: "top -b -n 1 | head -n 30"
+            )
         }
     }
 
     private var disks: some View {
         VStack(spacing: 12) {
-            ForEach(DemoDataService.makeDisks()) { disk in
-                GlassCard {
-                    VStack(alignment: .leading, spacing: 12) {
-                        HStack {
-                            Label(disk.mountPoint, systemImage: "externaldrive")
-                                .font(.headline)
-                            Spacer()
-                            Text(LocalizedStringKey(disk.usagePercent >= 90 ? "Critical" : disk.usagePercent >= 80 ? "Warning" : "Healthy"))
-                                .font(.caption.weight(.bold))
-                                .foregroundStyle(disk.usagePercent >= 90 ? .red : disk.usagePercent >= 80 ? .orange : .green)
-                        }
-                        CompactProgress(value: disk.usagePercent, color: disk.usagePercent >= 80 ? .orange : .blue)
-                        DetailRow(title: "Used / Free", value: String(format: "%.0f GB / %.0f GB", disk.usedGB, disk.freeGB))
-                        DetailRow(title: "Filesystem", value: disk.filesystem)
-                        DetailRow(title: "SMART", value: disk.smartStatus ?? "smartmontools missing")
-                    }
-                }
-            }
+            commandPreview(title: "Disk usage", command: "df -hT")
+            commandPreview(title: "Block devices", command: "lsblk -f")
+            commandPreview(title: "SMART devices", command: "smartctl --scan 2>/dev/null || echo 'smartmontools missing'")
+            commandPreview(title: "Large log files", command: "sudo find /var/log -type f -size +50M -printf '%s %p\\n' 2>/dev/null | sort -nr | head -n 20")
         }
     }
 
@@ -256,32 +262,9 @@ struct ServerDetailView: View {
                 PremiumLockedCard(title: "Docker monitoring is Pro", message: "Unlock live container stats, logs and restart actions.")
             }
             commandPreview(title: "Docker scan", command: dockerService.listContainersCommand())
-            ForEach(dockerService.containers(for: server)) { container in
-                GlassCard {
-                    VStack(alignment: .leading, spacing: 12) {
-                        HStack {
-                            Label(container.name, systemImage: "shippingbox")
-                                .font(.headline)
-                            Spacer()
-                            Text(container.status)
-                                .font(.caption.weight(.semibold))
-                                .foregroundStyle(container.restartedRecently ? .orange : .green)
-                        }
-                        DetailRow(title: "Image", value: container.image)
-                        HStack {
-                            CompactMetric(title: "CPU", value: container.cpuUsage, color: .cyan)
-                            CompactMetric(title: "Memory", value: container.memoryUsage, color: .green)
-                        }
-                        HStack {
-                            Button("Start") { confirm(dockerService.actionCommand(action: "start", containerName: container.name)) }
-                            Button("Stop", role: .destructive) { confirm(dockerService.actionCommand(action: "stop", containerName: container.name)) }
-                            Button("Restart") { confirm(dockerService.actionCommand(action: "restart", containerName: container.name)) }
-                            Spacer()
-                        }
-                        .font(.caption.weight(.semibold))
-                    }
-                }
-            }
+            commandPreview(title: "Docker stats", command: dockerService.statsCommand())
+            commandPreview(title: "Docker compose projects", command: "docker compose ls 2>/dev/null || docker-compose ls 2>/dev/null || echo 'Docker Compose not found'")
+            commandPreview(title: "Recent Docker state", command: "docker ps -a --format '{{.Names}} {{.Status}}' | head -n 40")
         }
     }
 
@@ -291,30 +274,9 @@ struct ServerDetailView: View {
                 PremiumLockedCard(title: "Advanced systemd is Pro", message: "Unlock restart/start/stop actions and failed service diagnostics.")
             }
             commandPreview(title: "Failed units", command: systemdService.failedUnitsCommand())
-            ForEach(systemdService.services(for: server)) { service in
-                GlassCard {
-                    HStack(spacing: 12) {
-                        Image(systemName: service.isFailed ? "xmark.seal" : "checkmark.seal")
-                            .foregroundStyle(service.isFailed ? .red : .green)
-                            .font(.title3)
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(service.name)
-                                .font(.headline)
-                            Text("\(service.loadedState) • \(service.activeState) • \(service.subState)")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                        Spacer()
-                        Menu {
-                            Button("Start") { confirm(systemdService.actionCommand(action: "start", serviceName: service.name)) }
-                            Button("Restart") { confirm(systemdService.actionCommand(action: "restart", serviceName: service.name)) }
-                            Button("Stop", role: .destructive) { confirm(systemdService.actionCommand(action: "stop", serviceName: service.name)) }
-                        } label: {
-                            Image(systemName: "ellipsis.circle")
-                        }
-                    }
-                }
-            }
+            commandPreview(title: "Running services", command: "systemctl list-units --type=service --state=running --no-pager | head -n 45")
+            commandPreview(title: "Enabled services", command: "systemctl list-unit-files --type=service --state=enabled --no-pager | head -n 45")
+            commandPreview(title: "Recent service errors", command: "journalctl -p err -n 80 --no-pager")
         }
     }
 
@@ -323,44 +285,43 @@ struct ServerDetailView: View {
             if !appState.isProUnlocked {
                 PremiumLockedCard(title: "Logs viewer is Pro", message: "Unlock journalctl, dmesg, nginx and Docker logs.")
             }
-            GlassCard {
-                VStack(alignment: .leading, spacing: 12) {
-                    HStack {
-                        Label("Recent Logs", systemImage: "doc.text.magnifyingglass")
-                            .font(.headline)
-                        Spacer()
-                        Button {
-                            appState.lastCommandOutput = logsService.recentLogs(for: server).joined(separator: "\n")
-                        } label: {
-                            Image(systemName: "square.and.arrow.up")
-                        }
-                    }
-                    Text(logsService.journalCommand(lines: 200))
-                        .font(.caption.monospaced())
-                        .foregroundStyle(.secondary)
-                        .padding(10)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(.black.opacity(0.12), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-                    ForEach(logsService.recentLogs(for: server), id: \.self) { line in
-                        Text(line)
-                            .font(.caption.monospaced())
-                            .foregroundStyle(.secondary)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.vertical, 3)
-                    }
-                }
-            }
+            commandPreview(title: "System journal", command: logsService.journalCommand(lines: 200))
+            commandPreview(title: "Kernel ring buffer", command: logsService.dmesgCommand(lines: 120))
+            commandPreview(title: "nginx error log", command: logsService.nginxErrorLogCommand(lines: 200))
+            commandPreview(title: "SSH auth log", command: "sudo tail -n 120 /var/log/auth.log 2>/dev/null || sudo tail -n 120 /var/log/secure 2>/dev/null")
         }
     }
 
-    private func commandPreview(title: LocalizedStringKey, command: String) -> some View {
+    private func commandPreview(title: LocalizedStringKey, command: String, requiresConfirmation: Bool = false) -> some View {
         GlassCard(cornerRadius: 18, padding: 12) {
-            VStack(alignment: .leading, spacing: 6) {
-                Text(title)
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(alignment: .firstTextBaseline) {
+                    Text(title)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Button {
+                        UIPasteboard.general.string = command
+                    } label: {
+                        Label("Copy Command", systemImage: "doc.on.doc")
+                            .labelStyle(.iconOnly)
+                    }
+                    .buttonStyle(.plain)
+                    Button {
+                        if requiresConfirmation {
+                            confirm(command)
+                        } else {
+                            runRemote(command)
+                        }
+                    } label: {
+                        Label("Run via SSH", systemImage: "play.fill")
+                            .font(.caption.weight(.bold))
+                    }
+                    .buttonStyle(.plain)
+                }
                 Text(command)
                     .font(.caption.monospaced())
+                    .textSelection(.enabled)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
@@ -377,13 +338,16 @@ struct ServerDetailView: View {
                             .font(.caption.monospaced())
                             .foregroundStyle(.secondary)
                     }
+                    GlassPrimaryButton(title: "Run Diagnostics", symbol: "stethoscope") {
+                        appState.refreshPackageStatuses(for: appState.selectedServer)
+                    }
                     GlassPrimaryButton(title: "Open Missing Tools", symbol: "exclamationmark.magnifyingglass") {
                         showingMissingTools = true
                     }
                 }
             }
 
-            ForEach(appState.packageDetector.packageStatuses) { item in
+            ForEach(appState.packageStatuses) { item in
                 GlassCard(cornerRadius: 20, padding: 14) {
                     HStack {
                         Image(systemName: item.isInstalled ? "checkmark.circle.fill" : "xmark.circle.fill")
@@ -438,16 +402,25 @@ struct ServerDetailView: View {
                     appState.endLiveActivity()
                 }
                 Button("Reboot Server", role: .destructive) {
-                    confirm("Reboot \(server.name)? SysPulse will show a final confirmation before running sudo reboot.")
+                    confirm("sudo reboot", message: "Reboot \(server.name)? This command runs remotely over SSH.")
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 
-    private func confirm(_ message: String) {
-        confirmationMessage = message
+    private func confirm(_ command: String, message: String? = nil) {
+        confirmationMessage = message ?? command
+        pendingRemoteCommand = command
         showingConfirmation = true
+    }
+
+    private func runRemote(_ command: String) {
+        guard let server = appState.selectedServer else {
+            appState.lastCommandOutput = "Select a server before running commands."
+            return
+        }
+        appState.runRemoteCommand(command, on: server)
     }
 }
 

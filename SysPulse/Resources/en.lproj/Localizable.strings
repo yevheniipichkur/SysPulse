@@ -14,7 +14,6 @@
 "Start" = "Start";
 "Stop" = "Stop";
 "Restart" = "Restart";
-"Demo" = "Demo";
 "System Info" = "System";
 "Light" = "Light";
 "Dark" = "Dark";
@@ -31,9 +30,7 @@
 "Run safe commands, install missing monitoring tools and automate routine checks." = "Run safe commands, install missing monitoring tools and automate routine checks.";
 "Unlock SysPulse Pro." = "Unlock SysPulse Pro.";
 "Unlimited servers, Docker monitoring, widgets, Live Activities and premium terminal themes." = "Unlimited servers, Docker monitoring, widgets, Live Activities and premium terminal themes.";
-"Start Demo Mode" = "Start Demo Mode";
 "Continue" = "Continue";
-"Explore with Demo Servers" = "Explore with Demo Servers";
 
 "Free plan" = "Free plan";
 "One real server, basic dashboard and basic terminal." = "One real server, basic dashboard and basic terminal.";
@@ -234,7 +231,6 @@
 "No terminal session" = "No terminal session";
 "Create a session or select a server to connect." = "Create a session or select a server to connect.";
 "Command" = "Command";
-"Local Demo" = "Local Demo";
 "No server selected." = "No server selected.";
 
 "Unlock Pro Monitoring" = "Unlock Pro Monitoring";
@@ -291,9 +287,7 @@
 "Terms" = "Terms";
 "Contact support" = "Contact support";
 "Debug" = "Debug";
-"Local QA controls for demo and App Review." = "Local QA controls for demo and App Review.";
 "Force Pro locally" = "Force Pro locally";
-"Enable demo metrics" = "Enable demo metrics";
 "Reset onboarding" = "Reset onboarding";
 "Simulate offline server" = "Simulate offline server";
 "Simulate high CPU" = "Simulate high CPU";
@@ -303,3 +297,39 @@
 "Clear local database" = "Clear local database";
 "Export logs" = "Export logs";
 "Developer / QA" = "Developer / QA";
+
+"Start SysPulse" = "Start SysPulse";
+"Add your first server" = "Add your first server";
+"Select or add a server to open SSH terminal." = "Select or add a server to open SSH terminal.";
+"Saved SSH profiles run commands directly on your Linux machine." = "Saved SSH profiles run commands directly on your Linux machine.";
+"No saved servers" = "No saved servers";
+"New session" = "New session";
+"Close session" = "Close session";
+"Ask AI to generate a command" = "Ask AI to generate a command";
+"Paste" = "Paste";
+"AI" = "AI";
+"SysPulse SSH" = "SysPulse SSH";
+"Commands are executed on the remote Linux server over SSH." = "Commands are executed on the remote Linux server over SSH.";
+"No server selected. Add a server profile first." = "No server selected. Add a server profile first.";
+"Run Diagnostics" = "Run Diagnostics";
+"Top CPU processes" = "Top CPU processes";
+"Top RAM processes" = "Top RAM processes";
+"Interactive process viewer" = "Interactive process viewer";
+"Block devices" = "Block devices";
+"SMART devices" = "SMART devices";
+"Large log files" = "Large log files";
+"Docker stats" = "Docker stats";
+"Docker compose projects" = "Docker compose projects";
+"Recent Docker state" = "Recent Docker state";
+"Recent Docker events" = "Recent Docker events";
+"Running services" = "Running services";
+"Enabled services" = "Enabled services";
+"Recent service errors" = "Recent service errors";
+"System journal" = "System journal";
+"Kernel ring buffer" = "Kernel ring buffer";
+"nginx error log" = "nginx error log";
+"SSH auth log" = "SSH auth log";
+"Local QA controls for real-device testing." = "Local QA controls for real-device testing.";
+"Select a server before checking packages." = "Select a server before checking packages.";
+"Checking packages on" = "Checking packages on";
+"Command completed with no output." = "Command completed with no output.";
