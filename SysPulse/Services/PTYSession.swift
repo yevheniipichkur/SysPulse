@@ -1,4 +1,5 @@
 import Foundation
+import NIOCore
 import Citadel
 
 final class PTYSession {

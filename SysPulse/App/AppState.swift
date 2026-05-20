@@ -141,7 +141,7 @@ final class AppState: ObservableObject {
     }
 
     func refreshAllServers() {
-        for server in serverProfiles where !server.isDemo {
+        for server in serverProfiles {
             refreshMetrics(for: server)
         }
     }
