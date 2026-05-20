@@ -521,18 +521,20 @@ struct TerminalView: View {
 
 // MARK: - Keyboard input capture
 
-private final class TerminalKeyView: UIView, UIKeyInput {
+private final class TerminalKeyView: UIView, UIKeyInput, UITextInputTraits {
     var onInsert: ((String) -> Void)?
     var onDeleteBackward: (() -> Void)?
     var onResign: (() -> Void)?
 
     override var canBecomeFirstResponder: Bool { true }
-    override var keyboardType: UIKeyboardType { .asciiCapable }
-    override var autocorrectionType: UITextAutocorrectionType { .no }
-    override var autocapitalizationType: UITextAutocapitalizationType { .none }
-    override var spellCheckingType: UITextSpellCheckingType { .no }
-    override var smartQuotesType: UITextSmartQuotesType { .no }
-    override var smartDashesType: UITextSmartDashesType { .no }
+
+    // UITextInputTraits — stored vars, not overrides
+    var keyboardType: UIKeyboardType = .asciiCapable
+    var autocorrectionType: UITextAutocorrectionType = .no
+    var autocapitalizationType: UITextAutocapitalizationType = .none
+    var spellCheckingType: UITextSpellCheckingType = .no
+    var smartQuotesType: UITextSmartQuotesType = .no
+    var smartDashesType: UITextSmartDashesType = .no
 
     // Always true so the system never disables the delete key
     var hasText: Bool { true }
