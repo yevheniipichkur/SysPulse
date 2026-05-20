@@ -460,7 +460,41 @@ struct TerminalView: View {
         let pty = PTYSession()
         let appStateRef = appState
         pty.onOutput = { [appStateRef] text in
-            applyOutput(text, sessionID: sessionID, appState: appStateRef)
+            guard let idx = appStateRef.terminalSessions.firstIndex(where: { $0.id == sessionID }) else { return }
+
+            // Convert \r\n → \n, then strip ANSI escape codes (keep bare \r for CR handling)
+            var processed = text.replacingOccurrences(of: "\r\n", with: "\n")
+            if processed.contains("\u{1B}") {
+                let ansiPattern = "\u{1B}\\[[\\d;?]*[A-Za-z]|\u{1B}[()][B012]|\u{1B}[=>78M]|\u{1B}\\][^\u{07}]*\u{07}"
+                if let regex = try? NSRegularExpression(pattern: ansiPattern) {
+                    processed = regex.stringByReplacingMatches(
+                        in: processed,
+                        range: NSRange(processed.startIndex..., in: processed),
+                        withTemplate: ""
+                    )
+                }
+            }
+            guard !processed.isEmpty else { return }
+
+            guard processed.contains("\r") else {
+                appStateRef.terminalSessions[idx].transcript += processed
+                return
+            }
+
+            // \r = carriage return: overwrite current line (VT100 behaviour).
+            // Skip empty parts — a bare \r after ANSI strip must not erase the prompt.
+            var t = appStateRef.terminalSessions[idx].transcript
+            let parts = processed.components(separatedBy: "\r")
+            t += parts[0]
+            for part in parts.dropFirst() where !part.isEmpty {
+                if let lastNL = t.lastIndex(of: "\n") {
+                    t = String(t[t.startIndex...lastNL])
+                } else {
+                    t = ""
+                }
+                t += part
+            }
+            appStateRef.terminalSessions[idx].transcript = t
         }
         pty.onDisconnect = { [appStateRef] error in
             guard let idx = appStateRef.terminalSessions.firstIndex(where: { $0.id == sessionID }) else { return }
@@ -475,45 +509,6 @@ struct TerminalView: View {
     }
 
     private func welcomeTranscript(for server: ServerProfile) -> String { "" }
-
-    // Applies PTY output to a session's transcript, correctly handling \r (carriage return)
-    // as "overwrite current line" — the same way a real VT100 terminal does.
-    private func applyOutput(_ text: String, sessionID: UUID, appState: AppState) {
-        guard let idx = appState.terminalSessions.firstIndex(where: { $0.id == sessionID }) else { return }
-
-        // \r\n → \n first, then strip ANSI escape sequences (keep bare \r for CR handling)
-        var processed = text.replacingOccurrences(of: "\r\n", with: "\n")
-        if processed.contains("\u{1B}") {
-            let pattern = "\u{1B}\\[[\\d;?]*[A-Za-z]|\u{1B}[()][B012]|\u{1B}[=>78M]|\u{1B}\\][^\u{07}]*\u{07}"
-            if let regex = try? NSRegularExpression(pattern: pattern) {
-                processed = regex.stringByReplacingMatches(
-                    in: processed,
-                    range: NSRange(processed.startIndex..., in: processed),
-                    withTemplate: ""
-                )
-            }
-        }
-        guard !processed.isEmpty else { return }
-
-        guard processed.contains("\r") else {
-            appState.terminalSessions[idx].transcript += processed
-            return
-        }
-
-        // \r means "go to start of current line and overwrite"
-        var t = appState.terminalSessions[idx].transcript
-        let parts = processed.components(separatedBy: "\r")
-        t += parts[0]
-        for part in parts.dropFirst() {
-            if let lastNL = t.lastIndex(of: "\n") {
-                t = String(t[t.startIndex...lastNL])
-            } else {
-                t = ""
-            }
-            t += part
-        }
-        appState.terminalSessions[idx].transcript = t
-    }
 
     private func append(_ text: String, to sessionID: UUID? = nil) {
         guard let id = sessionID ?? selectedSessionID ?? appState.terminalSessions.first?.id,
