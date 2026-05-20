@@ -341,15 +341,16 @@ jobs:
           APPSTORE_CONNECT_API_ISSUER_ID: ${{ secrets.APPSTORE_CONNECT_API_ISSUER_ID }}
         run: |
           set -euo pipefail
-          mkdir -p "$EXPORT_PATH"
           BUNDLE_ID="${APPLE_BUNDLE_ID:-$DEFAULT_BUNDLE_ID}"
-          cat > ExportOptions.plist <<EOF
+          write_export_options() {
+            local export_method="$1"
+            cat > ExportOptions.plist <<EOF
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
           <plist version="1.0">
           <dict>
             <key>method</key>
-            <string>app-store-connect</string>
+            <string>$export_method</string>
             <key>teamID</key>
             <string>$APPLE_TEAM_ID</string>
             <key>signingStyle</key>
@@ -370,13 +371,34 @@ jobs:
           </dict>
           </plist>
           EOF
+          }
+
+          run_export() {
+            local export_method="$1"
+            rm -rf "$EXPORT_PATH"
+            mkdir -p "$EXPORT_PATH"
+            write_export_options "$export_method"
+            echo "Exporting IPA with method=$export_method"
+            set +e
+            xcodebuild -exportArchive \
+              -archivePath "$ARCHIVE_PATH" \
+              -exportPath "$EXPORT_PATH" \
+              -exportOptionsPlist ExportOptions.plist \
+              2>&1 | tee "build/logs/export-ipa-$export_method.log"
+            local export_status=${PIPESTATUS[0]}
+            set -e
+            cp "build/logs/export-ipa-$export_method.log" build/logs/export-ipa.log
+            return "$export_status"
+          }
+
           set +e
-          xcodebuild -exportArchive \
-            -archivePath "$ARCHIVE_PATH" \
-            -exportPath "$EXPORT_PATH" \
-            -exportOptionsPlist ExportOptions.plist \
-            | tee build/logs/export-ipa.log
-          EXPORT_STATUS=${PIPESTATUS[0]}
+          run_export "app-store-connect"
+          EXPORT_STATUS=$?
+          if [ "$EXPORT_STATUS" -ne 0 ] && grep -qE 'exportOptionsPlist error for key "method"|expected one' build/logs/export-ipa.log; then
+            echo "app-store-connect export method was rejected by this Xcode/archive. Retrying with legacy app-store method."
+            run_export "app-store"
+            EXPORT_STATUS=$?
+          fi
           set -e
           if [ "$EXPORT_STATUS" -ne 0 ]; then
             echo "IPA export failed. Extracting export diagnostics:"
