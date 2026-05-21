@@ -30,6 +30,9 @@ struct TerminalView: View {
     }
 
     private var isConnected: Bool {
+        if appState.isScreenshotMode {
+            return selectedSession != nil
+        }
         guard let id = selectedSessionID else { return false }
         return ptySessions[id] != nil
     }
@@ -568,6 +571,16 @@ struct TerminalView: View {
         var state = runtimeStates[sessionID] ?? TerminalRuntimeState(server: server)
         state.host = server.host
         runtimeStates[sessionID] = state
+        if appState.isScreenshotMode {
+            let transcript = appState.screenshotTerminalTranscript(for: server)
+            if let index = appState.terminalSessions.firstIndex(where: { $0.id == sessionID }) {
+                appState.terminalSessions[index].transcript = transcript
+            }
+            let bridge = terminalBridgeStore.bridge(for: sessionID)
+            bridge.reset()
+            bridge.feed(Array(transcript.utf8))
+            return
+        }
         let pty = PTYSession()
         let appStateRef = appState
         pty.onOutput = { [appStateRef] text in

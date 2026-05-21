@@ -11,6 +11,7 @@
 - Add a reviewer-owned Linux server profile, or use the visible UI flows without saving credentials.
 - Open Monitor, Terminal, Commands, Settings and Paywall.
 - Hidden QA menu: tap app version 7 times in Settings.
+- App Store screenshots can be regenerated from GitHub Actions with **iOS Screenshots**.
 
 ## Safety notes
 

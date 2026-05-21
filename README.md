@@ -23,13 +23,20 @@ SysPulse создаётся как нативный SwiftUI-продукт: кр
 
 ## Скриншоты
 
-Плейсхолдеры для App Store Connect:
+App Store screenshots генерируются отдельным GitHub Actions workflow:
 
-- `Screenshots/01-Servers.png`
-- `Screenshots/02-Monitor.png`
-- `Screenshots/03-Terminal.png`
-- `Screenshots/04-Commands.png`
-- `Screenshots/05-Paywall.png`
+1. Откройте **Actions**.
+2. Запустите **iOS Screenshots**.
+3. Скачайте artifact `syspulse-app-store-screenshots`.
+
+Workflow запускает приложение в deterministic screenshot mode и сохраняет PNG:
+
+- `01-servers.png`
+- `02-monitor.png`
+- `03-terminal.png`
+- `04-commands.png`
+- `05-settings.png`
+- `06-paywall.png`
 
 ## Free vs Pro
 

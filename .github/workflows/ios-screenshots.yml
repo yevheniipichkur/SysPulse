@@ -1,0 +1,94 @@
+name: iOS Screenshots
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: ios-screenshots-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PROJECT: SysPulse.xcodeproj
+  SCREENSHOT_SCHEME: SysPulseScreenshots
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  screenshots:
+    name: Capture App Store screenshots
+    runs-on: macos-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: |
+          set -euo pipefail
+          XCODE_PATH=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -1 || true)
+          if [ -z "$XCODE_PATH" ]; then
+            XCODE_PATH=$(ls -d /Applications/Xcode_16.4.app 2>/dev/null || true)
+          fi
+          if [ -z "$XCODE_PATH" ]; then
+            XCODE_PATH=$(ls -d /Applications/Xcode_16.3.app 2>/dev/null || true)
+          fi
+          if [ -z "$XCODE_PATH" ]; then
+            XCODE_PATH=/Applications/Xcode.app
+          fi
+          echo "Selected: $XCODE_PATH"
+          sudo xcode-select -s "$XCODE_PATH/Contents/Developer"
+          xcodebuild -version
+
+      - name: Install XcodeGen
+        run: |
+          if ! command -v xcodegen >/dev/null 2>&1; then
+            brew install xcodegen
+          fi
+          xcodegen --version
+
+      - name: Generate Xcode project
+        run: xcodegen generate
+
+      - name: Resolve screenshot simulator
+        run: |
+          set -euo pipefail
+          SIMULATOR_ID=$(xcrun simctl list devices available | awk -F '[()]' '/iPhone/ && /Pro Max/ {print $2; exit}')
+          if [ -z "$SIMULATOR_ID" ]; then
+            SIMULATOR_ID=$(xcrun simctl list devices available | awk -F '[()]' '/iPhone/ {print $2; exit}')
+          fi
+          if [ -z "$SIMULATOR_ID" ]; then
+            echo "::error::No available iPhone simulator found."
+            xcrun simctl list devices available
+            exit 1
+          fi
+          echo "SIMULATOR_DESTINATION=id=$SIMULATOR_ID" >> "$GITHUB_ENV"
+          echo "Using simulator id=$SIMULATOR_ID"
+
+      - name: Capture screenshots
+        run: |
+          set -o pipefail
+          mkdir -p build/screenshots build/logs build/SourcePackages
+          xcrun simctl boot "${SIMULATOR_DESTINATION#id=}" || true
+          xcrun simctl bootstatus "${SIMULATOR_DESTINATION#id=}" -b
+          SYSPULSE_SCREENSHOT_DIR="$PWD/build/screenshots" xcodebuild test \
+            -project "$PROJECT" \
+            -scheme "$SCREENSHOT_SCHEME" \
+            -configuration Debug \
+            -destination "$SIMULATOR_DESTINATION" \
+            -clonedSourcePackagesDirPath build/SourcePackages \
+            -skipPackagePluginValidation \
+            -skipMacroValidation \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            ONLY_ACTIVE_ARCH=YES \
+            | tee build/logs/screenshots.log
+
+      - name: Upload screenshots
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: syspulse-app-store-screenshots
+          path: |
+            build/screenshots/*.png
+            build/logs/screenshots.log
+          if-no-files-found: warn

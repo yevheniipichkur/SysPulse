@@ -60,11 +60,13 @@ final class AppState: ObservableObject {
     let packageDetector = PackageDetector()
     let sshClient: SSHClientProtocol = RealSSHClient()
     let storeKit = StoreKitService()
+    let isScreenshotMode: Bool
     @Published var packageStatuses: [PackageStatus]
     private var autoRefreshTask: Task<Void, Never>?
     private var protectedBackgroundDate: Date?
 
     init() {
+        self.isScreenshotMode = ProcessInfo.processInfo.arguments.contains("-sysPulseScreenshotMode")
         self.serverProfiles = []
         self.metricsByServer = [:]
         self.quickCommands = QuickCommandCatalog.makeQuickCommands()
@@ -73,7 +75,11 @@ final class AppState: ObservableObject {
         self.subscription = SettingsStorageService().loadSubscription()
         self.packageStatuses = PackageDetector.defaultStatuses
         self.selectedServer = nil
-        startStoreKit()
+        if isScreenshotMode {
+            configureScreenshotDemo()
+        } else {
+            startStoreKit()
+        }
     }
 
     private func startStoreKit() {
@@ -99,6 +105,10 @@ final class AppState: ObservableObject {
     }
 
     func configureProfileRepository(modelContext: ModelContext) {
+        if isScreenshotMode {
+            configureScreenshotDemo()
+            return
+        }
         guard profileRepository == nil else { return }
         profileRepository = SwiftDataProfileRepository(modelContext: modelContext)
         reloadProfilesFromRepository()

@@ -36,9 +36,9 @@
 - [ ] StoreKit product configuration in App Store Connect.
 - [x] Real server profile persistence through SwiftData UI.
 - [x] App icon.
-- [ ] App Store screenshots.
+- [x] App Store screenshot automation.
 - [x] App Group entitlements for app and WidgetKit extension.
-- [ ] Enable App Group capability in Apple Developer and provisioning profiles.
+- [x] Enable App Group capability in Apple Developer and provisioning profiles.
 - [x] Parse real Docker/systemd/process/log command output into structured SwiftUI lists.
 
 ## Future

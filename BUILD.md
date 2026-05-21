@@ -52,6 +52,18 @@ xcodebuild test \
   CODE_SIGNING_ALLOWED=NO
 ```
 
+App Store screenshots:
+
+```bash
+mkdir -p build/screenshots
+SYSPULSE_SCREENSHOT_DIR="$PWD/build/screenshots" xcodebuild test \
+  -project SysPulse.xcodeproj \
+  -scheme SysPulseScreenshots \
+  -configuration Debug \
+  -destination "platform=iOS Simulator,name=iPhone 16" \
+  CODE_SIGNING_ALLOWED=NO
+```
+
 Archive:
 
 ```bash
@@ -66,6 +78,8 @@ xcodebuild archive \
 ## Сборка через GitHub Actions
 
 Workflow: `.github/workflows/ios-build.yml`.
+
+Screenshots workflow: `.github/workflows/ios-screenshots.yml`. Run **iOS Screenshots** manually in GitHub Actions and download `syspulse-app-store-screenshots`.
 
 Запускается:
 

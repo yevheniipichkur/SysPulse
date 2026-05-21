@@ -106,6 +106,22 @@ targets:
         SKIP_INSTALL: YES
     dependencies:
       - target: SysPulse
+  SysPulseUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: SysPulseUITests
+        excludes:
+          - Info.plist
+    info:
+      path: SysPulseUITests/Info.plist
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.yevheniipichkur.syspulse.uitests
+        SKIP_INSTALL: YES
+        TEST_TARGET_NAME: SysPulse
+    dependencies:
+      - target: SysPulse
 schemes:
   SysPulse:
     build:
@@ -120,3 +136,14 @@ schemes:
       config: Debug
     archive:
       config: Release
+  SysPulseScreenshots:
+    build:
+      targets:
+        SysPulse: all
+        SysPulseUITests: [test]
+    test:
+      gatherCoverageData: false
+      targets:
+        - SysPulseUITests
+    run:
+      config: Debug
