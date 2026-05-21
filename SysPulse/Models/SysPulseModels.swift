@@ -11,15 +11,22 @@ enum AppTab: String, CaseIterable, Identifiable, Hashable {
 
     var id: String { rawValue }
 
-    var title: LocalizedStringKey {
+    var titleText: String {
         switch self {
-        case .servers: "Servers"
-        case .monitor: "Monitor"
-        case .terminal: "Terminal"
-        case .commands: "Commands"
-        case .settings: "Settings"
+        case .servers:
+            "Servers"
+        case .monitor:
+            "Monitor"
+        case .terminal:
+            "Terminal"
+        case .commands:
+            "Commands"
+        case .settings:
+            "Settings"
         }
     }
+
+    var title: LocalizedStringKey { LocalizedStringKey(titleText) }
 
     var symbol: String {
         switch self {
@@ -29,6 +36,14 @@ enum AppTab: String, CaseIterable, Identifiable, Hashable {
         case .commands: "bolt.horizontal"
         case .settings: "gearshape"
         }
+    }
+
+    var tabAccessibilityIdentifier: String {
+        "tab_\(rawValue)"
+    }
+
+    var screenAccessibilityIdentifier: String {
+        "screen_\(rawValue)"
     }
 }
 

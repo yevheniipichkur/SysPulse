@@ -64,6 +64,7 @@ struct ServerDetailView: View {
                 }
             }
         }
+        .accessibilityIdentifier(AppTab.monitor.screenAccessibilityIdentifier)
         .sheet(isPresented: $showingMissingTools) {
             MissingToolsView()
                 .presentationDetents([.large])
@@ -161,8 +162,12 @@ struct ServerDetailView: View {
             HStack(spacing: 8) {
                 ForEach(DetailTab.allCases) { tab in
                     Button {
-                        withAnimation(.spring(response: 0.28, dampingFraction: 0.86)) {
+                        if appState.areUITestAnimationsDisabled {
                             selectedTab = tab
+                        } else {
+                            withAnimation(.spring(response: 0.28, dampingFraction: 0.86)) {
+                                selectedTab = tab
+                            }
                         }
                     } label: {
                         Label(tab.titleKey, systemImage: tab.symbol)

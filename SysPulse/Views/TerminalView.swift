@@ -71,7 +71,7 @@ struct TerminalView: View {
         .onAppear {
             ensureSessionForSelectedServer()
             Task { @MainActor in
-                try? await Task.sleep(for: .seconds(0.5))
+                try? await Task.sleep(for: .seconds(appState.areUITestAnimationsDisabled ? 0.05 : 0.5))
                 keyboardActive = true
                 focusActiveTerminal()
             }
@@ -82,11 +82,12 @@ struct TerminalView: View {
         .onChange(of: appState.selectedTab) { _, newTab in
             guard newTab == .terminal else { return }
             Task { @MainActor in
-                try? await Task.sleep(for: .seconds(0.35))
+                try? await Task.sleep(for: .seconds(appState.areUITestAnimationsDisabled ? 0.05 : 0.35))
                 keyboardActive = true
                 focusActiveTerminal()
             }
         }
+        .accessibilityIdentifier(AppTab.terminal.screenAccessibilityIdentifier)
     }
 
     private var terminalCanvas: some View {

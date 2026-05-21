@@ -64,6 +64,7 @@ struct ServersView: View {
             }
             .scrollIndicators(.hidden)
         }
+        .accessibilityIdentifier(AppTab.servers.screenAccessibilityIdentifier)
         .sheet(isPresented: $isAddingServer) {
             AddServerView()
                 .presentationDetents([.large])

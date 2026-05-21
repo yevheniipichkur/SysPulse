@@ -61,12 +61,16 @@ final class AppState: ObservableObject {
     let sshClient: SSHClientProtocol = RealSSHClient()
     let storeKit = StoreKitService()
     let isScreenshotMode: Bool
+    let areUITestAnimationsDisabled: Bool
     @Published var packageStatuses: [PackageStatus]
     private var autoRefreshTask: Task<Void, Never>?
     private var protectedBackgroundDate: Date?
 
     init() {
-        self.isScreenshotMode = ProcessInfo.processInfo.arguments.contains("-sysPulseScreenshotMode")
+        let arguments = ProcessInfo.processInfo.arguments
+        let environment = ProcessInfo.processInfo.environment
+        self.isScreenshotMode = arguments.contains("-sysPulseScreenshotMode") || arguments.contains("UITEST_SCREENSHOTS")
+        self.areUITestAnimationsDisabled = arguments.contains("DISABLE_ANIMATIONS") || environment["UITEST_DISABLE_ANIMATIONS"] == "1"
         self.serverProfiles = []
         self.metricsByServer = [:]
         self.quickCommands = QuickCommandCatalog.makeQuickCommands()
@@ -75,6 +79,9 @@ final class AppState: ObservableObject {
         self.subscription = SettingsStorageService().loadSubscription()
         self.packageStatuses = PackageDetector.defaultStatuses
         self.selectedServer = nil
+        if areUITestAnimationsDisabled {
+            UIView.setAnimationsEnabled(false)
+        }
         if isScreenshotMode {
             configureScreenshotDemo()
         } else {

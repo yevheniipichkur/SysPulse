@@ -15,6 +15,7 @@ extension AppState {
         settings.forceProOverride = true
         settings.terminalTheme = .cyberGlass
         settings.terminalFontSize = 15
+        settings.reduceAnimations = true
 
         subscription = SubscriptionState(
             plan: .lifetime,

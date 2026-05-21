@@ -1,5 +1,6 @@
 import SwiftData
 import SwiftUI
+import UIKit
 
 struct RootView: View {
     @Environment(\.modelContext) private var modelContext
@@ -50,6 +51,11 @@ struct RootView: View {
             Task {
                 await appState.unlockAppIfNeeded(force: true)
             }
+        }
+        .transaction { transaction in
+            guard appState.areUITestAnimationsDisabled else { return }
+            transaction.animation = nil
+            transaction.disablesAnimations = true
         }
     }
 }
@@ -113,24 +119,104 @@ struct MainShellView: View {
 
     var body: some View {
         TabView(selection: $appState.selectedTab) {
-            Tab(AppTab.servers.title, systemImage: AppTab.servers.symbol, value: AppTab.servers) {
-                ServersView()
-            }
-            Tab(AppTab.monitor.title, systemImage: AppTab.monitor.symbol, value: AppTab.monitor) {
-                ServerDetailView()
-            }
-            Tab(AppTab.terminal.title, systemImage: AppTab.terminal.symbol, value: AppTab.terminal) {
-                TerminalView()
-            }
-            Tab(AppTab.commands.title, systemImage: AppTab.commands.symbol, value: AppTab.commands) {
-                CommandsView()
-            }
-            Tab(AppTab.settings.title, systemImage: AppTab.settings.symbol, value: AppTab.settings) {
-                SettingsView()
-            }
+            ServersView()
+                .tabItem { tabLabel(for: .servers) }
+                .tag(AppTab.servers)
+            ServerDetailView()
+                .tabItem { tabLabel(for: .monitor) }
+                .tag(AppTab.monitor)
+            TerminalView()
+                .tabItem { tabLabel(for: .terminal) }
+                .tag(AppTab.terminal)
+            CommandsView()
+                .tabItem { tabLabel(for: .commands) }
+                .tag(AppTab.commands)
+            SettingsView()
+                .tabItem { tabLabel(for: .settings) }
+                .tag(AppTab.settings)
         }
+        .background(TabBarAccessibilityConfigurator())
         .onChange(of: appState.selectedTab) {
             appState.haptic(.light)
         }
+    }
+
+    private func tabLabel(for tab: AppTab) -> some View {
+        Label {
+            Text(tab.title)
+        } icon: {
+            Image(systemName: tab.symbol)
+        }
+        .accessibilityLabel(Text(tab.title))
+        .accessibilityIdentifier(tab.tabAccessibilityIdentifier)
+    }
+}
+
+private struct TabBarAccessibilityConfigurator: UIViewControllerRepresentable {
+    func makeUIViewController(context: Context) -> Controller {
+        Controller()
+    }
+
+    func updateUIViewController(_ controller: Controller, context: Context) {
+        controller.applySoon()
+    }
+
+    final class Controller: UIViewController {
+        override func didMove(toParent parent: UIViewController?) {
+            super.didMove(toParent: parent)
+            applySoon()
+        }
+
+        override func viewDidAppear(_ animated: Bool) {
+            super.viewDidAppear(animated)
+            applySoon()
+        }
+
+        func applySoon() {
+            DispatchQueue.main.async { [weak self] in
+                self?.apply()
+            }
+        }
+
+        private func apply() {
+            guard let tabBarController = findTabBarController() else { return }
+            let tabs = AppTab.allCases
+            for (index, item) in (tabBarController.tabBar.items ?? []).enumerated() where tabs.indices.contains(index) {
+                let tab = tabs[index]
+                let title = NSLocalizedString(tab.titleText, comment: "")
+                item.title = title
+                item.accessibilityLabel = title
+                item.accessibilityIdentifier = tab.tabAccessibilityIdentifier
+            }
+        }
+
+        private func findTabBarController() -> UITabBarController? {
+            var current: UIViewController? = self
+            while let candidate = current {
+                if let tabBarController = candidate as? UITabBarController {
+                    return tabBarController
+                }
+                current = candidate.parent
+            }
+            return view.window?.rootViewController?.descendantTabBarController()
+        }
+    }
+}
+
+private extension UIViewController {
+    func descendantTabBarController() -> UITabBarController? {
+        if let tabBarController = self as? UITabBarController {
+            return tabBarController
+        }
+        for child in children {
+            if let tabBarController = child.descendantTabBarController() {
+                return tabBarController
+            }
+        }
+        if let presentedViewController,
+           let tabBarController = presentedViewController.descendantTabBarController() {
+            return tabBarController
+        }
+        return nil
     }
 }
