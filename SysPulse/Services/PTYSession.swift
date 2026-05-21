@@ -10,6 +10,7 @@ final class PTYSession {
 
     private var task: Task<Void, Never>?
     private var stdinWriter: TTYStdinWriter?
+    private var lastSize: (cols: Int, rows: Int)?
     // Use String stream to avoid ByteBuffer Sendability concerns
     private var textContinuation: AsyncStream<String>.Continuation?
 
@@ -81,7 +82,11 @@ final class PTYSession {
     }
 
     func resize(cols: Int, rows: Int) {
-        guard cols > 0, rows > 0, let stdinWriter else { return }
+        guard cols >= 24, rows >= 8, let stdinWriter else { return }
+        if let lastSize, lastSize.cols == cols, lastSize.rows == rows {
+            return
+        }
+        lastSize = (cols, rows)
         Task {
             try? await stdinWriter.changeSize(
                 cols: cols,
@@ -97,6 +102,7 @@ final class PTYSession {
         task?.cancel()
         task = nil
         stdinWriter = nil
+        lastSize = nil
     }
 
     private static var bootstrapCommandBuffer: ByteBuffer {
@@ -114,7 +120,7 @@ final class PTYSession {
             terminalPixelWidth: 0,
             terminalPixelHeight: 0,
             terminalModes: SSHTerminalModes([
-                .ECHO: 0,
+                .ECHO: 1,
                 .ICANON: 1,
                 .ISIG: 1,
                 .IEXTEN: 1,

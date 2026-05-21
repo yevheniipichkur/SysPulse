@@ -75,6 +75,7 @@ final class AppState: ObservableObject {
     let areUITestAnimationsDisabled: Bool
     @Published var packageStatuses: [PackageStatus]
     private var autoRefreshTask: Task<Void, Never>?
+    private var profileCloudSyncTask: Task<Void, Never>?
     private var protectedBackgroundDate: Date?
     private var alertLastFiredAt: [String: Date] = [:]
     private let alertCooldown: TimeInterval = 15 * 60
@@ -949,21 +950,34 @@ final class AppState: ObservableObject {
         guard settings.iCloudSyncEnabled else { return }
         guard let profileRepository else { return }
 
-        let localProfiles = serverProfiles
-        Task {
+        let localSnapshots = serverProfiles.map(CloudServerProfileSnapshot.init)
+        let previousSyncTask = profileCloudSyncTask
+        previousSyncTask?.cancel()
+        profileCloudSyncTask = Task {
             do {
+                if let previousSyncTask {
+                    _ = await previousSyncTask.result
+                }
+                try Task.checkCancellation()
+
                 let profileCloudSyncService = ProfileCloudSyncService()
                 if mergeRemote {
-                    let syncedProfiles = try await profileCloudSyncService.mergeAndUpload(localProfiles: localProfiles)
-                    for profile in syncedProfiles {
-                        try profileRepository.saveProfile(profile)
+                    let syncedSnapshots = try await profileCloudSyncService.mergeAndUpload(localSnapshots: localSnapshots)
+                    try Task.checkCancellation()
+                    guard settings.iCloudSyncEnabled else { return }
+                    for snapshot in syncedSnapshots {
+                        try profileRepository.saveProfile(snapshot.makeServerProfile())
                     }
                     reloadProfilesFromRepository()
                     lastCommandOutput = localized("iCloud profile sync completed.")
                 } else {
-                    try await profileCloudSyncService.uploadSnapshot(localProfiles: localProfiles)
+                    try await profileCloudSyncService.uploadSnapshot(localSnapshots)
+                    try Task.checkCancellation()
+                    guard settings.iCloudSyncEnabled else { return }
                     lastCommandOutput = localized("iCloud profile snapshot updated.")
                 }
+            } catch is CancellationError {
+                return
             } catch {
                 lastCommandOutput = localized("iCloud sync failed: %@", error.localizedDescription)
             }

@@ -12,23 +12,26 @@ enum ProfileCloudSyncError: LocalizedError {
     }
 }
 
-@MainActor
 struct ProfileCloudSyncService {
     private let recordID = CKRecord.ID(recordName: "server-profiles-v1")
     private let recordType = "SysPulseProfileSnapshot"
     private let profilesField = "profilesJSON"
     private let updatedAtField = "updatedAt"
+    private let container: CKContainer
 
-    func mergeAndUpload(localProfiles: [ServerProfile]) async throws -> [ServerProfile] {
-        let localSnapshots = localProfiles.map(CloudServerProfileSnapshot.init)
+    init(containerIdentifier: String = SysPulseModelContainerFactory.iCloudContainerIdentifier) {
+        self.container = CKContainer(identifier: containerIdentifier)
+    }
+
+    func mergeAndUpload(localSnapshots: [CloudServerProfileSnapshot]) async throws -> [CloudServerProfileSnapshot] {
         let remoteSnapshots = try await fetchSnapshots()
         let mergedSnapshots = merge(local: localSnapshots, remote: remoteSnapshots)
         try await saveSnapshots(mergedSnapshots)
-        return mergedSnapshots.map { $0.makeServerProfile() }
+        return mergedSnapshots
     }
 
-    func uploadSnapshot(localProfiles: [ServerProfile]) async throws {
-        try await saveSnapshots(localProfiles.map(CloudServerProfileSnapshot.init))
+    func uploadSnapshot(_ snapshots: [CloudServerProfileSnapshot]) async throws {
+        try await saveSnapshots(snapshots)
     }
 
     private func fetchSnapshots() async throws -> [CloudServerProfileSnapshot] {
@@ -36,7 +39,16 @@ struct ProfileCloudSyncService {
             return []
         }
 
-        guard let data = record[profilesField] as? Data else {
+        let data: Data?
+        if let bytes = record[profilesField] as? Data {
+            data = bytes
+        } else if let bytes = record[profilesField] as? NSData {
+            data = Data(referencing: bytes)
+        } else {
+            data = nil
+        }
+
+        guard let data else {
             throw ProfileCloudSyncError.missingSnapshotData
         }
 
@@ -45,8 +57,8 @@ struct ProfileCloudSyncService {
 
     private func saveSnapshots(_ snapshots: [CloudServerProfileSnapshot]) async throws {
         let record = try await fetchSnapshotRecord() ?? CKRecord(recordType: recordType, recordID: recordID)
-        record[profilesField] = try JSONEncoder().encode(snapshots) as CKRecordValue
-        record[updatedAtField] = Date.now as CKRecordValue
+        record[profilesField] = try JSONEncoder().encode(snapshots) as NSData
+        record[updatedAtField] = Date() as NSDate
         _ = try await save(record)
     }
 
@@ -71,7 +83,7 @@ struct ProfileCloudSyncService {
     }
 
     private func fetchSnapshotRecord() async throws -> CKRecord? {
-        let database = CKContainer.default().privateCloudDatabase
+        let database = container.privateCloudDatabase
         return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<CKRecord?, Error>) in
             database.fetch(withRecordID: recordID) { record, error in
                 if let ckError = error as? CKError, ckError.code == .unknownItem {
@@ -90,7 +102,7 @@ struct ProfileCloudSyncService {
     }
 
     private func save(_ record: CKRecord) async throws -> CKRecord {
-        let database = CKContainer.default().privateCloudDatabase
+        let database = container.privateCloudDatabase
         return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<CKRecord, Error>) in
             database.save(record) { savedRecord, error in
                 if let error {
@@ -109,7 +121,7 @@ struct ProfileCloudSyncService {
     }
 }
 
-private struct CloudServerProfileSnapshot: Codable, Hashable {
+struct CloudServerProfileSnapshot: Codable, Hashable, Sendable {
     var id: UUID
     var name: String
     var host: String
