@@ -1,5 +1,6 @@
 import SwiftUI
 import UIKit
+import UniformTypeIdentifiers
 
 struct ServerDetailView: View {
     @EnvironmentObject private var appState: AppState
@@ -8,6 +9,9 @@ struct ServerDetailView: View {
     @State private var confirmationMessage = ""
     @State private var showingConfirmation = false
     @State private var pendingRemoteCommand: String?
+    @State private var pendingSFTPDeleteItem: SFTPRemoteItem?
+    @State private var isImportingSFTPFile = false
+    @State private var downloadedSFTPFileURL: URL?
 
     private let dockerService = DockerService()
     private let systemdService = SystemdService()
@@ -42,6 +46,8 @@ struct ServerDetailView: View {
                                     packages
                                 case .terminal:
                                     terminalShortcut(server: server)
+                                case .sftp:
+                                    sftp(server: server)
                                 case .actions:
                                     actions(server: server)
                                 }
@@ -70,13 +76,26 @@ struct ServerDetailView: View {
                 .presentationDetents([.large])
                 .presentationCornerRadius(32)
         }
+        .fileImporter(
+            isPresented: $isImportingSFTPFile,
+            allowedContentTypes: [.data],
+            allowsMultipleSelection: false
+        ) { result in
+            importSFTPFile(result)
+        }
         .alert("Confirmation required", isPresented: $showingConfirmation) {
-            Button("Cancel", role: .cancel) {}
+            Button("Cancel", role: .cancel) {
+                pendingRemoteCommand = nil
+                pendingSFTPDeleteItem = nil
+            }
             Button("Confirm", role: .destructive) {
-                if let pendingRemoteCommand {
+                if let pendingSFTPDeleteItem, let server = appState.selectedServer {
+                    appState.deleteSFTPItem(pendingSFTPDeleteItem, from: server)
+                } else if let pendingRemoteCommand {
                     runRemote(pendingRemoteCommand)
                 }
                 pendingRemoteCommand = nil
+                pendingSFTPDeleteItem = nil
             }
         } message: {
             Text(confirmationMessage)
@@ -680,6 +699,128 @@ struct ServerDetailView: View {
         }
     }
 
+    private func sftp(server: ServerProfile) -> some View {
+        let items = appState.sftpItems(for: server)
+        let path = appState.sftpPath(for: server)
+
+        return VStack(spacing: 12) {
+            monitorRefreshHeader(
+                title: "SFTP Files",
+                message: "Browse, upload and download files over the selected SSH connection.",
+                primaryTitle: "Refresh Files",
+                primarySymbol: "arrow.clockwise",
+                primaryAction: { appState.refreshSFTPDirectory(for: server) },
+                secondaryTitle: "Upload File",
+                secondarySymbol: "square.and.arrow.up",
+                secondaryAction: { isImportingSFTPFile = true }
+            )
+
+            GlassCard(cornerRadius: 18, padding: 12) {
+                HStack(spacing: 10) {
+                    Image(systemName: "folder")
+                        .foregroundStyle(.cyan)
+                    Text(path)
+                        .font(.caption.monospaced())
+                        .lineLimit(1)
+                    Spacer()
+                    Button {
+                        appState.openSFTPParent(for: server)
+                    } label: {
+                        Label("Up", systemImage: "arrow.up")
+                            .labelStyle(.iconOnly)
+                    }
+                    .buttonStyle(.plain)
+                    Button {
+                        appState.refreshSFTPDirectory(for: server, path: ".")
+                    } label: {
+                        Label("Home", systemImage: "house")
+                            .labelStyle(.iconOnly)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+
+            if let downloadedSFTPFileURL {
+                GlassCard(cornerRadius: 18, padding: 12) {
+                    HStack(spacing: 10) {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundStyle(.green)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("SFTP download ready")
+                                .font(.headline)
+                            Text(downloadedSFTPFileURL.lastPathComponent)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                        }
+                        Spacer()
+                        ShareLink(item: downloadedSFTPFileURL) {
+                            Image(systemName: "square.and.arrow.up")
+                        }
+                    }
+                }
+            }
+
+            if items.isEmpty {
+                EmptyStateView(
+                    title: "No files loaded",
+                    message: "Refresh to browse the remote directory.",
+                    symbol: "folder"
+                )
+                .onAppear {
+                    appState.refreshSFTPDirectory(for: server)
+                }
+            } else {
+                ForEach(items) { item in
+                    sftpRow(item, server: server)
+                }
+            }
+        }
+    }
+
+    private func sftpRow(_ item: SFTPRemoteItem, server: ServerProfile) -> some View {
+        GlassCard(cornerRadius: 18, padding: 13) {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(alignment: .firstTextBaseline, spacing: 10) {
+                    Image(systemName: item.kind.symbol)
+                        .foregroundStyle(item.isDirectory ? .cyan : .secondary)
+                        .frame(width: 22)
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(item.name)
+                            .font(.headline.monospaced())
+                            .lineLimit(1)
+                        Text("\(item.permissions) · \(item.modifiedAt)")
+                            .font(.caption2.monospaced())
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+                    Spacer()
+                    Text(item.isDirectory ? appState.localized("Directory") : byteCount(item.size))
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                }
+
+                HStack(spacing: 12) {
+                    if item.isDirectory {
+                        Button("Open") {
+                            appState.refreshSFTPDirectory(for: server, path: item.path)
+                        }
+                    } else {
+                        Button("Download") {
+                            Task {
+                                downloadedSFTPFileURL = await appState.downloadSFTPFile(item, from: server)
+                            }
+                        }
+                    }
+                    Button("Delete", role: .destructive) {
+                        confirmSFTPDelete(item)
+                    }
+                }
+                .font(.caption.weight(.semibold))
+            }
+        }
+    }
+
     private func terminalShortcut(server: ServerProfile) -> some View {
         GlassCard {
             VStack(spacing: 16) {
@@ -723,7 +864,25 @@ struct ServerDetailView: View {
     private func confirm(_ command: String, message: String? = nil) {
         confirmationMessage = message ?? command
         pendingRemoteCommand = command
+        pendingSFTPDeleteItem = nil
         showingConfirmation = true
+    }
+
+    private func confirmSFTPDelete(_ item: SFTPRemoteItem) {
+        confirmationMessage = appState.localized("Delete %@ from SFTP?", item.name)
+        pendingRemoteCommand = nil
+        pendingSFTPDeleteItem = item
+        showingConfirmation = true
+    }
+
+    private func importSFTPFile(_ result: Result<[URL], Error>) {
+        do {
+            guard let server = appState.selectedServer,
+                  let url = try result.get().first else { return }
+            appState.uploadSFTPFile(from: url, to: server)
+        } catch {
+            appState.lastCommandOutput = error.localizedDescription
+        }
     }
 
     private func runRemote(_ command: String) {
@@ -744,6 +903,10 @@ struct ServerDetailView: View {
     private func formattedGB(_ value: Double) -> String {
         String(format: "%.1f GB", value)
     }
+
+    private func byteCount(_ bytes: Int64) -> String {
+        ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)
+    }
 }
 
 private enum DetailTab: String, CaseIterable, Identifiable {
@@ -755,6 +918,7 @@ private enum DetailTab: String, CaseIterable, Identifiable {
     case logs = "Logs"
     case packages = "Packages"
     case terminal = "Terminal"
+    case sftp = "SFTP"
     case actions = "Actions"
 
     var id: String { rawValue }
@@ -770,6 +934,7 @@ private enum DetailTab: String, CaseIterable, Identifiable {
         case .logs: "doc.text.magnifyingglass"
         case .packages: "wrench.and.screwdriver"
         case .terminal: "terminal"
+        case .sftp: "folder.badge.gearshape"
         case .actions: "bolt.horizontal"
         }
     }

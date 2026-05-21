@@ -761,6 +761,53 @@ struct MissingTool: Identifiable, Hashable {
     var unavailableFeatures: [String]
 }
 
+enum SFTPRemoteItemKind: String, Codable, Hashable {
+    case directory
+    case file
+    case symlink
+    case other
+
+    var titleKey: LocalizedStringKey {
+        switch self {
+        case .directory:
+            "Directory"
+        case .file:
+            "File"
+        case .symlink:
+            "Symlink"
+        case .other:
+            "Other"
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .directory:
+            "folder"
+        case .file:
+            "doc"
+        case .symlink:
+            "link"
+        case .other:
+            "questionmark.square"
+        }
+    }
+}
+
+struct SFTPRemoteItem: Identifiable, Codable, Hashable {
+    var id: String { path }
+    var name: String
+    var path: String
+    var kind: SFTPRemoteItemKind
+    var size: Int64
+    var modifiedAt: String
+    var permissions: String
+
+    var isDirectory: Bool {
+        kind == .directory
+    }
+}
+
 enum LinuxDistribution: String, CaseIterable, Identifiable, Hashable {
     case debian = "Debian / Ubuntu / Raspberry Pi OS"
     case fedora = "Fedora"

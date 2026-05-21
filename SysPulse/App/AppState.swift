@@ -43,6 +43,8 @@ final class AppState: ObservableObject {
     @Published var dockerContainersByServer: [UUID: [DockerContainer]] = [:]
     @Published var systemdServicesByServer: [UUID: [SystemdServiceItem]] = [:]
     @Published var logEntriesByServer: [UUID: [LogEntry]] = [:]
+    @Published var sftpItemsByServer: [UUID: [SFTPRemoteItem]] = [:]
+    @Published var sftpPathByServer: [UUID: String] = [:]
     @Published var alertRules: [AlertRule] = []
     @Published var areNotificationsAuthorized = false
 
@@ -55,6 +57,7 @@ final class AppState: ObservableObject {
     private let notificationService = NotificationService()
     private let alertEvaluationService = AlertRuleEvaluationService()
     private let encryptedProfileSharingService = EncryptedProfileSharingService()
+    private let sftpService = SFTPFileTransferService()
     private let metricsCollector = MetricsCollector()
     private let processService = ProcessService()
     private let diskService = DiskService()
@@ -291,6 +294,16 @@ final class AppState: ObservableObject {
         return logEntriesByServer[server.id] ?? []
     }
 
+    func sftpItems(for server: ServerProfile?) -> [SFTPRemoteItem] {
+        guard let server else { return [] }
+        return sftpItemsByServer[server.id] ?? []
+    }
+
+    func sftpPath(for server: ServerProfile?) -> String {
+        guard let server else { return "." }
+        return sftpPathByServer[server.id] ?? "."
+    }
+
     @discardableResult
     func addServer(_ server: ServerProfile) -> Bool {
         if !isProUnlocked && serverProfiles.count >= 1 {
@@ -362,6 +375,8 @@ final class AppState: ObservableObject {
         dockerContainersByServer.removeValue(forKey: serverID)
         systemdServicesByServer.removeValue(forKey: serverID)
         logEntriesByServer.removeValue(forKey: serverID)
+        sftpItemsByServer.removeValue(forKey: serverID)
+        sftpPathByServer.removeValue(forKey: serverID)
         terminalSessions.removeAll { $0.serverID == serverID }
         if let credentialIdentifier {
             try? KeychainService.shared.deleteSecret(account: credentialIdentifier)
@@ -644,6 +659,8 @@ final class AppState: ObservableObject {
         dockerContainersByServer = [:]
         systemdServicesByServer = [:]
         logEntriesByServer = [:]
+        sftpItemsByServer = [:]
+        sftpPathByServer = [:]
         publishWidgetSnapshots()
         uploadProfilesToICloudIfEnabled()
     }
@@ -689,6 +706,95 @@ final class AppState: ObservableObject {
             lastCommandOutput = localized("Imported %d encrypted profiles.", importedProfiles.count)
         } catch {
             lastCommandOutput = error.localizedDescription
+        }
+    }
+
+    func refreshSFTPDirectory(for server: ServerProfile? = nil, path: String? = nil) {
+        guard let targetServer = server ?? selectedServer else {
+            lastCommandOutput = localized("Select a server before running commands.")
+            return
+        }
+
+        let targetPath = path ?? sftpPath(for: targetServer)
+        lastCommandOutput = localized("Loading SFTP directory %@...", targetPath)
+        Task {
+            do {
+                let listing = try await sftpService.listDirectory(at: targetPath, server: targetServer, via: sshClient)
+                await MainActor.run {
+                    sftpPathByServer[targetServer.id] = listing.path
+                    sftpItemsByServer[targetServer.id] = listing.items
+                    lastCommandOutput = localized("Loaded %d SFTP items from %@.", listing.items.count, listing.path)
+                }
+            } catch {
+                await MainActor.run {
+                    lastCommandOutput = error.localizedDescription
+                }
+            }
+        }
+    }
+
+    func openSFTPParent(for server: ServerProfile) {
+        refreshSFTPDirectory(for: server, path: sftpService.parentPath(of: sftpPath(for: server)))
+    }
+
+    func uploadSFTPFile(from url: URL, to server: ServerProfile) {
+        let didStartAccess = url.startAccessingSecurityScopedResource()
+        let data: Data
+        do {
+            data = try Data(contentsOf: url)
+        } catch {
+            lastCommandOutput = error.localizedDescription
+            if didStartAccess { url.stopAccessingSecurityScopedResource() }
+            return
+        }
+        if didStartAccess { url.stopAccessingSecurityScopedResource() }
+
+        let fileName = url.lastPathComponent
+        let directory = sftpPath(for: server)
+        lastCommandOutput = localized("Uploading %@ via SFTP...", fileName)
+        Task {
+            do {
+                try await sftpService.upload(data, named: fileName, to: directory, server: server, via: sshClient)
+                await MainActor.run {
+                    lastCommandOutput = localized("Uploaded %@ via SFTP.", fileName)
+                    refreshSFTPDirectory(for: server)
+                }
+            } catch {
+                await MainActor.run {
+                    lastCommandOutput = error.localizedDescription
+                }
+            }
+        }
+    }
+
+    func downloadSFTPFile(_ item: SFTPRemoteItem, from server: ServerProfile) async -> URL? {
+        lastCommandOutput = localized("Downloading %@ via SFTP...", item.name)
+        do {
+            let data = try await sftpService.download(item, server: server, via: sshClient)
+            let url = FileManager.default.temporaryDirectory.appendingPathComponent(item.name)
+            try data.write(to: url, options: .atomic)
+            lastCommandOutput = localized("Downloaded %@ via SFTP.", item.name)
+            return url
+        } catch {
+            lastCommandOutput = error.localizedDescription
+            return nil
+        }
+    }
+
+    func deleteSFTPItem(_ item: SFTPRemoteItem, from server: ServerProfile) {
+        lastCommandOutput = localized("Deleting %@ via SFTP...", item.name)
+        Task {
+            do {
+                try await sftpService.delete(item, server: server, via: sshClient)
+                await MainActor.run {
+                    lastCommandOutput = localized("Deleted %@ via SFTP.", item.name)
+                    refreshSFTPDirectory(for: server)
+                }
+            } catch {
+                await MainActor.run {
+                    lastCommandOutput = error.localizedDescription
+                }
+            }
         }
     }
 
