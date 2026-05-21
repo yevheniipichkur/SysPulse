@@ -30,8 +30,9 @@ struct SFTPFileTransferService {
         let sftp = try await client.openSFTP()
         defer { Task { try? await sftp.close() } }
 
-        let resolved = try await resolvedPath(sftp: sftp, path: path)
-        let components = try await sftp.listDirectory(atPath: resolved)
+        let resolved = try await sftp.getRealPath(atPath: path.isEmpty || path == "." ? "." : path)
+        let nameMessages = try await sftp.listDirectory(atPath: resolved)
+        let components = nameMessages.flatMap { $0.components }
         let items = components
             .filter { $0.filename != "." && $0.filename != ".." }
             .map { c in SFTPRemoteItem(
@@ -39,7 +40,7 @@ struct SFTPFileTransferService {
                 path: joinedPath(directory: resolved, name: c.filename),
                 kind: itemKind(from: c.attributes),
                 size: Int64(c.attributes.size ?? 0),
-                modifiedAt: formattedDate(c.attributes.modifyDate),
+                modifiedAt: formattedDate(c.attributes.accessModificationTime?.modificationTime),
                 permissions: permissionsString(from: c.attributes.permissions)
             )}
             .sorted { lhs, rhs in
@@ -82,7 +83,7 @@ struct SFTPFileTransferService {
 
         let file = try await sftp.openFile(filePath: item.path, flags: .read)
         do {
-            var buffer = try await file.readAll(from: 0)
+            var buffer = try await file.readAll()
             try await file.close()
             return Data(buffer.readBytes(length: buffer.readableBytes) ?? [])
         } catch {
@@ -98,9 +99,9 @@ struct SFTPFileTransferService {
         defer { Task { try? await sftp.close() } }
 
         if item.isDirectory {
-            try await sftp.removeDirectory(atPath: item.path)
+            try await sftp.rmdir(at: item.path)
         } else {
-            try await sftp.removeFile(atPath: item.path)
+            try await sftp.remove(at: item.path)
         }
     }
 
@@ -115,15 +116,9 @@ struct SFTPFileTransferService {
 
     // MARK: - Private
 
-    private func resolvedPath(sftp: SFTPClient, path: String) async throws -> String {
-        let target = path.isEmpty || path == "." ? "." : path
-        let components = try await sftp.realPath(atPath: target)
-        return components.first?.filename ?? target
-    }
-
     private func itemKind(from attributes: SFTPFileAttributes) -> SFTPRemoteItemKind {
-        guard let perms = attributes.permissions else { return .other }
-        switch perms.rawValue & 0xF000 {
+        guard let mode = attributes.permissions else { return .other }
+        switch mode & 0xF000 {
         case 0o040000: return .directory
         case 0o120000: return .symlink
         case 0o100000: return .file
@@ -138,9 +133,8 @@ struct SFTPFileTransferService {
         return f.string(from: date)
     }
 
-    private func permissionsString(from permissions: SFTPFilePermissions?) -> String {
-        guard let p = permissions else { return "----------" }
-        let m = p.rawValue
+    private func permissionsString(from mode: UInt32?) -> String {
+        guard let m = mode else { return "----------" }
         let t: Character
         switch m & 0xF000 {
         case 0o040000: t = "d"
