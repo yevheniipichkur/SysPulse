@@ -859,7 +859,7 @@ private struct SwiftTermTerminalSurface: UIViewRepresentable {
             },
             focus: { [weak terminalView] in
                 DispatchQueue.main.async {
-                    terminalView?.becomeFirstResponder()
+                    _ = terminalView?.becomeFirstResponder()
                 }
             }
         )

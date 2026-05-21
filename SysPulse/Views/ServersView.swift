@@ -352,7 +352,7 @@ struct AddServerView: View {
                             ServerFormDivider()
                             ServerFormTextField(
                                 title: "Icon",
-                                placeholder: serverType.symbol,
+                                placeholder: LocalizedStringKey(serverType.symbol),
                                 text: $icon,
                                 symbol: "square.grid.2x2",
                                 autocapitalization: .never
