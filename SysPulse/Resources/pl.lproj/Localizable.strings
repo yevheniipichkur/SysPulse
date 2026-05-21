@@ -391,6 +391,7 @@
 "iCloud profile sync completed." = "Synchronizacja profili iCloud zakończona.";
 "iCloud profile snapshot updated." = "Migawka profili iCloud zaktualizowana.";
 "iCloud sync failed: %@" = "Synchronizacja iCloud nie powiodła się: %@";
+"iCloud sync requires CloudKit entitlement for %@." = "Synchronizacja iCloud wymaga uprawnienia CloudKit dla %@.";
 "Starting iCloud profile sync..." = "Uruchamianie synchronizacji profili iCloud...";
 "iCloud sync disabled." = "Synchronizacja iCloud wyłączona.";
 

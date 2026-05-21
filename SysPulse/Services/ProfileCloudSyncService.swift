@@ -1,13 +1,26 @@
 import CloudKit
 import Foundation
+import Security
 
 enum ProfileCloudSyncError: LocalizedError {
     case missingSnapshotData
+    case unavailableInCurrentBuild(String)
+
+    var shouldDisableSync: Bool {
+        switch self {
+        case .unavailableInCurrentBuild:
+            true
+        case .missingSnapshotData:
+            false
+        }
+    }
 
     var errorDescription: String? {
         switch self {
         case .missingSnapshotData:
             L10n.string("iCloud profile snapshot is missing data.")
+        case .unavailableInCurrentBuild(let containerIdentifier):
+            L10n.string("iCloud sync requires CloudKit entitlement for %@.", containerIdentifier)
         }
     }
 }
@@ -19,8 +32,11 @@ struct ProfileCloudSyncService {
     private let updatedAtField = "updatedAt"
     private let container: CKContainer
 
-    init(containerIdentifier: String = SysPulseModelContainerFactory.iCloudContainerIdentifier) {
-        self.container = CKContainer(identifier: containerIdentifier)
+    init(containerIdentifier: String = SysPulseModelContainerFactory.iCloudContainerIdentifier) throws {
+        guard Self.isCloudKitEntitled(containerIdentifier: containerIdentifier) else {
+            throw ProfileCloudSyncError.unavailableInCurrentBuild(containerIdentifier)
+        }
+        self.container = CKContainer.default()
     }
 
     func mergeAndUpload(localSnapshots: [CloudServerProfileSnapshot]) async throws -> [CloudServerProfileSnapshot] {
@@ -118,6 +134,29 @@ struct ProfileCloudSyncService {
                 continuation.resume(returning: savedRecord)
             }
         }
+    }
+
+    private static func isCloudKitEntitled(containerIdentifier: String) -> Bool {
+        let containers = entitlementStrings(for: "com.apple.developer.icloud-container-identifiers")
+        let services = entitlementStrings(for: "com.apple.developer.icloud-services")
+        return containers.contains(containerIdentifier) && services.contains("CloudKit")
+    }
+
+    private static func entitlementStrings(for key: String) -> [String] {
+        guard let task = SecTaskCreateFromSelf(nil),
+              let value = SecTaskCopyValueForEntitlement(task, key as CFString, nil) else {
+            return []
+        }
+
+        if let strings = value as? [String] {
+            return strings
+        }
+
+        if let string = value as? String {
+            return [string]
+        }
+
+        return []
     }
 }
 

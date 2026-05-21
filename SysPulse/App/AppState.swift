@@ -960,7 +960,7 @@ final class AppState: ObservableObject {
                 }
                 try Task.checkCancellation()
 
-                let profileCloudSyncService = ProfileCloudSyncService()
+                let profileCloudSyncService = try ProfileCloudSyncService()
                 if mergeRemote {
                     let syncedSnapshots = try await profileCloudSyncService.mergeAndUpload(localSnapshots: localSnapshots)
                     try Task.checkCancellation()
@@ -978,6 +978,11 @@ final class AppState: ObservableObject {
                 }
             } catch is CancellationError {
                 return
+            } catch let error as ProfileCloudSyncError {
+                if error.shouldDisableSync {
+                    settings.iCloudSyncEnabled = false
+                }
+                lastCommandOutput = localized("iCloud sync failed: %@", error.localizedDescription)
             } catch {
                 lastCommandOutput = localized("iCloud sync failed: %@", error.localizedDescription)
             }

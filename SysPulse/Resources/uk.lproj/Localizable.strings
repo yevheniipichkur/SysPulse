@@ -391,6 +391,7 @@
 "iCloud profile sync completed." = "Синхронізацію профілів iCloud завершено.";
 "iCloud profile snapshot updated." = "Знімок профілів iCloud оновлено.";
 "iCloud sync failed: %@" = "Синхронізація iCloud не вдалася: %@";
+"iCloud sync requires CloudKit entitlement for %@." = "Для синхронізації iCloud потрібна CloudKit entitlement для %@.";
 "Starting iCloud profile sync..." = "Запуск синхронізації профілів iCloud...";
 "iCloud sync disabled." = "Синхронізацію iCloud вимкнено.";
 

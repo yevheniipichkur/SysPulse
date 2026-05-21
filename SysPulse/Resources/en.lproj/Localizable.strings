@@ -391,6 +391,7 @@
 "iCloud profile sync completed." = "iCloud profile sync completed.";
 "iCloud profile snapshot updated." = "iCloud profile snapshot updated.";
 "iCloud sync failed: %@" = "iCloud sync failed: %@";
+"iCloud sync requires CloudKit entitlement for %@." = "iCloud sync requires CloudKit entitlement for %@.";
 "Starting iCloud profile sync..." = "Starting iCloud profile sync...";
 "iCloud sync disabled." = "iCloud sync disabled.";
 
