@@ -223,16 +223,16 @@ final class ServerProfile: Identifiable {
     var host: String = ""
     var port: Int = 22
     var username: String = ""
-    var authenticationTypeRaw: String = SSHAuthenticationType.password.rawValue
+    var authenticationTypeRaw: String = "Password"
     var credentialIdentifier: String?
     var tagsCSV: String = ""
     var groupName: String?
     var icon: String = "server.rack"
     var accentHex: String = "#33C2EA"
-    var serverTypeRaw: String = ServerType.custom.rawValue
-    var statusRaw: String = ServerStatus.unknown.rawValue
-    var createdAt: Date = .now
-    var updatedAt: Date = .now
+    var serverTypeRaw: String = "Custom"
+    var statusRaw: String = "unknown"
+    var createdAt: Date = Date.now
+    var updatedAt: Date = Date.now
 
     init(
         id: UUID = UUID(),
@@ -374,9 +374,9 @@ final class TerminalSession: Identifiable {
     var id: UUID = UUID()
     var serverID: UUID?
     var title: String = ""
-    var startedAt: Date = .now
+    var startedAt: Date = Date.now
     var isActive: Bool = true
-    var themeRaw: String = TerminalTheme.liquidDark.rawValue
+    var themeRaw: String = "Liquid Dark"
     var transcript: String = ""
 
     init(
@@ -409,7 +409,7 @@ final class QuickCommand: Identifiable {
     var title: String = ""
     var details: String = ""
     var command: String = ""
-    var safetyRaw: String = CommandSafetyLevel.safe.rawValue
+    var safetyRaw: String = "Safe"
     var isPremium: Bool = false
     var variablesCSV: String = ""
 
@@ -451,7 +451,7 @@ final class CommandExecution: Identifiable {
     var commandText: String = ""
     var output: String = ""
     var exitCode: Int = 0
-    var executedAt: Date = .now
+    var executedAt: Date = Date.now
     var requiredConfirmation: Bool = false
 
     init(
@@ -542,8 +542,8 @@ final class ServerEvent: Identifiable {
     var serverID: UUID?
     var title: String = ""
     var details: String = ""
-    var severity: String = CommandSafetyLevel.safe.rawValue
-    var createdAt: Date = .now
+    var severity: String = "Safe"
+    var createdAt: Date = Date.now
 
     init(id: UUID = UUID(), serverID: UUID? = nil, title: String, details: String, severity: String, createdAt: Date = .now) {
         self.id = id
