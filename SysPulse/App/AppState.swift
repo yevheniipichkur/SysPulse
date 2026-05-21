@@ -48,7 +48,6 @@ final class AppState: ObservableObject {
     private let widgetDataService = WidgetDataService()
     private let liveActivityService = LiveActivityService()
     private let biometricLockService = BiometricLockService()
-    private let profileCloudSyncService = ProfileCloudSyncService()
     private let metricsCollector = MetricsCollector()
     private let processService = ProcessService()
     private let diskService = DiskService()
@@ -78,9 +77,6 @@ final class AppState: ObservableObject {
         guard profileRepository == nil else { return }
         profileRepository = SwiftDataProfileRepository(modelContext: modelContext)
         reloadProfilesFromRepository()
-        if settings.iCloudSyncEnabled {
-            syncProfilesWithICloud(mergeRemote: true)
-        }
         startAutoRefresh()
     }
 
@@ -260,7 +256,7 @@ final class AppState: ObservableObject {
         serverProfiles.append(server)
         metricsByServer[server.id] = ServerMetrics.empty(serverID: server.id)
         selectedServer = server
-        syncProfilesWithICloud()
+        uploadProfilesToICloudIfEnabled()
         haptic(.light)
         return true
     }
@@ -283,7 +279,7 @@ final class AppState: ObservableObject {
             selectedServer = server
         }
         objectWillChange.send()
-        syncProfilesWithICloud()
+        uploadProfilesToICloudIfEnabled()
         haptic(.light)
     }
 
@@ -316,7 +312,7 @@ final class AppState: ObservableObject {
         if selectedServer?.id == serverID {
             selectedServer = serverProfiles.first
         }
-        syncProfilesWithICloud()
+        uploadProfilesToICloudIfEnabled()
         haptic(.rigid)
     }
 
@@ -591,7 +587,7 @@ final class AppState: ObservableObject {
         systemdServicesByServer = [:]
         logEntriesByServer = [:]
         publishWidgetSnapshots()
-        syncProfilesWithICloud()
+        uploadProfilesToICloudIfEnabled()
     }
 
     func startMonitoringLiveActivity() {
@@ -651,6 +647,7 @@ final class AppState: ObservableObject {
         let localProfiles = serverProfiles
         Task {
             do {
+                let profileCloudSyncService = ProfileCloudSyncService()
                 if mergeRemote {
                     let syncedProfiles = try await profileCloudSyncService.mergeAndUpload(localProfiles: localProfiles)
                     for profile in syncedProfiles {
@@ -666,6 +663,11 @@ final class AppState: ObservableObject {
                 lastCommandOutput = "iCloud sync failed: \(error.localizedDescription)"
             }
         }
+    }
+
+    private func uploadProfilesToICloudIfEnabled() {
+        guard settings.iCloudSyncEnabled else { return }
+        syncProfilesWithICloud()
     }
 
     func haptic(_ style: UIImpactFeedbackGenerator.FeedbackStyle) {

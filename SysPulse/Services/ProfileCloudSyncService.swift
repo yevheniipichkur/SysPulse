@@ -14,15 +14,10 @@ enum ProfileCloudSyncError: LocalizedError {
 
 @MainActor
 struct ProfileCloudSyncService {
-    private let database: CKDatabase
     private let recordID = CKRecord.ID(recordName: "server-profiles-v1")
     private let recordType = "SysPulseProfileSnapshot"
     private let profilesField = "profilesJSON"
     private let updatedAtField = "updatedAt"
-
-    init(containerIdentifier: String = SysPulseModelContainerFactory.iCloudContainerIdentifier) {
-        self.database = CKContainer(identifier: containerIdentifier).privateCloudDatabase
-    }
 
     func mergeAndUpload(localProfiles: [ServerProfile]) async throws -> [ServerProfile] {
         let localSnapshots = localProfiles.map(CloudServerProfileSnapshot.init)
@@ -76,6 +71,7 @@ struct ProfileCloudSyncService {
     }
 
     private func fetchSnapshotRecord() async throws -> CKRecord? {
+        let database = CKContainer.default().privateCloudDatabase
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<CKRecord?, Error>) in
             database.fetch(withRecordID: recordID) { record, error in
                 if let ckError = error as? CKError, ckError.code == .unknownItem {
@@ -94,6 +90,7 @@ struct ProfileCloudSyncService {
     }
 
     private func save(_ record: CKRecord) async throws -> CKRecord {
+        let database = CKContainer.default().privateCloudDatabase
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<CKRecord, Error>) in
             database.save(record) { savedRecord, error in
                 if let error {
