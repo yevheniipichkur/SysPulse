@@ -749,6 +749,11 @@ jobs:
             ALTOOL_VALIDATE_STATUS=${PIPESTATUS[0]}
             set -e
             if [ "$ALTOOL_VALIDATE_STATUS" -ne 0 ] || grep -qE "VALIDATION FAILED|UPLOAD FAILED|Validation failed|Failed to upload package" build/logs/altool-validate.log; then
+              if grep -q "Upload limit reached" build/logs/altool-validate.log; then
+                echo "::warning::App Store Connect upload limit reached. Signed IPA was built and archived; retry TestFlight upload after Apple's limit resets."
+                echo "TESTFLIGHT_UPLOAD_LIMIT_REACHED=true" >> "$GITHUB_ENV"
+                exit 0
+              fi
               echo "::error::altool validate-app failed."
               grep -E "ERROR:|VALIDATION FAILED|UPLOAD FAILED|Validation failed|Failed to upload package|Invalid |Missing " build/logs/altool-validate.log | tail -n 80 | while IFS= read -r line; do
                 escaped=${line//'%'/'%25'}
@@ -781,6 +786,10 @@ jobs:
           APPSTORE_CONNECT_API_KEY_BASE64: ${{ secrets.APPSTORE_CONNECT_API_KEY_BASE64 }}
         run: |
           set -euo pipefail
+          if [ "${TESTFLIGHT_UPLOAD_LIMIT_REACHED:-}" = "true" ]; then
+            echo "Skipping TestFlight upload because App Store Connect reported the daily upload limit during validation."
+            exit 0
+          fi
           IPA=$(find "$EXPORT_PATH" -name "*.ipa" | head -n 1 || true)
           if [ -z "$IPA" ]; then
             echo "No IPA found. Configure signing secrets before TestFlight upload."
@@ -801,6 +810,10 @@ jobs:
           ALTOOL_UPLOAD_STATUS=${PIPESTATUS[0]}
           set -e
           if [ "$ALTOOL_UPLOAD_STATUS" -ne 0 ] || grep -qE "VALIDATION FAILED|UPLOAD FAILED|Validation failed|Failed to upload package" build/logs/altool-upload.log; then
+            if grep -q "Upload limit reached" build/logs/altool-upload.log; then
+              echo "::warning::App Store Connect upload limit reached. Signed IPA was built and archived; retry TestFlight upload after Apple's limit resets."
+              exit 0
+            fi
             echo "::error::altool upload-app failed."
             grep -E "ERROR:|VALIDATION FAILED|UPLOAD FAILED|Validation failed|Failed to upload package|Invalid |Missing " build/logs/altool-upload.log | tail -n 100 | while IFS= read -r line; do
               escaped=${line//'%'/'%25'}
