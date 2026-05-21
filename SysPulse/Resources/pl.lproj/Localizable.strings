@@ -407,6 +407,18 @@
 "Unknown purchase result." = "Nieznany wynik zakupu.";
 "Restore completed." = "Przywracanie zakończone.";
 "Restore failed: %@" = "Przywracanie nie powiodło się: %@";
+"Purchase failed" = "Zakup nie powiódł się";
+"OK" = "OK";
+"Loading products..." = "Ładowanie produktów...";
+"Could not load products: %@" = "Nie udało się załadować produktów: %@";
+"Purchase verification failed." = "Weryfikacja zakupu nie powiodła się.";
+"Purchase was cancelled." = "Zakup został anulowany.";
+"Purchases restored." = "Zakupy przywrócone.";
+"No active purchases found." = "Nie znaleziono aktywnych zakupów.";
+"Pro unlocked." = "Pro odblokowane.";
+"Best Value - save 37%." = "Najlepsza wartość - oszczędzasz 37%.";
+"All future features included." = "Wszystkie przyszłe funkcje w cenie.";
+"Subscriptions auto-renew unless cancelled. Manage in Settings > Apple ID > Subscriptions." = "Subskrypcje odnawiają się automatycznie, dopóki ich nie anulujesz. Zarządzanie: Ustawienia > Apple ID > Subskrypcje.";
 
 "Unable to encode secret." = "Nie udało się zakodować sekretu.";
 "Unexpected keychain data." = "Nieoczekiwane dane Keychain.";

@@ -83,7 +83,7 @@ final class AppState: ObservableObject {
         Task {
             await storeKit.loadProducts()
             let state = await storeKit.verifyCurrentEntitlements()
-            if state.isPro { subscription = state }
+            subscription = state
         }
     }
 

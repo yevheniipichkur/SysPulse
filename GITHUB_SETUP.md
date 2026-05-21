@@ -72,6 +72,7 @@ Repository → Settings → Secrets and variables → Actions → New repository
 - `APPLE_CERTIFICATE_BASE64`
 - `APPLE_CERTIFICATE_PASSWORD`
 - `APPLE_PROVISIONING_PROFILE_BASE64`
+- `APPLE_PROVISIONING_PROFILE_WIDGETS_BASE64`
 - `APPSTORE_CONNECT_API_KEY_ID`
 - `APPSTORE_CONNECT_API_ISSUER_ID`
 - `APPSTORE_CONNECT_API_KEY_BASE64`
@@ -119,7 +120,20 @@ base64 -i certificate.p12 | pbcopy
 
 Добавьте значение в `APPLE_PROVISIONING_PROFILE_BASE64`.
 
-Для WidgetKit extension может понадобиться отдельный App ID и отдельный provisioning profile.
+Для WidgetKit extension нужен отдельный App ID `com.yevheniipichkur.syspulse.widgets` и отдельный provisioning profile. Его Base64 добавьте в `APPLE_PROVISIONING_PROFILE_WIDGETS_BASE64`.
+
+## Как включить App Group для виджетов
+
+В Apple Developer:
+
+1. Certificates, Identifiers & Profiles → Identifiers.
+2. App Groups → создайте `group.com.yevheniipichkur.syspulse`.
+3. Откройте App ID `com.yevheniipichkur.syspulse` → включите **App Groups** → отметьте `group.com.yevheniipichkur.syspulse`.
+4. Откройте App ID `com.yevheniipichkur.syspulse.widgets` → включите **App Groups** → отметьте тот же group.
+5. Пересоздайте App Store provisioning profile для app и widget.
+6. Обновите secrets `APPLE_PROVISIONING_PROFILE_BASE64` и `APPLE_PROVISIONING_PROFILE_WIDGETS_BASE64`.
+
+После этого приложение и WidgetKit extension смогут читать один shared defaults store для snapshots.
 
 ## Как добавить App Store Connect API key
 

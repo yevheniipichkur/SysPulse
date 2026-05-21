@@ -3,12 +3,17 @@ import StoreKit
 
 enum StoreKitServiceError: LocalizedError {
     case failedVerification
+    case userCancelled
     case purchaseFailed(String)
 
     var errorDescription: String? {
         switch self {
-        case .failedVerification:      return "Purchase verification failed."
-        case .purchaseFailed(let msg): return msg
+        case .failedVerification:
+            return L10n.string("Purchase verification failed.")
+        case .userCancelled:
+            return L10n.string("Purchase was cancelled.")
+        case .purchaseFailed(let msg):
+            return msg
         }
     }
 }
@@ -46,7 +51,7 @@ final class StoreKitService: ObservableObject {
                 .sorted { $0.price < $1.price }
         } catch {
             products = []
-            statusMessage = "Could not load products: \(error.localizedDescription)"
+            statusMessage = L10n.string("Could not load products: %@", error.localizedDescription)
         }
     }
 
@@ -60,11 +65,11 @@ final class StoreKitService: ObservableObject {
             await transaction.finish()
             return state(from: transaction)
         case .pending:
-            throw StoreKitServiceError.purchaseFailed("Purchase is pending approval.")
+            throw StoreKitServiceError.purchaseFailed(L10n.string("Purchase is pending approval."))
         case .userCancelled:
-            throw StoreKitServiceError.purchaseFailed("Purchase was cancelled.")
+            throw StoreKitServiceError.userCancelled
         @unknown default:
-            throw StoreKitServiceError.purchaseFailed("Unknown purchase result.")
+            throw StoreKitServiceError.purchaseFailed(L10n.string("Unknown purchase result."))
         }
     }
 
@@ -72,9 +77,12 @@ final class StoreKitService: ObservableObject {
 
     func restorePurchases() async throws {
         try await AppStore.sync()
-        let restored = await verifyCurrentEntitlements()
+        var restored = await verifyCurrentEntitlements()
+        restored.lastStoreKitMessage = restored.isActive
+            ? L10n.string("Purchases restored.")
+            : L10n.string("No active purchases found.")
         onSubscriptionChange?(restored)
-        statusMessage = restored.isActive ? "Purchases restored." : "No active purchases found."
+        statusMessage = restored.lastStoreKitMessage
     }
 
     // MARK: - Entitlement check (called on launch)
@@ -84,10 +92,13 @@ final class StoreKitService: ObservableObject {
         for await result in Transaction.currentEntitlements {
             guard let transaction = try? checkVerified(result) else { continue }
             let s = state(from: transaction)
-            if s.isPro { best = s }
+            if s.isActive { best = s }
             await transaction.finish()
         }
         best.productsLoaded = !products.isEmpty
+        if !best.isActive {
+            best.lastStoreKitMessage = L10n.string("No active purchases found.")
+        }
         return best
     }
 
@@ -125,6 +136,9 @@ final class StoreKitService: ObservableObject {
                 (transaction.expirationDate.map { $0 > .now } ?? false)
         }
         s.productsLoaded = true
+        s.lastStoreKitMessage = s.isActive
+            ? L10n.string("Pro unlocked.")
+            : L10n.string("No active purchases found.")
         return s
     }
 

@@ -4,6 +4,7 @@ import SwiftUI
 struct PaywallView: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var appState: AppState
+    @ObservedObject var storeKit: StoreKitService
     @State private var isPurchasing = false
     @State private var isRestoring = false
     @State private var errorMessage: String?
@@ -83,15 +84,14 @@ struct PaywallView: View {
 
     private var planCards: some View {
         VStack(spacing: 12) {
-            if appState.storeKit.isLoading {
-                ProgressView("Loading products…")
+            if storeKit.isLoading {
+                ProgressView("Loading products...")
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 24)
-            } else if appState.storeKit.products.isEmpty {
-                // Fallback when products aren't available (sandbox / no network)
+            } else if storeKit.products.isEmpty {
                 fallbackPlanCards
             } else {
-                ForEach(appState.storeKit.products, id: \.id) { product in
+                ForEach(storeKit.products, id: \.id) { product in
                     PlanCard(
                         title: product.displayName,
                         price: product.displayPrice,
@@ -108,9 +108,27 @@ struct PaywallView: View {
 
     private var fallbackPlanCards: some View {
         Group {
-            PlanCard(title: "Pro Monthly",  price: "$3.99 / month",  subtitle: "Flexible monitoring for all servers.", isBestValue: false, isLoading: false) {}
-            PlanCard(title: "Pro Yearly",   price: "$29.99 / year",  subtitle: "Best Value — save 37%.",              isBestValue: true,  isLoading: false) {}
-            PlanCard(title: "Lifetime Pro", price: "$79.99 one-time", subtitle: "All future features included.",      isBestValue: false, isLoading: false) {}
+            PlanCard(
+                title: appState.localized("Pro Monthly"),
+                price: "$3.99 / month",
+                subtitle: appState.localized("Flexible monitoring for all servers."),
+                isBestValue: false,
+                isLoading: false
+            ) {}
+            PlanCard(
+                title: appState.localized("Pro Yearly"),
+                price: "$29.99 / year",
+                subtitle: appState.localized("Best Value - save 37%."),
+                isBestValue: true,
+                isLoading: false
+            ) {}
+            PlanCard(
+                title: appState.localized("Lifetime Pro"),
+                price: "$79.99 one-time",
+                subtitle: appState.localized("All future features included."),
+                isBestValue: false,
+                isLoading: false
+            ) {}
         }
     }
 
@@ -128,7 +146,7 @@ struct PaywallView: View {
             }
             .disabled(isRestoring || isPurchasing)
 
-            Text("Subscriptions auto-renew unless cancelled. Manage in Settings → Apple ID → Subscriptions.")
+            Text("Subscriptions auto-renew unless cancelled. Manage in Settings > Apple ID > Subscriptions.")
                 .font(.caption2)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -146,8 +164,7 @@ struct PaywallView: View {
             do {
                 try await appState.purchaseProduct(product)
                 dismiss()
-            } catch StoreKitServiceError.purchaseFailed(let msg) where msg == "Purchase was cancelled." {
-                // silent — user cancelled
+            } catch StoreKitServiceError.userCancelled {
             } catch {
                 errorMessage = error.localizedDescription
                 showError = true
@@ -171,9 +188,9 @@ struct PaywallView: View {
     }
 
     private func subtitle(for product: Product) -> String {
-        if product.id.contains("lifetime") { return "All future features included." }
-        if product.id.contains("yearly")   { return "Best Value — save 37%." }
-        return "Flexible monitoring for all servers."
+        if product.id.contains("lifetime") { return appState.localized("All future features included.") }
+        if product.id.contains("yearly") { return appState.localized("Best Value - save 37%.") }
+        return appState.localized("Flexible monitoring for all servers.")
     }
 }
 

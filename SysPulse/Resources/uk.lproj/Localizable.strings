@@ -407,6 +407,18 @@
 "Unknown purchase result." = "Невідомий результат покупки.";
 "Restore completed." = "Відновлення завершено.";
 "Restore failed: %@" = "Відновлення не вдалося: %@";
+"Purchase failed" = "Покупка не вдалася";
+"OK" = "OK";
+"Loading products..." = "Завантаження продуктів...";
+"Could not load products: %@" = "Не вдалося завантажити продукти: %@";
+"Purchase verification failed." = "Перевірка покупки не вдалася.";
+"Purchase was cancelled." = "Покупку скасовано.";
+"Purchases restored." = "Покупки відновлено.";
+"No active purchases found." = "Активні покупки не знайдено.";
+"Pro unlocked." = "Pro розблоковано.";
+"Best Value - save 37%." = "Найкращий вибір - економія 37%.";
+"All future features included." = "Усі майбутні функції включено.";
+"Subscriptions auto-renew unless cancelled. Manage in Settings > Apple ID > Subscriptions." = "Підписки подовжуються автоматично, доки ви їх не скасуєте. Керування: Налаштування > Apple ID > Підписки.";
 
 "Unable to encode secret." = "Не вдалося закодувати секрет.";
 "Unexpected keychain data." = "Неочікувані дані Keychain.";

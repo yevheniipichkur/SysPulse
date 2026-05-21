@@ -28,7 +28,7 @@ struct RootView: View {
             }
         }
         .sheet(isPresented: $appState.isPaywallPresented) {
-            PaywallView()
+            PaywallView(storeKit: appState.storeKit)
                 .presentationDetents([.large])
                 .presentationCornerRadius(34)
         }

@@ -97,6 +97,7 @@ Workflow: `.github/workflows/ios-build.yml`.
 - `APPLE_CERTIFICATE_BASE64`
 - `APPLE_CERTIFICATE_PASSWORD`
 - `APPLE_PROVISIONING_PROFILE_BASE64`
+- `APPLE_PROVISIONING_PROFILE_WIDGETS_BASE64`
 - `APPSTORE_CONNECT_API_KEY_ID`
 - `APPSTORE_CONNECT_API_ISSUER_ID`
 - `APPSTORE_CONNECT_API_KEY_BASE64`
@@ -107,7 +108,7 @@ Workflow: `.github/workflows/ios-build.yml`.
 
 IPA появляется только если есть certificate и provisioning profile.
 
-Важно: если включён WidgetKit extension, для production signing может понадобиться provisioning profile, который покрывает app и widget extension. Если App Store Connect отклонит signing для extension, добавьте отдельный profile и расширьте workflow для bundle id `com.yevheniipichkur.syspulse.widgets`.
+Важно: для WidgetKit extension нужен отдельный provisioning profile для bundle id `com.yevheniipichkur.syspulse.widgets`. Если включён App Group `group.com.yevheniipichkur.syspulse`, App Group должен быть включён и в app profile, и в widget profile.
 
 ## Где менять Bundle ID
 

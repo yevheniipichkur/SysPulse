@@ -407,6 +407,18 @@
 "Unknown purchase result." = "Unknown purchase result.";
 "Restore completed." = "Restore completed.";
 "Restore failed: %@" = "Restore failed: %@";
+"Purchase failed" = "Purchase failed";
+"OK" = "OK";
+"Loading products..." = "Loading products...";
+"Could not load products: %@" = "Could not load products: %@";
+"Purchase verification failed." = "Purchase verification failed.";
+"Purchase was cancelled." = "Purchase was cancelled.";
+"Purchases restored." = "Purchases restored.";
+"No active purchases found." = "No active purchases found.";
+"Pro unlocked." = "Pro unlocked.";
+"Best Value - save 37%." = "Best Value - save 37%.";
+"All future features included." = "All future features included.";
+"Subscriptions auto-renew unless cancelled. Manage in Settings > Apple ID > Subscriptions." = "Subscriptions auto-renew unless cancelled. Manage in Settings > Apple ID > Subscriptions.";
 
 "Unable to encode secret." = "Unable to encode secret.";
 "Unexpected keychain data." = "Unexpected keychain data.";
