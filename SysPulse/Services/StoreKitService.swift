@@ -20,10 +20,10 @@ final class StoreKitService: ObservableObject {
         do {
             products = try await Product.products(for: Self.productIDs)
             subscriptionState.productsLoaded = true
-            subscriptionState.lastStoreKitMessage = "Products loaded: \(products.count)"
+            subscriptionState.lastStoreKitMessage = L10n.string("Products loaded: %@", "\(products.count)")
         } catch {
             subscriptionState.productsLoaded = false
-            subscriptionState.lastStoreKitMessage = "Using mock StoreKit products for development."
+            subscriptionState.lastStoreKitMessage = L10n.string("Using mock StoreKit products for development.")
         }
     }
 
@@ -36,20 +36,20 @@ final class StoreKitService: ObservableObject {
             subscriptionState.plan = product.id.contains("lifetime") ? .lifetime : .proMonthly
             await transaction.finish()
         case .pending:
-            subscriptionState.lastStoreKitMessage = "Purchase is pending approval."
+            subscriptionState.lastStoreKitMessage = L10n.string("Purchase is pending approval.")
         case .userCancelled:
-            subscriptionState.lastStoreKitMessage = "Purchase cancelled."
+            subscriptionState.lastStoreKitMessage = L10n.string("Purchase cancelled.")
         @unknown default:
-            subscriptionState.lastStoreKitMessage = "Unknown purchase result."
+            subscriptionState.lastStoreKitMessage = L10n.string("Unknown purchase result.")
         }
     }
 
     func restorePurchases() async {
         do {
             try await AppStore.sync()
-            subscriptionState.lastStoreKitMessage = "Restore completed."
+            subscriptionState.lastStoreKitMessage = L10n.string("Restore completed.")
         } catch {
-            subscriptionState.lastStoreKitMessage = "Restore failed: \(error.localizedDescription)"
+            subscriptionState.lastStoreKitMessage = L10n.string("Restore failed: %@", error.localizedDescription)
         }
     }
 

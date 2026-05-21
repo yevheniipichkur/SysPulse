@@ -20,7 +20,7 @@ struct SettingsView: View {
                             }
                             Button("Manage subscription") { appState.isPaywallPresented = true }
                             Button("Restore purchases") {
-                                appState.subscription.lastStoreKitMessage = "Restore purchases will sync through StoreKit 2."
+                                appState.subscription.lastStoreKitMessage = appState.localized("Restore purchases will sync through StoreKit 2.")
                             }
                         }
 
@@ -62,13 +62,13 @@ struct SettingsView: View {
 
                         settingsSection("Data", symbol: "externaldrive") {
                             Toggle("iCloud sync", isOn: iCloudSyncBinding)
-                            Button("Export profiles") { appState.lastCommandOutput = "Export profiles placeholder." }
-                            Button("Import profiles") { appState.lastCommandOutput = "Import profiles placeholder." }
+                            Button("Export profiles") { appState.lastCommandOutput = appState.localized("Export profiles placeholder.") }
+                            Button("Import profiles") { appState.lastCommandOutput = appState.localized("Import profiles placeholder.") }
                             Button("Clear terminal history", role: .destructive) {
                                 appState.terminalSessions.forEach { $0.transcript = "" }
                             }
                             Button("Clear cache", role: .destructive) {
-                                appState.lastCommandOutput = "Cache cleared."
+                                appState.lastCommandOutput = appState.localized("Cache cleared.")
                             }
                         }
 
@@ -123,10 +123,10 @@ struct SettingsView: View {
 
             appState.settings.iCloudSyncEnabled = isEnabled
             if isEnabled {
-                appState.lastCommandOutput = "Starting iCloud profile sync..."
+                appState.lastCommandOutput = appState.localized("Starting iCloud profile sync...")
                 appState.syncProfilesWithICloud(mergeRemote: true)
             } else {
-                appState.lastCommandOutput = "iCloud sync disabled."
+                appState.lastCommandOutput = appState.localized("iCloud sync disabled.")
             }
         }
     }

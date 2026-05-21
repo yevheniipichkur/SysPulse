@@ -9,9 +9,9 @@ enum KeychainServiceError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .encodingFailed: "Unable to encode secret."
-        case .unexpectedData: "Unexpected keychain data."
-        case .osStatus(let status): "Keychain error: \(status)"
+        case .encodingFailed: L10n.string("Unable to encode secret.")
+        case .unexpectedData: L10n.string("Unexpected keychain data.")
+        case .osStatus(let status): L10n.string("Keychain error: %@", "\(status)")
         }
     }
 }
@@ -101,17 +101,17 @@ enum BiometricUnlockResult: Hashable {
 struct BiometricLockService {
     func unlock(reason: String = "Unlock saved server profiles") async -> BiometricUnlockResult {
         let context = LAContext()
-        context.localizedCancelTitle = "Cancel"
-        context.localizedFallbackTitle = "Use Passcode"
+        context.localizedCancelTitle = L10n.string("Cancel")
+        context.localizedFallbackTitle = L10n.string("Use Passcode")
 
         var error: NSError?
         guard context.canEvaluatePolicy(.deviceOwnerAuthentication, error: &error) else {
-            return .unavailable(error?.localizedDescription ?? "Face ID or device passcode is not available.")
+            return .unavailable(error?.localizedDescription ?? L10n.string("Face ID or device passcode is not available."))
         }
 
         do {
             let didUnlock = try await context.evaluatePolicy(.deviceOwnerAuthentication, localizedReason: reason)
-            return didUnlock ? .success : .failed("Authentication failed.")
+            return didUnlock ? .success : .failed(L10n.string("Authentication failed."))
         } catch {
             return .failed(error.localizedDescription)
         }

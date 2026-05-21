@@ -528,7 +528,7 @@ struct ServerDetailView: View {
                     Button("Restart") {
                         confirm(
                             dockerService.actionCommand(action: "restart", containerName: container.name),
-                            message: "Restart \(container.name)? This command runs remotely over SSH."
+                            message: appState.localized("Restart %@? This command runs remotely over SSH.", container.name)
                         )
                     }
                     .foregroundStyle(.orange)
@@ -561,7 +561,7 @@ struct ServerDetailView: View {
                     Button("Restart") {
                         confirm(
                             systemdService.actionCommand(action: "restart", serviceName: service.name),
-                            message: "Restart \(service.name)? This command runs remotely over SSH."
+                            message: appState.localized("Restart %@? This command runs remotely over SSH.", service.name)
                         )
                     }
                     .foregroundStyle(.orange)
@@ -708,7 +708,7 @@ struct ServerDetailView: View {
                     appState.endLiveActivity()
                 }
                 Button("Reboot Server", role: .destructive) {
-                    confirm("sudo reboot", message: "Reboot \(server.name)? This command runs remotely over SSH.")
+                    confirm("sudo reboot", message: appState.localized("Reboot %@? This command runs remotely over SSH.", server.name))
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -723,7 +723,7 @@ struct ServerDetailView: View {
 
     private func runRemote(_ command: String) {
         guard let server = appState.selectedServer else {
-            appState.lastCommandOutput = "Select a server before running commands."
+            appState.lastCommandOutput = appState.localized("Select a server before running commands.")
             return
         }
         appState.runRemoteCommand(command, on: server)

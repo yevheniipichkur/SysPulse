@@ -25,7 +25,7 @@ final class LiveActivityService {
             status: server.status.title,
             cpuUsage: metrics.cpuUsage,
             diskUsage: metrics.diskUsage,
-            message: "Monitoring active"
+            message: L10n.string("Monitoring active")
         )
 
         do {

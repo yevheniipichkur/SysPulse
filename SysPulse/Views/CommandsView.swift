@@ -94,7 +94,7 @@ struct CommandsView: View {
 
     private func execute(_ command: QuickCommand) {
         guard let server = appState.selectedServer else {
-            appState.lastCommandOutput = "Select a server before running commands."
+            appState.lastCommandOutput = appState.localized("Select a server before running commands.")
             return
         }
 

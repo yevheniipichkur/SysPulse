@@ -7,7 +7,7 @@ enum ProfileCloudSyncError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .missingSnapshotData:
-            "iCloud profile snapshot is missing data."
+            L10n.string("iCloud profile snapshot is missing data.")
         }
     }
 }

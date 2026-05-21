@@ -219,7 +219,7 @@ struct TerminalView: View {
             } label: {
                 HStack(spacing: 8) {
                     Image(systemName: "network")
-                    Text(sessionServer?.host ?? "No saved servers")
+                    Text(sessionServer?.host ?? appState.localized("No saved servers"))
                         .lineLimit(1)
                     Spacer(minLength: 0)
                     Image(systemName: "chevron.down.circle.fill")

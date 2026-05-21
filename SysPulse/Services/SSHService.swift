@@ -11,11 +11,11 @@ enum SSHClientError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .realClientNotConfigured:
-            "Real SSH client is not configured yet. Integrate SwiftNIO SSH, NMSSH or libssh2-compatible layer here."
+            L10n.string("Real SSH client is not configured yet. Integrate SwiftNIO SSH, NMSSH or libssh2-compatible layer here.")
         case .notConnected:
-            "SSH session is not connected."
+            L10n.string("SSH session is not connected.")
         case .missingCredentials:
-            "No saved SSH credential was found for this server."
+            L10n.string("No saved SSH credential was found for this server.")
         case .unsupportedAuthentication(let message):
             message
         }
@@ -70,7 +70,7 @@ struct RealSSHClient: SSHClientProtocol {
         guard let credentialIdentifier = server.credentialIdentifier,
               let secret = try keychain.readSecret(
                 account: credentialIdentifier,
-                prompt: "Unlock SSH credentials for \(server.name)"
+                prompt: L10n.string("Unlock SSH credentials for %@", server.name)
               ),
               !secret.isEmpty else {
             throw SSHClientError.missingCredentials
@@ -105,14 +105,20 @@ struct RealSSHClient: SSHClientProtocol {
                 return .ed25519(username: username, privateKey: key)
             default:
                 throw SSHClientError.unsupportedAuthentication(
-                    "This build detects \(keyType.description) keys, but real SSH login currently supports RSA and ED25519 OpenSSH private keys."
+                    L10n.string(
+                        "This build detects %@ keys, but real SSH login currently supports RSA and ED25519 OpenSSH private keys.",
+                        keyType.description
+                    )
                 )
             }
         } catch let error as SSHClientError {
             throw error
         } catch {
             throw SSHClientError.unsupportedAuthentication(
-                "Could not read the OpenSSH private key. Check the key format and passphrase. \(error.localizedDescription)"
+                L10n.string(
+                    "Could not read the OpenSSH private key. Check the key format and passphrase. %@",
+                    error.localizedDescription
+                )
             )
         }
     }

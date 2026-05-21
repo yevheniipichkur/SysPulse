@@ -405,7 +405,7 @@ struct AddServerView: View {
 
     private var previewName: String {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? "New Server" : trimmed
+        return trimmed.isEmpty ? appState.localized("New Server") : trimmed
     }
 
     private var previewEndpoint: String {
@@ -484,7 +484,7 @@ struct AddServerView: View {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Private Key")
                             .font(.subheadline.weight(.semibold))
-                        Text(editingServer == nil ? "OpenSSH RSA or ED25519" : "Leave empty to keep current key")
+                        Text(editingServer == nil ? LocalizedStringKey("OpenSSH RSA or ED25519") : LocalizedStringKey("Leave empty to keep current key"))
                             .font(.caption2)
                             .foregroundStyle(.secondary)
                     }
@@ -588,7 +588,7 @@ struct AddServerView: View {
 
     private func testConnection() {
         guard canSave else {
-            statusMessage = "Enter server name, host and username first."
+            statusMessage = appState.localized("Enter server name, host and username first.")
             return
         }
 
@@ -607,7 +607,7 @@ struct AddServerView: View {
 
         let server = ServerProfile(
             id: targetID,
-            name: name.isEmpty ? "Connection Test" : name,
+            name: name.isEmpty ? appState.localized("Connection Test") : name,
             host: host,
             port: Int(port) ?? 22,
             username: username,
@@ -617,12 +617,13 @@ struct AddServerView: View {
             status: .unknown
         )
 
-        statusMessage = "Connecting to \(host)..."
+        statusMessage = appState.localized("Connecting to %@...", host)
         Task {
             do {
                 let output = try await appState.testConnection(to: server)
                 await MainActor.run {
-                    statusMessage = "Connected. \(output.split(whereSeparator: \.isNewline).first.map(String.init) ?? "SSH is ready.")"
+                    let firstLine = output.split(whereSeparator: \.isNewline).first.map(String.init) ?? appState.localized("SSH is ready.")
+                    statusMessage = appState.localized("Connected. %@", firstLine)
                 }
             } catch {
                 await MainActor.run {

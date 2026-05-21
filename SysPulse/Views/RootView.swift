@@ -89,7 +89,10 @@ private struct SecurityLockView: View {
                 }
 
                 Button(action: unlock) {
-                    Label(isAuthenticating ? "Authenticating" : "Unlock", systemImage: "faceid")
+                    Label(
+                        isAuthenticating ? LocalizedStringKey("Authenticating") : LocalizedStringKey("Unlock"),
+                        systemImage: "faceid"
+                    )
                         .font(.headline.weight(.bold))
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 14)

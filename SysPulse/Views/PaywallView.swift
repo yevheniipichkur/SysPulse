@@ -65,7 +65,7 @@ struct PaywallView: View {
                     }
 
                     Button("Restore purchases") {
-                        appState.subscription.lastStoreKitMessage = "Restore uses StoreKit 2 when products are configured."
+                        appState.subscription.lastStoreKitMessage = appState.localized("Restore uses StoreKit 2 when products are configured.")
                     }
                     .font(.callout.weight(.semibold))
 

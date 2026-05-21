@@ -510,7 +510,7 @@ struct SubscriptionState: Codable, Hashable {
     var isActive: Bool = false
     var expiresAt: Date?
     var productsLoaded: Bool = false
-    var lastStoreKitMessage: String = "Mock StoreKit is ready"
+    var lastStoreKitMessage: String = L10n.string("Mock StoreKit is ready")
 
     var isPro: Bool {
         isActive || plan == .lifetime

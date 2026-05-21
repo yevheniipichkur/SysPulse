@@ -96,6 +96,10 @@ final class AppState: ObservableObject {
         settings.requiresBiometrics && hasSeenOnboarding && (isPrivacyShieldVisible || !isSecurityUnlocked)
     }
 
+    func localized(_ key: String, _ arguments: CVarArg...) -> String {
+        L10n.string(key, language: settings.language, arguments: arguments)
+    }
+
     func completeOnboarding() {
         hasSeenOnboarding = true
         haptic(.medium)
@@ -140,26 +144,26 @@ final class AppState: ObservableObject {
 
         isSecurityUnlocked = false
         isPrivacyShieldVisible = true
-        await authenticateForSecurityUnlock(reason: "Unlock SysPulse")
+        await authenticateForSecurityUnlock(reason: localized("Unlock SysPulse"))
     }
 
     func enableBiometricLockFromSettings() async {
         guard !settings.requiresBiometrics else { return }
 
         isPrivacyShieldVisible = true
-        let result = await biometricLockService.unlock(reason: "Enable Face ID lock for SysPulse")
+        let result = await biometricLockService.unlock(reason: localized("Enable Face ID lock for SysPulse"))
         switch result {
         case .success:
             settings.requiresBiometrics = true
             isSecurityUnlocked = true
             isPrivacyShieldVisible = false
             securityLockMessage = ""
-            lastCommandOutput = "Face ID lock enabled."
+            lastCommandOutput = localized("Face ID lock enabled.")
         case .unavailable(let message), .failed(let message):
             isSecurityUnlocked = true
             isPrivacyShieldVisible = false
             securityLockMessage = message
-            lastCommandOutput = "Face ID lock was not enabled: \(message)"
+            lastCommandOutput = localized("Face ID lock was not enabled: %@", message)
         }
     }
 
@@ -168,7 +172,7 @@ final class AppState: ObservableObject {
         isSecurityUnlocked = true
         isPrivacyShieldVisible = false
         securityLockMessage = ""
-        lastCommandOutput = "Face ID lock disabled."
+        lastCommandOutput = localized("Face ID lock disabled.")
     }
 
     private func authenticateForSecurityUnlock(reason: String) async {
@@ -190,7 +194,7 @@ final class AppState: ObservableObject {
             isSecurityUnlocked = true
             isPrivacyShieldVisible = false
             securityLockMessage = ""
-            lastCommandOutput = "Face ID lock is unavailable and was turned off: \(message)"
+            lastCommandOutput = localized("Face ID lock is unavailable and was turned off: %@", message)
         case .failed(let message):
             isSecurityUnlocked = false
             isPrivacyShieldVisible = true
@@ -242,14 +246,14 @@ final class AppState: ObservableObject {
         }
 
         guard let profileRepository else {
-            lastCommandOutput = "Profile database is not ready yet."
+            lastCommandOutput = localized("Profile database is not ready yet.")
             return false
         }
 
         do {
             try profileRepository.saveProfile(server)
         } catch {
-            lastCommandOutput = "Failed to save profile: \(error.localizedDescription)"
+            lastCommandOutput = localized("Failed to save profile: %@", error.localizedDescription)
             return false
         }
 
@@ -263,7 +267,7 @@ final class AppState: ObservableObject {
 
     func updateServer(_ server: ServerProfile) {
         guard let profileRepository else {
-            lastCommandOutput = "Profile database is not ready yet."
+            lastCommandOutput = localized("Profile database is not ready yet.")
             return
         }
 
@@ -271,7 +275,7 @@ final class AppState: ObservableObject {
         do {
             try profileRepository.saveProfile(server)
         } catch {
-            lastCommandOutput = "Failed to save profile: \(error.localizedDescription)"
+            lastCommandOutput = localized("Failed to save profile: %@", error.localizedDescription)
             return
         }
 
@@ -285,7 +289,7 @@ final class AppState: ObservableObject {
 
     func deleteServer(_ server: ServerProfile) {
         guard let profileRepository else {
-            lastCommandOutput = "Profile database is not ready yet."
+            lastCommandOutput = localized("Profile database is not ready yet.")
             return
         }
 
@@ -294,7 +298,7 @@ final class AppState: ObservableObject {
         do {
             try profileRepository.deleteProfile(server)
         } catch {
-            lastCommandOutput = "Failed to delete profile: \(error.localizedDescription)"
+            lastCommandOutput = localized("Failed to delete profile: %@", error.localizedDescription)
             return
         }
 
@@ -346,7 +350,7 @@ final class AppState: ObservableObject {
     }
 
     func refreshMetrics(for server: ServerProfile) {
-        lastCommandOutput = "Refreshing metrics for \(server.name)..."
+        lastCommandOutput = localized("Refreshing metrics for %@...", server.name)
         Task {
             do {
                 let previous = await MainActor.run {
@@ -358,15 +362,15 @@ final class AppState: ObservableObject {
                     if selectedServer?.id == server.id {
                         selectedServer?.status = .online
                     }
-                    lastCommandOutput = "Metrics refreshed for \(server.name)."
-                    updateLiveActivity(message: "Metrics refreshed")
+                    lastCommandOutput = localized("Metrics refreshed for %@.", server.name)
+                    updateLiveActivity(message: localized("Metrics refreshed"))
                 }
             } catch {
                 await MainActor.run {
                     if selectedServer?.id == server.id {
                         selectedServer?.status = .warning
                     }
-                    lastCommandOutput = "Metrics refresh failed for \(server.name): \(error.localizedDescription)"
+                    lastCommandOutput = localized("Metrics refresh failed for %@: %@", server.name, error.localizedDescription)
                 }
             }
         }
@@ -374,16 +378,16 @@ final class AppState: ObservableObject {
 
     func runRemoteCommand(_ command: String, on server: ServerProfile? = nil) {
         guard let targetServer = server ?? selectedServer else {
-            lastCommandOutput = "Select a server before running commands."
+            lastCommandOutput = localized("Select a server before running commands.")
             return
         }
 
-        lastCommandOutput = "Running on \(targetServer.name):\n\(command)"
+        lastCommandOutput = localized("Running on %@:\n%@", targetServer.name, command)
         Task {
             do {
                 let output = try await sshClient.run(command, on: targetServer)
                 await MainActor.run {
-                    lastCommandOutput = output.isEmpty ? "Command completed with no output." : output
+                    lastCommandOutput = output.isEmpty ? localized("Command completed with no output.") : output
                 }
             } catch {
                 await MainActor.run {
@@ -395,19 +399,19 @@ final class AppState: ObservableObject {
 
     func refreshProcesses(for server: ServerProfile? = nil, sortedByMemory: Bool = false) {
         guard let targetServer = server ?? selectedServer else {
-            lastCommandOutput = "Select a server before running commands."
+            lastCommandOutput = localized("Select a server before running commands.")
             return
         }
 
         let command = sortedByMemory ? processService.topMemoryCommand() : processService.topCPUCommand()
-        lastCommandOutput = "Loading processes from \(targetServer.name)..."
+        lastCommandOutput = localized("Loading processes from %@...", targetServer.name)
         Task {
             do {
                 let output = try await sshClient.run(command, on: targetServer)
                 let processes = processService.parseProcesses(output)
                 await MainActor.run {
                     processItemsByServer[targetServer.id] = processes
-                    lastCommandOutput = output.isEmpty ? "Command completed with no output." : output
+                    lastCommandOutput = output.isEmpty ? localized("Command completed with no output.") : output
                 }
             } catch {
                 await MainActor.run {
@@ -419,19 +423,19 @@ final class AppState: ObservableObject {
 
     func refreshDisks(for server: ServerProfile? = nil) {
         guard let targetServer = server ?? selectedServer else {
-            lastCommandOutput = "Select a server before running commands."
+            lastCommandOutput = localized("Select a server before running commands.")
             return
         }
 
         let command = diskService.usageCommand()
-        lastCommandOutput = "Loading disks from \(targetServer.name)..."
+        lastCommandOutput = localized("Loading disks from %@...", targetServer.name)
         Task {
             do {
                 let output = try await sshClient.run(command, on: targetServer)
                 let disks = diskService.parseDisks(output)
                 await MainActor.run {
                     diskInfoByServer[targetServer.id] = disks
-                    lastCommandOutput = output.isEmpty ? "Command completed with no output." : output
+                    lastCommandOutput = output.isEmpty ? localized("Command completed with no output.") : output
                 }
             } catch {
                 await MainActor.run {
@@ -443,19 +447,19 @@ final class AppState: ObservableObject {
 
     func refreshDockerContainers(for server: ServerProfile? = nil) {
         guard let targetServer = server ?? selectedServer else {
-            lastCommandOutput = "Select a server before running commands."
+            lastCommandOutput = localized("Select a server before running commands.")
             return
         }
 
         let command = dockerService.inventoryCommand()
-        lastCommandOutput = "Loading Docker containers from \(targetServer.name)..."
+        lastCommandOutput = localized("Loading Docker containers from %@...", targetServer.name)
         Task {
             do {
                 let output = try await sshClient.run(command, on: targetServer)
                 let containers = dockerService.parseContainers(output)
                 await MainActor.run {
                     dockerContainersByServer[targetServer.id] = containers
-                    lastCommandOutput = output.isEmpty ? "Command completed with no output." : output
+                    lastCommandOutput = output.isEmpty ? localized("Command completed with no output.") : output
                 }
             } catch {
                 await MainActor.run {
@@ -467,19 +471,19 @@ final class AppState: ObservableObject {
 
     func refreshSystemdServices(for server: ServerProfile? = nil) {
         guard let targetServer = server ?? selectedServer else {
-            lastCommandOutput = "Select a server before running commands."
+            lastCommandOutput = localized("Select a server before running commands.")
             return
         }
 
         let command = systemdService.unitsCommand()
-        lastCommandOutput = "Loading systemd services from \(targetServer.name)..."
+        lastCommandOutput = localized("Loading systemd services from %@...", targetServer.name)
         Task {
             do {
                 let output = try await sshClient.run(command, on: targetServer)
                 let services = systemdService.parseServices(output)
                 await MainActor.run {
                     systemdServicesByServer[targetServer.id] = services
-                    lastCommandOutput = output.isEmpty ? "Command completed with no output." : output
+                    lastCommandOutput = output.isEmpty ? localized("Command completed with no output.") : output
                 }
             } catch {
                 await MainActor.run {
@@ -491,19 +495,19 @@ final class AppState: ObservableObject {
 
     func refreshLogEntries(for server: ServerProfile? = nil) {
         guard let targetServer = server ?? selectedServer else {
-            lastCommandOutput = "Select a server before running commands."
+            lastCommandOutput = localized("Select a server before running commands.")
             return
         }
 
         let command = logsService.structuredJournalCommand()
-        lastCommandOutput = "Loading logs from \(targetServer.name)..."
+        lastCommandOutput = localized("Loading logs from %@...", targetServer.name)
         Task {
             do {
                 let output = try await sshClient.run(command, on: targetServer)
                 let logs = logsService.parseLogEntries(output)
                 await MainActor.run {
                     logEntriesByServer[targetServer.id] = logs
-                    lastCommandOutput = output.isEmpty ? "Command completed with no output." : output
+                    lastCommandOutput = output.isEmpty ? localized("Command completed with no output.") : output
                 }
             } catch {
                 await MainActor.run {
@@ -515,11 +519,11 @@ final class AppState: ObservableObject {
 
     func refreshPackageStatuses(for server: ServerProfile? = nil) {
         guard let targetServer = server ?? selectedServer else {
-            lastCommandOutput = "Select a server before checking packages."
+            lastCommandOutput = localized("Select a server before checking packages.")
             return
         }
 
-        lastCommandOutput = "Checking packages on \(targetServer.name)..."
+        lastCommandOutput = localized("Checking packages on %@...", targetServer.name)
         Task {
             do {
                 let output = try await sshClient.run(packageDetector.detectionCommand(), on: targetServer)
@@ -542,7 +546,7 @@ final class AppState: ObservableObject {
         metrics.cpuUsage = 94
         metrics.healthScore = 48
         metricsByServer[server.id] = metrics
-        updateLiveActivity(message: "High CPU simulated")
+        updateLiveActivity(message: localized("High CPU simulated"))
     }
 
     func simulateDiskFull() {
@@ -551,7 +555,7 @@ final class AppState: ObservableObject {
         metrics.diskUsage = 93
         metrics.healthScore = 42
         metricsByServer[server.id] = metrics
-        updateLiveActivity(message: "Disk warning simulated")
+        updateLiveActivity(message: localized("Disk warning simulated"))
     }
 
     func simulateOfflineServer() {
@@ -564,7 +568,7 @@ final class AppState: ObservableObject {
 
     func clearSavedProfiles() {
         guard let profileRepository else {
-            lastCommandOutput = "Profile database is not ready yet."
+            lastCommandOutput = localized("Profile database is not ready yet.")
             return
         }
 
@@ -572,7 +576,7 @@ final class AppState: ObservableObject {
         do {
             try profileRepository.deleteAllProfiles()
         } catch {
-            lastCommandOutput = "Failed to clear profiles: \(error.localizedDescription)"
+            lastCommandOutput = localized("Failed to clear profiles: %@", error.localizedDescription)
             return
         }
 
@@ -602,12 +606,13 @@ final class AppState: ObservableObject {
         }
     }
 
-    func updateLiveActivity(message: String = "Monitoring refreshed") {
+    func updateLiveActivity(message: String? = nil) {
         guard isProUnlocked else { return }
         guard let server = selectedServer else { return }
         let metrics = metric(for: server)
+        let statusMessage = message ?? localized("Monitoring refreshed")
         Task {
-            await liveActivityService.update(metrics: metrics, message: "\(server.name): \(message)")
+            await liveActivityService.update(metrics: metrics, message: "\(server.name): \(statusMessage)")
         }
     }
 
@@ -636,7 +641,7 @@ final class AppState: ObservableObject {
             } ?? savedProfiles.first
             publishWidgetSnapshots()
         } catch {
-            lastCommandOutput = "Failed to load profiles: \(error.localizedDescription)"
+            lastCommandOutput = localized("Failed to load profiles: %@", error.localizedDescription)
         }
     }
 
@@ -654,13 +659,13 @@ final class AppState: ObservableObject {
                         try profileRepository.saveProfile(profile)
                     }
                     reloadProfilesFromRepository()
-                    lastCommandOutput = "iCloud profile sync completed."
+                    lastCommandOutput = localized("iCloud profile sync completed.")
                 } else {
                     try await profileCloudSyncService.uploadSnapshot(localProfiles: localProfiles)
-                    lastCommandOutput = "iCloud profile snapshot updated."
+                    lastCommandOutput = localized("iCloud profile snapshot updated.")
                 }
             } catch {
-                lastCommandOutput = "iCloud sync failed: \(error.localizedDescription)"
+                lastCommandOutput = localized("iCloud sync failed: %@", error.localizedDescription)
             }
         }
     }
