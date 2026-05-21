@@ -61,8 +61,7 @@ struct SettingsView: View {
                         }
 
                         settingsSection("Data", symbol: "externaldrive") {
-                            Toggle("iCloud sync", isOn: $appState.settings.iCloudSyncEnabled)
-                                .disabled(!appState.isProUnlocked)
+                            Toggle("iCloud sync", isOn: iCloudSyncBinding)
                             Button("Export profiles") { appState.lastCommandOutput = "Export profiles placeholder." }
                             Button("Import profiles") { appState.lastCommandOutput = "Import profiles placeholder." }
                             Button("Clear terminal history", role: .destructive) {
@@ -96,6 +95,22 @@ struct SettingsView: View {
                 }
                 .scrollIndicators(.hidden)
             }
+        }
+    }
+
+    private var iCloudSyncBinding: Binding<Bool> {
+        Binding {
+            appState.settings.iCloudSyncEnabled
+        } set: { isEnabled in
+            if isEnabled && !appState.isProUnlocked {
+                appState.isPaywallPresented = true
+                return
+            }
+
+            appState.settings.iCloudSyncEnabled = isEnabled
+            appState.lastCommandOutput = isEnabled
+                ? "iCloud sync will start after app restart."
+                : "iCloud sync will turn off after app restart."
         }
     }
 
