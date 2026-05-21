@@ -29,9 +29,9 @@ struct ServerDetailView: View {
                                 case .overview:
                                     overview(server: server, metrics: appState.metric(for: server))
                                 case .processes:
-                                    processes
+                                    processes(server: server)
                                 case .disks:
-                                    disks
+                                    disks(server: server)
                                 case .docker:
                                     docker(server: server)
                                 case .services:
@@ -230,16 +230,32 @@ struct ServerDetailView: View {
         }
     }
 
-    private var processes: some View {
+    private func processes(server: ServerProfile) -> some View {
+        let items = appState.processes(for: server)
         VStack(spacing: 12) {
-            commandPreview(
-                title: "Top CPU processes",
-                command: "ps -eo pid,user,comm,%cpu,%mem --sort=-%cpu | head -n 16"
+            monitorRefreshHeader(
+                title: "Top Processes",
+                message: "Live process snapshot from ps on the selected server.",
+                primaryTitle: "Refresh CPU",
+                primarySymbol: "cpu",
+                primaryAction: { appState.refreshProcesses(for: server) },
+                secondaryTitle: "Refresh RAM",
+                secondarySymbol: "memorychip",
+                secondaryAction: { appState.refreshProcesses(for: server, sortedByMemory: true) }
             )
-            commandPreview(
-                title: "Top RAM processes",
-                command: "ps -eo pid,user,comm,%cpu,%mem --sort=-%mem | head -n 16"
-            )
+
+            if items.isEmpty {
+                EmptyStateView(
+                    title: "No processes loaded",
+                    message: "Refresh to fetch real process data.",
+                    symbol: "list.bullet.rectangle"
+                )
+            } else {
+                ForEach(items) { item in
+                    processRow(item)
+                }
+            }
+
             commandPreview(
                 title: "Interactive process viewer",
                 command: "top -b -n 1 | head -n 30"
@@ -247,48 +263,338 @@ struct ServerDetailView: View {
         }
     }
 
-    private var disks: some View {
+    private func disks(server: ServerProfile) -> some View {
+        let disks = appState.disks(for: server)
         VStack(spacing: 12) {
-            commandPreview(title: "Disk usage", command: "df -hT")
-            commandPreview(title: "Block devices", command: "lsblk -f")
-            commandPreview(title: "SMART devices", command: "smartctl --scan 2>/dev/null || echo 'smartmontools missing'")
-            commandPreview(title: "Large log files", command: "sudo find /var/log -type f -size +50M -printf '%s %p\\n' 2>/dev/null | sort -nr | head -n 20")
+            monitorRefreshHeader(
+                title: "Disk usage",
+                message: "Mounted filesystems parsed from df with warning levels.",
+                primaryTitle: "Refresh Disks",
+                primarySymbol: "externaldrive",
+                primaryAction: { appState.refreshDisks(for: server) }
+            )
+
+            if disks.isEmpty {
+                EmptyStateView(
+                    title: "No disk snapshot",
+                    message: "Refresh to read mounted filesystems.",
+                    symbol: "externaldrive"
+                )
+            } else {
+                ForEach(disks) { disk in
+                    diskRow(disk)
+                }
+            }
+
+            commandPreview(title: "Block devices", command: DiskService().blockDevicesCommand())
+            commandPreview(title: "SMART devices", command: DiskService().smartDevicesCommand())
+            commandPreview(title: "Large log files", command: DiskService().largeLogsCommand())
         }
     }
 
     private func docker(server: ServerProfile) -> some View {
+        let containers = appState.dockerContainers(for: server)
         VStack(spacing: 12) {
             if !appState.isProUnlocked {
                 PremiumLockedCard(title: "Docker monitoring is Pro", message: "Unlock live container stats, logs and restart actions.")
             }
-            commandPreview(title: "Docker scan", command: dockerService.listContainersCommand())
-            commandPreview(title: "Docker stats", command: dockerService.statsCommand())
+
+            monitorRefreshHeader(
+                title: "Docker scan",
+                message: "Container states and live stats parsed from Docker CLI.",
+                primaryTitle: "Refresh Containers",
+                primarySymbol: "shippingbox",
+                primaryAction: { appState.refreshDockerContainers(for: server) }
+            )
+
+            if containers.isEmpty {
+                EmptyStateView(
+                    title: "No containers loaded",
+                    message: "Refresh to read Docker container states.",
+                    symbol: "shippingbox"
+                )
+            } else {
+                ForEach(containers) { container in
+                    dockerRow(container)
+                }
+            }
+
             commandPreview(title: "Docker compose projects", command: "docker compose ls 2>/dev/null || docker-compose ls 2>/dev/null || echo 'Docker Compose not found'")
             commandPreview(title: "Recent Docker state", command: "docker ps -a --format '{{.Names}} {{.Status}}' | head -n 40")
         }
     }
 
     private func services(server: ServerProfile) -> some View {
+        let services = appState.systemdServices(for: server)
         VStack(spacing: 12) {
             if !appState.isProUnlocked {
                 PremiumLockedCard(title: "Advanced systemd is Pro", message: "Unlock restart/start/stop actions and failed service diagnostics.")
             }
+
+            monitorRefreshHeader(
+                title: "Services",
+                message: "systemd units parsed into actionable status rows.",
+                primaryTitle: "Refresh Services",
+                primarySymbol: "gearshape.2",
+                primaryAction: { appState.refreshSystemdServices(for: server) }
+            )
+
+            if services.isEmpty {
+                EmptyStateView(
+                    title: "No services loaded",
+                    message: "Refresh to read systemd service states.",
+                    symbol: "gearshape.2"
+                )
+            } else {
+                ForEach(services) { service in
+                    serviceRow(service)
+                }
+            }
+
             commandPreview(title: "Failed units", command: systemdService.failedUnitsCommand())
-            commandPreview(title: "Running services", command: "systemctl list-units --type=service --state=running --no-pager | head -n 45")
             commandPreview(title: "Enabled services", command: "systemctl list-unit-files --type=service --state=enabled --no-pager | head -n 45")
             commandPreview(title: "Recent service errors", command: "journalctl -p err -n 80 --no-pager")
         }
     }
 
     private func logs(server: ServerProfile) -> some View {
+        let entries = appState.logEntries(for: server)
         VStack(spacing: 12) {
             if !appState.isProUnlocked {
                 PremiumLockedCard(title: "Logs viewer is Pro", message: "Unlock journalctl, dmesg, nginx and Docker logs.")
             }
+
+            monitorRefreshHeader(
+                title: "Recent Logs",
+                message: "Journal entries parsed into severity-aware rows.",
+                primaryTitle: "Refresh Logs",
+                primarySymbol: "doc.text.magnifyingglass",
+                primaryAction: { appState.refreshLogEntries(for: server) }
+            )
+
+            if entries.isEmpty {
+                EmptyStateView(
+                    title: "No logs loaded",
+                    message: "Refresh to read journal entries.",
+                    symbol: "doc.text.magnifyingglass"
+                )
+            } else {
+                ForEach(entries.prefix(40)) { entry in
+                    logRow(entry)
+                }
+            }
+
             commandPreview(title: "System journal", command: logsService.journalCommand(lines: 200))
             commandPreview(title: "Kernel ring buffer", command: logsService.dmesgCommand(lines: 120))
             commandPreview(title: "nginx error log", command: logsService.nginxErrorLogCommand(lines: 200))
             commandPreview(title: "SSH auth log", command: "sudo tail -n 120 /var/log/auth.log 2>/dev/null || sudo tail -n 120 /var/log/secure 2>/dev/null")
+        }
+    }
+
+    private func monitorRefreshHeader(
+        title: LocalizedStringKey,
+        message: LocalizedStringKey,
+        primaryTitle: LocalizedStringKey,
+        primarySymbol: String,
+        primaryAction: @escaping () -> Void,
+        secondaryTitle: LocalizedStringKey? = nil,
+        secondarySymbol: String? = nil,
+        secondaryAction: (() -> Void)? = nil
+    ) -> some View {
+        GlassCard(cornerRadius: 22, padding: 14) {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(alignment: .top, spacing: 10) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(title)
+                            .font(.headline)
+                        Text(message)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                }
+
+                HStack(spacing: 10) {
+                    Button(action: primaryAction) {
+                        Label(primaryTitle, systemImage: primarySymbol)
+                            .font(.caption.weight(.bold))
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.vertical, 10)
+                    .background(.thinMaterial, in: Capsule())
+
+                    if let secondaryTitle, let secondarySymbol, let secondaryAction {
+                        Button(action: secondaryAction) {
+                            Label(secondaryTitle, systemImage: secondarySymbol)
+                                .font(.caption.weight(.bold))
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.plain)
+                        .padding(.vertical, 10)
+                        .background(.thinMaterial, in: Capsule())
+                    }
+                }
+            }
+        }
+    }
+
+    private func processRow(_ item: ProcessInfoItem) -> some View {
+        GlassCard(cornerRadius: 18, padding: 13) {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(alignment: .firstTextBaseline) {
+                    Text(item.command)
+                        .font(.headline.monospaced())
+                        .lineLimit(1)
+                    Spacer()
+                    Text("PID \(item.pid)")
+                        .font(.caption.monospacedDigit())
+                        .foregroundStyle(.secondary)
+                }
+
+                HStack {
+                    Label(item.user, systemImage: "person")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Text("CPU \(percent(item.cpu))")
+                        .font(.caption.monospacedDigit())
+                    Text("RAM \(percent(item.memory))")
+                        .font(.caption.monospacedDigit())
+                }
+
+                HStack(spacing: 10) {
+                    CompactProgress(value: item.cpu, color: item.cpu > 80 ? .orange : .cyan)
+                    CompactProgress(value: item.memory, color: item.memory > 80 ? .orange : .green)
+                }
+            }
+        }
+    }
+
+    private func diskRow(_ disk: DiskInfo) -> some View {
+        let color: Color = disk.usagePercent >= 90 ? .red : disk.usagePercent >= 80 ? .orange : .blue
+        return GlassCard(cornerRadius: 18, padding: 13) {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(alignment: .firstTextBaseline) {
+                    Text(disk.mountPoint)
+                        .font(.headline.monospaced())
+                        .lineLimit(1)
+                    Spacer()
+                    Text(percent(disk.usagePercent))
+                        .font(.headline.monospacedDigit())
+                        .foregroundStyle(color)
+                }
+
+                HStack {
+                    Text(disk.filesystem)
+                        .font(.caption.monospaced())
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                    Spacer()
+                    Text("\(formattedGB(disk.usedGB)) / \(formattedGB(disk.freeGB))")
+                        .font(.caption.monospacedDigit())
+                        .foregroundStyle(.secondary)
+                }
+
+                CompactProgress(value: disk.usagePercent, color: color)
+            }
+        }
+    }
+
+    private func dockerRow(_ container: DockerContainer) -> some View {
+        let isRunning = container.status.lowercased().hasPrefix("up")
+        return GlassCard(cornerRadius: 18, padding: 13) {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(alignment: .firstTextBaseline) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(container.name)
+                            .font(.headline.monospaced())
+                        Text(container.image)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+                    Spacer()
+                    StatusDot(title: container.status, color: isRunning ? .green : .orange)
+                }
+
+                HStack {
+                    Text("CPU \(percent(container.cpuUsage))")
+                    Text("RAM \(percent(container.memoryUsage))")
+                    Spacer()
+                    Button("Logs") {
+                        runRemote(dockerService.logsCommand(containerName: container.name, lines: 120))
+                    }
+                    Button("Restart") {
+                        confirm(
+                            dockerService.actionCommand(action: "restart", containerName: container.name),
+                            message: "Restart \(container.name)? This command runs remotely over SSH."
+                        )
+                    }
+                    .foregroundStyle(.orange)
+                }
+                .font(.caption.weight(.semibold))
+            }
+        }
+    }
+
+    private func serviceRow(_ service: SystemdServiceItem) -> some View {
+        let color: Color = service.isFailed ? .red : service.activeState == "active" ? .green : .orange
+        return GlassCard(cornerRadius: 18, padding: 13) {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(alignment: .firstTextBaseline) {
+                    Text(service.name)
+                        .font(.headline.monospaced())
+                        .lineLimit(1)
+                    Spacer()
+                    StatusDot(title: service.activeState, color: color)
+                }
+
+                HStack {
+                    Text("\(service.loadedState) / \(service.subState)")
+                        .font(.caption.monospaced())
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Button("Status") {
+                        runRemote(systemdService.statusCommand(serviceName: service.name))
+                    }
+                    Button("Restart") {
+                        confirm(
+                            systemdService.actionCommand(action: "restart", serviceName: service.name),
+                            message: "Restart \(service.name)? This command runs remotely over SSH."
+                        )
+                    }
+                    .foregroundStyle(.orange)
+                }
+                .font(.caption.weight(.semibold))
+            }
+        }
+    }
+
+    private func logRow(_ entry: LogEntry) -> some View {
+        GlassCard(cornerRadius: 16, padding: 12) {
+            HStack(alignment: .top, spacing: 10) {
+                Circle()
+                    .fill(entry.severity.color)
+                    .frame(width: 8, height: 8)
+                    .padding(.top, 5)
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack {
+                        Text(entry.source)
+                            .font(.caption.weight(.bold))
+                        Spacer()
+                        if !entry.timestamp.isEmpty {
+                            Text(entry.timestamp)
+                                .font(.caption2.monospacedDigit())
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    Text(entry.message)
+                        .font(.caption.monospaced())
+                        .foregroundStyle(.secondary)
+                        .textSelection(.enabled)
+                }
+            }
         }
     }
 
@@ -422,6 +728,17 @@ struct ServerDetailView: View {
         }
         appState.runRemoteCommand(command, on: server)
     }
+
+    private func percent(_ value: Double) -> String {
+        if value.rounded() == value {
+            return "\(Int(value))%"
+        }
+        return String(format: "%.1f%%", value)
+    }
+
+    private func formattedGB(_ value: Double) -> String {
+        String(format: "%.1f GB", value)
+    }
 }
 
 private enum DetailTab: String, CaseIterable, Identifiable {
@@ -450,6 +767,25 @@ private enum DetailTab: String, CaseIterable, Identifiable {
         case .terminal: "terminal"
         case .actions: "bolt.horizontal"
         }
+    }
+}
+
+private struct StatusDot: View {
+    var title: String
+    var color: Color
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Circle()
+                .fill(color)
+                .frame(width: 8, height: 8)
+            Text(title)
+                .font(.caption.weight(.semibold))
+                .lineLimit(1)
+        }
+        .padding(.horizontal, 9)
+        .padding(.vertical, 6)
+        .background(color.opacity(0.12), in: Capsule())
     }
 }
 

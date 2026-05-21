@@ -400,13 +400,107 @@ struct PackageDetector {
     }
 }
 
+struct ProcessService {
+    func topCPUCommand(limit: Int = 18) -> String {
+        "ps -eo pid,user,comm,%cpu,%mem --sort=-%cpu --no-headers | head -n \(limit)"
+    }
+
+    func topMemoryCommand(limit: Int = 18) -> String {
+        "ps -eo pid,user,comm,%cpu,%mem --sort=-%mem --no-headers | head -n \(limit)"
+    }
+
+    func parseProcesses(_ output: String) -> [ProcessInfoItem] {
+        output
+            .split(whereSeparator: \.isNewline)
+            .compactMap { line -> ProcessInfoItem? in
+                let parts = line.split(whereSeparator: \.isWhitespace)
+                guard parts.count >= 5,
+                      let pid = Int(parts[0]),
+                      let cpu = Double(String(parts[3]).normalizingDecimalSeparator),
+                      let memory = Double(String(parts[4]).normalizingDecimalSeparator) else {
+                    return nil
+                }
+
+                return ProcessInfoItem(
+                    pid: pid,
+                    user: String(parts[1]),
+                    command: String(parts[2]),
+                    cpu: cpu,
+                    memory: memory
+                )
+            }
+    }
+}
+
+struct DiskService {
+    func usageCommand() -> String {
+        "df -P -B1 --output=source,target,used,avail,pcent 2>/dev/null | tail -n +2"
+    }
+
+    func blockDevicesCommand() -> String {
+        "lsblk -f"
+    }
+
+    func smartDevicesCommand() -> String {
+        "smartctl --scan 2>/dev/null || echo 'smartmontools missing'"
+    }
+
+    func largeLogsCommand() -> String {
+        "sudo find /var/log -type f -size +50M -printf '%s %p\\n' 2>/dev/null | sort -nr | head -n 20"
+    }
+
+    func parseDisks(_ output: String) -> [DiskInfo] {
+        output
+            .split(whereSeparator: \.isNewline)
+            .compactMap { line -> DiskInfo? in
+                let trimmed = String(line).trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !trimmed.isEmpty, !trimmed.lowercased().hasPrefix("filesystem") else {
+                    return nil
+                }
+
+                let parts = trimmed.split(whereSeparator: \.isWhitespace)
+                guard parts.count >= 5,
+                      let usedBytes = Double(String(parts[2])),
+                      let freeBytes = Double(String(parts[3])) else {
+                    return nil
+                }
+
+                let percentText = String(parts[4]).replacingOccurrences(of: "%", with: "")
+                let usage = Double(percentText.normalizingDecimalSeparator) ?? 0
+                return DiskInfo(
+                    mountPoint: String(parts[1]),
+                    filesystem: String(parts[0]),
+                    usedGB: usedBytes / 1_073_741_824,
+                    freeGB: freeBytes / 1_073_741_824,
+                    usagePercent: usage,
+                    smartStatus: nil
+                )
+            }
+    }
+}
+
 struct DockerService {
     func listContainersCommand() -> String {
-        "docker ps --format '{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}'"
+        "docker ps -a --format '{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}'"
     }
 
     func statsCommand() -> String {
         "docker stats --no-stream --format '{{.Name}}|{{.CPUPerc}}|{{.MemPerc}}'"
+    }
+
+    func inventoryCommand() -> String {
+        #"""
+        sh <<'SYSPULSE'
+        if ! command -v docker >/dev/null 2>&1; then
+          echo "__SYSPULSE_DOCKER_MISSING__"
+          exit 0
+        fi
+        echo "__SYSPULSE_CONTAINERS__"
+        docker ps -a --format '{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}' 2>/dev/null
+        echo "__SYSPULSE_STATS__"
+        docker stats --no-stream --format '{{.Name}}|{{.CPUPerc}}|{{.MemPerc}}' 2>/dev/null
+        SYSPULSE
+        """#
     }
 
     func logsCommand(containerName: String, lines: Int = 200) -> String {
@@ -417,8 +511,68 @@ struct DockerService {
         "docker \(action) \(containerName)"
     }
 
+    func parseContainers(_ output: String) -> [DockerContainer] {
+        var statsByName: [String: (cpu: Double, memory: Double)] = [:]
+        var containerLines: [String] = []
+        var section = ""
+
+        for rawLine in output.split(whereSeparator: \.isNewline).map(String.init) {
+            let line = rawLine.trimmingCharacters(in: .whitespacesAndNewlines)
+            switch line {
+            case "__SYSPULSE_CONTAINERS__":
+                section = "containers"
+                continue
+            case "__SYSPULSE_STATS__":
+                section = "stats"
+                continue
+            case "__SYSPULSE_DOCKER_MISSING__":
+                return []
+            default:
+                break
+            }
+
+            guard !line.isEmpty else { continue }
+            if section == "stats" {
+                let parts = line.split(separator: "|", omittingEmptySubsequences: false).map(String.init)
+                guard parts.count >= 3 else { continue }
+                statsByName[parts[0]] = (
+                    cpu: Self.percentValue(parts[1]),
+                    memory: Self.percentValue(parts[2])
+                )
+            } else {
+                containerLines.append(line)
+            }
+        }
+
+        return containerLines.compactMap { line in
+            let parts = line.split(separator: "|", omittingEmptySubsequences: false).map(String.init)
+            guard parts.count >= 4 else { return nil }
+            let name = parts[1]
+            let stats = statsByName[name] ?? (cpu: 0, memory: 0)
+            let status = parts[3]
+            return DockerContainer(
+                id: parts[0],
+                name: name,
+                image: parts[2],
+                status: status,
+                cpuUsage: stats.cpu,
+                memoryUsage: stats.memory,
+                restartedRecently: status.lowercased().contains("restart")
+            )
+        }
+    }
+
     func containers(for server: ServerProfile) -> [DockerContainer] {
         []
+    }
+
+    private static func percentValue(_ text: String) -> Double {
+        Double(
+            text
+                .replacingOccurrences(of: "%", with: "")
+                .normalizingDecimalSeparator
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+        ) ?? 0
     }
 }
 
@@ -433,6 +587,35 @@ struct SystemdService {
 
     func actionCommand(action: String, serviceName: String) -> String {
         "sudo systemctl \(action) \(serviceName)"
+    }
+
+    func unitsCommand(limit: Int = 60) -> String {
+        "systemctl list-units --type=service --all --plain --no-legend --no-pager | awk '{print $1\"|\"$2\"|\"$3\"|\"$4}' | head -n \(limit)"
+    }
+
+    func parseServices(_ output: String) -> [SystemdServiceItem] {
+        output
+            .split(whereSeparator: \.isNewline)
+            .compactMap { line -> SystemdServiceItem? in
+                let parts = String(line)
+                    .replacingOccurrences(of: "●", with: "")
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                    .split(separator: "|", omittingEmptySubsequences: false)
+                    .map(String.init)
+                guard parts.count >= 4, parts[0].hasSuffix(".service") else {
+                    return nil
+                }
+
+                let active = parts[2].trimmingCharacters(in: .whitespacesAndNewlines)
+                let sub = parts[3].trimmingCharacters(in: .whitespacesAndNewlines)
+                return SystemdServiceItem(
+                    name: parts[0].trimmingCharacters(in: .whitespacesAndNewlines),
+                    loadedState: parts[1].trimmingCharacters(in: .whitespacesAndNewlines),
+                    activeState: active,
+                    subState: sub,
+                    isFailed: active == "failed" || sub == "failed"
+                )
+            }
     }
 
     func services(for server: ServerProfile) -> [SystemdServiceItem] {
@@ -456,8 +639,67 @@ struct LogsService {
         "tail -n \(lines) /var/log/nginx/error.log"
     }
 
+    func structuredJournalCommand(lines: Int = 80) -> String {
+        "journalctl -n \(lines) --no-pager -o short-iso 2>/dev/null || dmesg --ctime | tail -n \(lines)"
+    }
+
+    func parseLogEntries(_ output: String) -> [LogEntry] {
+        output
+            .split(whereSeparator: \.isNewline)
+            .compactMap { rawLine -> LogEntry? in
+                let line = String(rawLine).trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !line.isEmpty else { return nil }
+
+                let timestamp: String
+                let body: String
+                if line.count > 20, line[line.index(line.startIndex, offsetBy: 4)] == "-" {
+                    let timestampEnd = line.index(line.startIndex, offsetBy: min(19, line.count))
+                    timestamp = String(line[..<timestampEnd])
+                    body = String(line[timestampEnd...]).trimmingCharacters(in: .whitespaces)
+                } else {
+                    timestamp = ""
+                    body = line
+                }
+
+                let source = Self.source(from: body)
+                return LogEntry(
+                    timestamp: timestamp,
+                    source: source,
+                    message: body,
+                    severity: Self.severity(for: body)
+                )
+            }
+    }
+
     func recentLogs(for server: ServerProfile) -> [String] {
         []
+    }
+
+    private static func source(from body: String) -> String {
+        let components = body.split(separator: " ", maxSplits: 2).map(String.init)
+        guard components.count >= 2 else { return "system" }
+        let candidate = components[1]
+            .split(separator: ":", maxSplits: 1)
+            .first
+            .map(String.init) ?? components[1]
+        return candidate.isEmpty ? "system" : candidate
+    }
+
+    private static func severity(for body: String) -> CommandSafetyLevel {
+        let lowercased = body.lowercased()
+        if ["error", "failed", "failure", "panic", "critical", "denied"].contains(where: lowercased.contains) {
+            return .dangerous
+        }
+        if ["warn", "timeout", "retry", "unreachable"].contains(where: lowercased.contains) {
+            return .moderate
+        }
+        return .safe
+    }
+}
+
+private extension String {
+    var normalizingDecimalSeparator: String {
+        replacingOccurrences(of: ",", with: ".")
     }
 }
 

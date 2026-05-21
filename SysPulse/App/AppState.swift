@@ -32,12 +32,22 @@ final class AppState: ObservableObject {
     @Published var isPaywallPresented = false
     @Published var isDebugMenuPresented = false
     @Published var lastCommandOutput = ""
+    @Published var processItemsByServer: [UUID: [ProcessInfoItem]] = [:]
+    @Published var diskInfoByServer: [UUID: [DiskInfo]] = [:]
+    @Published var dockerContainersByServer: [UUID: [DockerContainer]] = [:]
+    @Published var systemdServicesByServer: [UUID: [SystemdServiceItem]] = [:]
+    @Published var logEntriesByServer: [UUID: [LogEntry]] = [:]
 
     private let profileStorage = ProfileStorageService()
     private let settingsStorage = SettingsStorageService()
     private let widgetDataService = WidgetDataService()
     private let liveActivityService = LiveActivityService()
     private let metricsCollector = MetricsCollector()
+    private let processService = ProcessService()
+    private let diskService = DiskService()
+    private let dockerService = DockerService()
+    private let systemdService = SystemdService()
+    private let logsService = LogsService()
     let healthScoreService = HealthScoreService()
     let insightsService = InsightsService()
     let packageDetector = PackageDetector()
@@ -91,6 +101,31 @@ final class AppState: ObservableObject {
         insightsService.makeInsights(for: metric(for: server))
     }
 
+    func processes(for server: ServerProfile?) -> [ProcessInfoItem] {
+        guard let server else { return [] }
+        return processItemsByServer[server.id] ?? []
+    }
+
+    func disks(for server: ServerProfile?) -> [DiskInfo] {
+        guard let server else { return [] }
+        return diskInfoByServer[server.id] ?? []
+    }
+
+    func dockerContainers(for server: ServerProfile?) -> [DockerContainer] {
+        guard let server else { return [] }
+        return dockerContainersByServer[server.id] ?? []
+    }
+
+    func systemdServices(for server: ServerProfile?) -> [SystemdServiceItem] {
+        guard let server else { return [] }
+        return systemdServicesByServer[server.id] ?? []
+    }
+
+    func logEntries(for server: ServerProfile?) -> [LogEntry] {
+        guard let server else { return [] }
+        return logEntriesByServer[server.id] ?? []
+    }
+
     @discardableResult
     func addServer(_ server: ServerProfile) -> Bool {
         if !isProUnlocked && serverProfiles.count >= 1 {
@@ -118,6 +153,11 @@ final class AppState: ObservableObject {
     func deleteServer(_ server: ServerProfile) {
         serverProfiles.removeAll { $0.id == server.id }
         metricsByServer.removeValue(forKey: server.id)
+        processItemsByServer.removeValue(forKey: server.id)
+        diskInfoByServer.removeValue(forKey: server.id)
+        dockerContainersByServer.removeValue(forKey: server.id)
+        systemdServicesByServer.removeValue(forKey: server.id)
+        logEntriesByServer.removeValue(forKey: server.id)
         terminalSessions.removeAll { $0.serverID == server.id }
         if let credentialIdentifier = server.credentialIdentifier {
             try? KeychainService.shared.deleteSecret(account: credentialIdentifier)
@@ -206,6 +246,126 @@ final class AppState: ObservableObject {
         }
     }
 
+    func refreshProcesses(for server: ServerProfile? = nil, sortedByMemory: Bool = false) {
+        guard let targetServer = server ?? selectedServer else {
+            lastCommandOutput = "Select a server before running commands."
+            return
+        }
+
+        let command = sortedByMemory ? processService.topMemoryCommand() : processService.topCPUCommand()
+        lastCommandOutput = "Loading processes from \(targetServer.name)..."
+        Task {
+            do {
+                let output = try await sshClient.run(command, on: targetServer)
+                let processes = processService.parseProcesses(output)
+                await MainActor.run {
+                    processItemsByServer[targetServer.id] = processes
+                    lastCommandOutput = output.isEmpty ? "Command completed with no output." : output
+                }
+            } catch {
+                await MainActor.run {
+                    lastCommandOutput = error.localizedDescription
+                }
+            }
+        }
+    }
+
+    func refreshDisks(for server: ServerProfile? = nil) {
+        guard let targetServer = server ?? selectedServer else {
+            lastCommandOutput = "Select a server before running commands."
+            return
+        }
+
+        let command = diskService.usageCommand()
+        lastCommandOutput = "Loading disks from \(targetServer.name)..."
+        Task {
+            do {
+                let output = try await sshClient.run(command, on: targetServer)
+                let disks = diskService.parseDisks(output)
+                await MainActor.run {
+                    diskInfoByServer[targetServer.id] = disks
+                    lastCommandOutput = output.isEmpty ? "Command completed with no output." : output
+                }
+            } catch {
+                await MainActor.run {
+                    lastCommandOutput = error.localizedDescription
+                }
+            }
+        }
+    }
+
+    func refreshDockerContainers(for server: ServerProfile? = nil) {
+        guard let targetServer = server ?? selectedServer else {
+            lastCommandOutput = "Select a server before running commands."
+            return
+        }
+
+        let command = dockerService.inventoryCommand()
+        lastCommandOutput = "Loading Docker containers from \(targetServer.name)..."
+        Task {
+            do {
+                let output = try await sshClient.run(command, on: targetServer)
+                let containers = dockerService.parseContainers(output)
+                await MainActor.run {
+                    dockerContainersByServer[targetServer.id] = containers
+                    lastCommandOutput = output.isEmpty ? "Command completed with no output." : output
+                }
+            } catch {
+                await MainActor.run {
+                    lastCommandOutput = error.localizedDescription
+                }
+            }
+        }
+    }
+
+    func refreshSystemdServices(for server: ServerProfile? = nil) {
+        guard let targetServer = server ?? selectedServer else {
+            lastCommandOutput = "Select a server before running commands."
+            return
+        }
+
+        let command = systemdService.unitsCommand()
+        lastCommandOutput = "Loading systemd services from \(targetServer.name)..."
+        Task {
+            do {
+                let output = try await sshClient.run(command, on: targetServer)
+                let services = systemdService.parseServices(output)
+                await MainActor.run {
+                    systemdServicesByServer[targetServer.id] = services
+                    lastCommandOutput = output.isEmpty ? "Command completed with no output." : output
+                }
+            } catch {
+                await MainActor.run {
+                    lastCommandOutput = error.localizedDescription
+                }
+            }
+        }
+    }
+
+    func refreshLogEntries(for server: ServerProfile? = nil) {
+        guard let targetServer = server ?? selectedServer else {
+            lastCommandOutput = "Select a server before running commands."
+            return
+        }
+
+        let command = logsService.structuredJournalCommand()
+        lastCommandOutput = "Loading logs from \(targetServer.name)..."
+        Task {
+            do {
+                let output = try await sshClient.run(command, on: targetServer)
+                let logs = logsService.parseLogEntries(output)
+                await MainActor.run {
+                    logEntriesByServer[targetServer.id] = logs
+                    lastCommandOutput = output.isEmpty ? "Command completed with no output." : output
+                }
+            } catch {
+                await MainActor.run {
+                    lastCommandOutput = error.localizedDescription
+                }
+            }
+        }
+    }
+
     func refreshPackageStatuses(for server: ServerProfile? = nil) {
         guard let targetServer = server ?? selectedServer else {
             lastCommandOutput = "Select a server before checking packages."
@@ -264,6 +424,11 @@ final class AppState: ObservableObject {
         metricsByServer = [:]
         terminalSessions = []
         selectedServer = nil
+        processItemsByServer = [:]
+        diskInfoByServer = [:]
+        dockerContainersByServer = [:]
+        systemdServicesByServer = [:]
+        logEntriesByServer = [:]
         publishWidgetSnapshots()
     }
 

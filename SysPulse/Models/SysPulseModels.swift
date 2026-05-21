@@ -593,6 +593,14 @@ struct ProcessInfoItem: Identifiable, Codable, Hashable {
     var memory: Double
 }
 
+struct LogEntry: Identifiable, Codable, Hashable {
+    var id: UUID = UUID()
+    var timestamp: String
+    var source: String
+    var message: String
+    var severity: CommandSafetyLevel
+}
+
 struct SmartInsight: Identifiable, Codable, Hashable {
     var id: UUID = UUID()
     var title: String
