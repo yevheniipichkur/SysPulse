@@ -54,6 +54,7 @@ final class AppState: ObservableObject {
     private let biometricLockService = BiometricLockService()
     private let notificationService = NotificationService()
     private let alertEvaluationService = AlertRuleEvaluationService()
+    private let encryptedProfileSharingService = EncryptedProfileSharingService()
     private let metricsCollector = MetricsCollector()
     private let processService = ProcessService()
     private let diskService = DiskService()
@@ -645,6 +646,50 @@ final class AppState: ObservableObject {
         logEntriesByServer = [:]
         publishWidgetSnapshots()
         uploadProfilesToICloudIfEnabled()
+    }
+
+    func makeEncryptedProfileExport(passphrase: String) -> URL? {
+        do {
+            let url = try encryptedProfileSharingService.makeExportFile(
+                profiles: serverProfiles,
+                passphrase: passphrase
+            )
+            lastCommandOutput = localized("Encrypted profile export is ready.")
+            return url
+        } catch {
+            lastCommandOutput = error.localizedDescription
+            return nil
+        }
+    }
+
+    func importEncryptedProfiles(from url: URL, passphrase: String) {
+        guard let profileRepository else {
+            lastCommandOutput = localized("Profile database is not ready yet.")
+            return
+        }
+
+        do {
+            let importedProfiles = try encryptedProfileSharingService.importProfiles(from: url, passphrase: passphrase)
+            let existingIDs = Set(serverProfiles.map(\.id))
+            let newProfileCount = importedProfiles.filter { !existingIDs.contains($0.id) }.count
+            if !isProUnlocked && serverProfiles.count + newProfileCount > 1 {
+                isPaywallPresented = true
+                lastCommandOutput = localized("Encrypted import needs Pro for multiple servers.")
+                return
+            }
+
+            for profile in importedProfiles {
+                if let existing = serverProfiles.first(where: { $0.id == profile.id }) {
+                    profile.credentialIdentifier = existing.credentialIdentifier
+                }
+                try profileRepository.saveProfile(profile)
+            }
+            reloadProfilesFromRepository()
+            uploadProfilesToICloudIfEnabled()
+            lastCommandOutput = localized("Imported %d encrypted profiles.", importedProfiles.count)
+        } catch {
+            lastCommandOutput = error.localizedDescription
+        }
     }
 
     func requestAlertNotifications() async {

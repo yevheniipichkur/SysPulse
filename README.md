@@ -15,6 +15,7 @@ SysPulse создаётся как нативный SwiftUI-продукт: кр
 - Command safety analyzer для `reboot`, `rm`, `docker rm`, `systemctl stop`, `kill`, `ufw` changes и package manager actions.
 - Missing Tools screen с preview install commands и ручным подтверждением.
 - SwiftData-backed metadata persistence для server profiles; секреты остаются только в Keychain.
+- Encrypted profile sharing exports server metadata without copying Keychain secrets.
 - StoreKit 2 paywall skeleton: Monthly, Yearly, Lifetime.
 - Settings: security, appearance, language, data, hidden Developer / QA menu.
 - WidgetKit, ActivityKit и App Intents scaffolds.

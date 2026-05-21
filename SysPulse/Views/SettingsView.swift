@@ -1,8 +1,12 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct SettingsView: View {
     @EnvironmentObject private var appState: AppState
     @State private var versionTapCount = 0
+    @State private var sharingPassphrase = ""
+    @State private var encryptedExportURL: URL?
+    @State private var isImportingEncryptedProfiles = false
     private let buildInfo = GitBuildInfoService()
 
     var body: some View {
@@ -62,8 +66,23 @@ struct SettingsView: View {
 
                         settingsSection("Data", symbol: "externaldrive") {
                             Toggle("iCloud sync", isOn: iCloudSyncBinding)
-                            Button("Export profiles") { appState.lastCommandOutput = appState.localized("Export profiles placeholder.") }
-                            Button("Import profiles") { appState.lastCommandOutput = appState.localized("Import profiles placeholder.") }
+                            SecureField("Sharing passphrase", text: $sharingPassphrase)
+                                .textInputAutocapitalization(.never)
+                                .autocorrectionDisabled()
+                            Text("Encrypted sharing exports metadata only. Passwords and private keys stay in Keychain.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            Button("Prepare encrypted export") {
+                                encryptedExportURL = appState.makeEncryptedProfileExport(passphrase: sharingPassphrase)
+                            }
+                            if let encryptedExportURL {
+                                ShareLink(item: encryptedExportURL) {
+                                    Label("Share encrypted export", systemImage: "square.and.arrow.up")
+                                }
+                            }
+                            Button("Import encrypted profiles") {
+                                isImportingEncryptedProfiles = true
+                            }
                             Button("Clear terminal history", role: .destructive) {
                                 appState.terminalSessions.forEach { $0.transcript = "" }
                             }
@@ -117,6 +136,13 @@ struct SettingsView: View {
                 .scrollIndicators(.hidden)
             }
         }
+        .fileImporter(
+            isPresented: $isImportingEncryptedProfiles,
+            allowedContentTypes: [.data],
+            allowsMultipleSelection: false
+        ) { result in
+            importEncryptedProfiles(result)
+        }
     }
 
     private var biometricLockBinding: Binding<Bool> {
@@ -160,6 +186,21 @@ struct SettingsView: View {
                 content()
             }
             .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    private func importEncryptedProfiles(_ result: Result<[URL], Error>) {
+        do {
+            guard let url = try result.get().first else { return }
+            let didStartAccess = url.startAccessingSecurityScopedResource()
+            defer {
+                if didStartAccess {
+                    url.stopAccessingSecurityScopedResource()
+                }
+            }
+            appState.importEncryptedProfiles(from: url, passphrase: sharingPassphrase)
+        } catch {
+            appState.lastCommandOutput = error.localizedDescription
         }
     }
 }

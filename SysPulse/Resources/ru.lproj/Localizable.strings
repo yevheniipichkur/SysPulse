@@ -512,3 +512,15 @@
 "Disk is %.0f%% on %@." = "Диск %.0f%% на %@.";
 "Health score is %.0f on %@." = "Оценка состояния %.0f на %@.";
 "%.0f failed services on %@." = "%.0f сбойных сервисов на %@.";
+"Sharing passphrase" = "Пароль для обмена";
+"Encrypted sharing exports metadata only. Passwords and private keys stay in Keychain." = "Зашифрованный обмен экспортирует только метаданные. Пароли и приватные ключи остаются в Keychain.";
+"Prepare encrypted export" = "Подготовить зашифрованный экспорт";
+"Share encrypted export" = "Поделиться зашифрованным экспортом";
+"Import encrypted profiles" = "Импорт зашифрованных профилей";
+"Enter a sharing passphrase first." = "Сначала введите пароль для обмена.";
+"No server profiles to export." = "Нет профилей серверов для экспорта.";
+"This profile export file is not valid." = "Этот файл экспорта профилей недействителен.";
+"Could not decrypt profiles. Check the passphrase." = "Не удалось расшифровать профили. Проверьте пароль.";
+"Encrypted profile export is ready." = "Зашифрованный экспорт профилей готов.";
+"Encrypted import needs Pro for multiple servers." = "Для импорта нескольких серверов нужен Pro.";
+"Imported %d encrypted profiles." = "Импортировано зашифрованных профилей: %d.";

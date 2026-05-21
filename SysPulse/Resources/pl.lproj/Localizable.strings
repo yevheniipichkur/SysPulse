@@ -512,3 +512,15 @@
 "Disk is %.0f%% on %@." = "Dysk %.0f%% na %@.";
 "Health score is %.0f on %@." = "Ocena stanu %.0f na %@.";
 "%.0f failed services on %@." = "%.0f usług z błędem na %@.";
+"Sharing passphrase" = "Hasło udostępniania";
+"Encrypted sharing exports metadata only. Passwords and private keys stay in Keychain." = "Szyfrowane udostępnianie eksportuje tylko metadane. Hasła i klucze prywatne zostają w Keychain.";
+"Prepare encrypted export" = "Przygotuj szyfrowany eksport";
+"Share encrypted export" = "Udostępnij szyfrowany eksport";
+"Import encrypted profiles" = "Importuj szyfrowane profile";
+"Enter a sharing passphrase first." = "Najpierw wpisz hasło udostępniania.";
+"No server profiles to export." = "Brak profili serwerów do eksportu.";
+"This profile export file is not valid." = "Ten plik eksportu profili jest nieprawidłowy.";
+"Could not decrypt profiles. Check the passphrase." = "Nie udało się odszyfrować profili. Sprawdź hasło.";
+"Encrypted profile export is ready." = "Szyfrowany eksport profili jest gotowy.";
+"Encrypted import needs Pro for multiple servers." = "Import wielu serwerów wymaga Pro.";
+"Imported %d encrypted profiles." = "Zaimportowano szyfrowane profile: %d.";

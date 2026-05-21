@@ -33,7 +33,7 @@
 - [x] iCloud sync.
 - [x] TestFlight upload with production signing profiles.
 - [x] Real StoreKit 2 product loading, purchase, restore and entitlement listener.
-- [ ] StoreKit product configuration in App Store Connect.
+- [x] StoreKit product configuration in App Store Connect.
 - [x] Real server profile persistence through SwiftData UI.
 - [x] App icon.
 - [x] App Store screenshot automation.
@@ -46,6 +46,6 @@
 - [ ] Optional backend for push monitoring.
 - [ ] Team accounts.
 - [ ] Web dashboard.
-- [ ] Encrypted profile sharing.
+- [x] Encrypted profile sharing.
 - [x] Alert rules and notification scheduling.
 - [ ] Cloud-based status history.
