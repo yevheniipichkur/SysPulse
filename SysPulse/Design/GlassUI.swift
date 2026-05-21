@@ -261,6 +261,34 @@ struct GlassPrimaryButton: View {
     }
 }
 
+struct PressableGlassButtonStyle: ButtonStyle {
+    var tint: Color = .cyan
+    var cornerRadius: CGFloat = SysPulseDesign.controlRadius
+    var verticalPadding: CGFloat = 10
+    var horizontalPadding: CGFloat = 12
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .padding(.vertical, verticalPadding)
+            .padding(.horizontal, horizontalPadding)
+            .foregroundStyle(configuration.isPressed ? tint : .primary)
+            .background(
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .fill(.thinMaterial)
+                    .overlay {
+                        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                            .fill(tint.opacity(configuration.isPressed ? 0.20 : 0.08))
+                    }
+                    .overlay {
+                        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                            .stroke(tint.opacity(configuration.isPressed ? 0.42 : 0.16), lineWidth: 1)
+                    }
+            )
+            .scaleEffect(configuration.isPressed ? 0.96 : 1)
+            .animation(.spring(response: 0.18, dampingFraction: 0.78), value: configuration.isPressed)
+    }
+}
+
 struct EmptyStateView: View {
     var title: LocalizedStringKey
     var message: LocalizedStringKey

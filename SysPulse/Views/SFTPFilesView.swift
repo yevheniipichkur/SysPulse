@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct SFTPFilesView: View {
     @EnvironmentObject private var appState: AppState
@@ -8,10 +9,15 @@ struct SFTPFilesView: View {
     @State private var downloadedSFTPFileURL: URL?
     @State private var pendingDeleteItem: SFTPRemoteItem?
     @State private var showingDeleteConfirmation = false
+    @State private var pathHistory: [String] = []
 
     private var server: ServerProfile? { appState.selectedServer }
     private var currentPath: String { appState.sftpPath(for: server) }
     private var allItems: [SFTPRemoteItem] { appState.sftpItems(for: server) }
+    private var isLoading: Bool { appState.isSFTPLoading(for: server) }
+    private var activeAnimation: Animation? {
+        appState.areUITestAnimationsDisabled ? nil : .spring(response: 0.34, dampingFraction: 0.86)
+    }
 
     private var visibleItems: [SFTPRemoteItem] {
         guard !searchText.isEmpty else { return allItems }
@@ -24,13 +30,14 @@ struct SFTPFilesView: View {
                 AppBackground()
 
                 if let server {
-                    fileList(server: server)
+                    filesSurface(server: server)
                 } else {
                     EmptyStateView(
                         title: "No server selected",
                         message: "Choose a server from the Servers tab to browse its files.",
                         symbol: "folder"
                     )
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
             }
             .navigationBarTitleDisplayMode(.inline)
@@ -66,155 +73,334 @@ struct SFTPFilesView: View {
         }
         .accessibilityIdentifier(AppTab.sftp.screenAccessibilityIdentifier)
         .onAppear {
-            if let server, allItems.isEmpty {
+            if let server, allItems.isEmpty, !isLoading {
                 appState.refreshSFTPDirectory(for: server)
             }
         }
+        .onChange(of: server?.id) { _, _ in
+            pathHistory.removeAll()
+            searchText = ""
+            downloadedSFTPFileURL = nil
+        }
     }
 
-    // MARK: - Subviews
+    // MARK: - Surface
 
-    private func fileList(server: ServerProfile) -> some View {
-        List {
-            if downloadedSFTPFileURL != nil {
-                downloadReadyRow
-            }
+    private func filesSurface(server: ServerProfile) -> some View {
+        ScrollView {
+            VStack(spacing: 14) {
+                sftpHeader(server: server)
 
-            if currentPath != "." && currentPath != "/" && !isSearching {
-                parentRow(server: server)
-            }
+                if downloadedSFTPFileURL != nil {
+                    downloadReadyCard
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                }
 
-            ForEach(visibleItems) { item in
-                fileRow(item, server: server)
-            }
+                pathCard(server: server)
 
-            if visibleItems.isEmpty && !searchText.isEmpty {
-                Text("No results for \"\(searchText)\"")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .listRowBackground(Color.clear)
-            }
-
-            if allItems.isEmpty && searchText.isEmpty {
-                EmptyStateView(
-                    title: "Empty directory",
-                    message: "This directory has no files.",
-                    symbol: "folder"
-                )
-                .listRowBackground(Color.clear)
-                .listRowSeparator(.hidden)
-                .onAppear {
-                    appState.refreshSFTPDirectory(for: server)
+                if isLoading && allItems.isEmpty {
+                    loadingCard
+                        .frame(maxWidth: .infinity, minHeight: 280)
+                        .transition(.opacity.combined(with: .scale(scale: 0.98)))
+                } else if visibleItems.isEmpty {
+                    emptyCard
+                        .frame(maxWidth: .infinity, minHeight: 320)
+                        .transition(.opacity.combined(with: .scale(scale: 0.98)))
+                } else {
+                    LazyVStack(spacing: 10) {
+                        ForEach(visibleItems) { item in
+                            fileCard(item, server: server)
+                                .transition(.opacity.combined(with: .move(edge: .bottom)))
+                        }
+                    }
                 }
             }
+            .padding(.horizontal, SysPulseDesign.pagePadding)
+            .padding(.top, 8)
+            .padding(.bottom, 26)
+            .animation(activeAnimation, value: currentPath)
+            .animation(activeAnimation, value: visibleItems)
+            .animation(activeAnimation, value: isLoading)
         }
-        .listStyle(.plain)
-        .scrollContentBackground(.hidden)
         .refreshable {
             appState.refreshSFTPDirectory(for: server)
         }
-    }
-
-    private var downloadReadyRow: some View {
-        HStack(spacing: 12) {
-            Image(systemName: "checkmark.circle.fill")
-                .foregroundStyle(.green)
-                .font(.title3)
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Download ready")
-                    .font(.subheadline.weight(.semibold))
-                Text(downloadedSFTPFileURL?.lastPathComponent ?? "")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
+        .overlay(alignment: .top) {
+            if isLoading && !allItems.isEmpty {
+                loadingBanner
+                    .padding(.top, 8)
+                    .transition(.move(edge: .top).combined(with: .opacity))
             }
-            Spacer()
-            if let url = downloadedSFTPFileURL {
-                ShareLink(item: url) {
-                    Image(systemName: "square.and.arrow.up")
-                        .foregroundStyle(.cyan)
-                }
-                .buttonStyle(.plain)
-            }
-            Button {
-                downloadedSFTPFileURL = nil
-            } label: {
-                Image(systemName: "xmark")
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(.secondary)
-            }
-            .buttonStyle(.plain)
         }
-        .padding(.vertical, 6)
-        .listRowBackground(Color.green.opacity(0.08))
+        .simultaneousGesture(swipeBackGesture(server: server))
     }
 
-    private func parentRow(server: ServerProfile) -> some View {
-        Button {
-            appState.openSFTPParent(for: server)
-        } label: {
+    private func sftpHeader(server: ServerProfile) -> some View {
+        GlassCard(cornerRadius: 28, padding: 16) {
             HStack(spacing: 14) {
                 Image(systemName: "folder.fill")
-                    .font(.title3)
+                    .font(.title2.weight(.semibold))
                     .foregroundStyle(.blue)
-                    .frame(width: 32, alignment: .center)
-                Text("..")
-                    .font(.body.weight(.semibold))
-                    .foregroundStyle(.primary)
+                    .frame(width: 50, height: 50)
+                    .background(.blue.opacity(0.14), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+
+                VStack(alignment: .leading, spacing: 5) {
+                    Text("SFTP Files")
+                        .font(.title3.weight(.bold))
+                    Text("\(server.username)@\(server.host)")
+                        .font(.caption.monospaced())
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+
                 Spacer()
+
+                HStack(spacing: 8) {
+                    Button {
+                        isImportingSFTPFile = true
+                    } label: {
+                        Image(systemName: "arrow.up.doc")
+                            .frame(width: 34, height: 34)
+                    }
+                    .buttonStyle(PressableGlassButtonStyle(cornerRadius: 14, verticalPadding: 0, horizontalPadding: 0))
+                    .accessibilityLabel("Upload File")
+
+                    Button {
+                        appState.refreshSFTPDirectory(for: server)
+                    } label: {
+                        ZStack {
+                            if isLoading {
+                                ProgressView()
+                                    .controlSize(.small)
+                            } else {
+                                Image(systemName: "arrow.clockwise")
+                            }
+                        }
+                        .frame(width: 34, height: 34)
+                    }
+                    .buttonStyle(PressableGlassButtonStyle(cornerRadius: 14, verticalPadding: 0, horizontalPadding: 0))
+                    .accessibilityLabel("Refresh Files")
+                }
             }
-            .padding(.vertical, 5)
         }
-        .buttonStyle(.plain)
-        .listRowSeparator(.visible)
     }
 
-    private func fileRow(_ item: SFTPRemoteItem, server: ServerProfile) -> some View {
-        Button {
-            if item.isDirectory {
-                appState.refreshSFTPDirectory(for: server, path: item.path)
-            }
-        } label: {
-            HStack(spacing: 14) {
-                fileIcon(for: item)
-                    .frame(width: 32, alignment: .center)
+    private func pathCard(server: ServerProfile) -> some View {
+        GlassCard(cornerRadius: 20, padding: 12) {
+            HStack(spacing: 12) {
+                Image(systemName: currentPath == "/" ? "externaldrive.connected.to.line.below" : "folder")
+                    .font(.headline)
+                    .foregroundStyle(.cyan)
+                    .frame(width: 34, height: 34)
+                    .background(.cyan.opacity(0.12), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
 
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(item.name)
-                        .font(.body.weight(.semibold))
-                        .foregroundStyle(.primary)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(currentPath.isEmpty ? "." : currentPath)
+                        .font(.subheadline.monospaced())
                         .lineLimit(1)
-                    if !item.permissions.isEmpty {
-                        Text(item.permissions)
-                            .font(.caption2.monospaced())
-                            .foregroundStyle(.secondary)
-                    }
+                    Text(isLoading ? appState.localized("Opening folder...") : appState.localized("%d items", allItems.count))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
 
                 Spacer()
 
-                VStack(alignment: .trailing, spacing: 2) {
-                    Text(item.modifiedAt)
-                        .font(.caption.monospacedDigit())
+                Button {
+                    navigate(to: ".", server: server)
+                } label: {
+                    Image(systemName: "house")
+                        .frame(width: 32, height: 32)
+                }
+                .buttonStyle(PressableGlassButtonStyle(cornerRadius: 13, verticalPadding: 0, horizontalPadding: 0))
+                .disabled(currentPath == "." || currentPath == "~")
+                .accessibilityLabel("Go to Home")
+
+                Button {
+                    navigate(to: parentPath, server: server)
+                } label: {
+                    Image(systemName: "arrow.uturn.left")
+                        .frame(width: 32, height: 32)
+                }
+                .buttonStyle(PressableGlassButtonStyle(cornerRadius: 13, verticalPadding: 0, horizontalPadding: 0))
+                .disabled(currentPath == "." || currentPath == "/")
+                .accessibilityLabel("Go Up")
+            }
+        }
+    }
+
+    private var downloadReadyCard: some View {
+        GlassCard(cornerRadius: 20, padding: 13) {
+            HStack(spacing: 12) {
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.title3)
+                    .foregroundStyle(.green)
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Download ready")
+                        .font(.subheadline.weight(.semibold))
+                    Text(downloadedSFTPFileURL?.lastPathComponent ?? "")
+                        .font(.caption)
                         .foregroundStyle(.secondary)
-                    if !item.isDirectory && item.size > 0 {
-                        Text(formatSize(item.size))
+                        .lineLimit(1)
+                }
+
+                Spacer()
+
+                if let url = downloadedSFTPFileURL {
+                    ShareLink(item: url) {
+                        Image(systemName: "square.and.arrow.up")
+                            .frame(width: 32, height: 32)
+                    }
+                    .buttonStyle(PressableGlassButtonStyle(cornerRadius: 13, verticalPadding: 0, horizontalPadding: 0))
+                }
+
+                Button {
+                    downloadedSFTPFileURL = nil
+                } label: {
+                    Image(systemName: "xmark")
+                        .frame(width: 32, height: 32)
+                }
+                .buttonStyle(PressableGlassButtonStyle(tint: .gray, cornerRadius: 13, verticalPadding: 0, horizontalPadding: 0))
+            }
+        }
+    }
+
+    private var loadingCard: some View {
+        GlassCard(cornerRadius: 28, padding: 24) {
+            VStack(spacing: 16) {
+                ProgressView()
+                    .controlSize(.large)
+                VStack(spacing: 6) {
+                    Text("Opening folder...")
+                        .font(.headline)
+                    Text(currentPath)
+                        .font(.caption.monospaced())
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                        .multilineTextAlignment(.center)
+                }
+            }
+            .frame(maxWidth: .infinity)
+        }
+    }
+
+    private var loadingBanner: some View {
+        HStack(spacing: 10) {
+            ProgressView()
+                .controlSize(.small)
+            Text("Opening folder...")
+                .font(.caption.weight(.semibold))
+            Spacer()
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .frame(maxWidth: 260)
+        .background(.thinMaterial, in: Capsule())
+        .overlay {
+            Capsule().stroke(.white.opacity(0.16), lineWidth: 1)
+        }
+        .shadow(color: .black.opacity(0.16), radius: 14, x: 0, y: 8)
+    }
+
+    private var emptyCard: some View {
+        GlassCard(cornerRadius: 28, padding: 0) {
+            EmptyStateView(
+                title: searchText.isEmpty ? "Empty directory" : "No results",
+                message: searchText.isEmpty ? "This directory has no files." : "Try a different search term.",
+                symbol: searchText.isEmpty ? "folder.badge.questionmark" : "magnifyingglass"
+            )
+            .frame(maxWidth: .infinity)
+        }
+    }
+
+    private func fileCard(_ item: SFTPRemoteItem, server: ServerProfile) -> some View {
+        GlassCard(cornerRadius: 20, padding: 0) {
+            HStack(spacing: 12) {
+                Button {
+                    if item.isDirectory {
+                        navigate(to: item.path, server: server)
+                    }
+                } label: {
+                    HStack(spacing: 12) {
+                        fileIcon(for: item)
+
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(item.name)
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(.primary)
+                                .lineLimit(1)
+
+                            HStack(spacing: 7) {
+                                Text(item.kind.titleKey)
+                                if !item.permissions.isEmpty {
+                                    Text(item.permissions)
+                                        .font(.caption2.monospaced())
+                                }
+                                if !item.isDirectory && item.size > 0 {
+                                    Text(formatSize(item.size))
+                                }
+                            }
                             .font(.caption2)
                             .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+
+                VStack(alignment: .trailing, spacing: 4) {
+                    if !item.modifiedAt.isEmpty {
+                        Text(item.modifiedAt)
+                            .font(.caption2.monospacedDigit())
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+
+                    HStack(spacing: 6) {
+                        if !item.isDirectory {
+                            Button {
+                                Task {
+                                    downloadedSFTPFileURL = await appState.downloadSFTPFile(item, from: server)
+                                }
+                            } label: {
+                                Image(systemName: "arrow.down.circle")
+                                    .frame(width: 30, height: 30)
+                            }
+                            .buttonStyle(PressableGlassButtonStyle(cornerRadius: 12, verticalPadding: 0, horizontalPadding: 0))
+                            .accessibilityLabel("Download")
+                        }
+
+                        Button(role: .destructive) {
+                            pendingDeleteItem = item
+                            showingDeleteConfirmation = true
+                        } label: {
+                            Image(systemName: "trash")
+                                .frame(width: 30, height: 30)
+                        }
+                        .buttonStyle(PressableGlassButtonStyle(tint: .red, cornerRadius: 12, verticalPadding: 0, horizontalPadding: 0))
+                        .accessibilityLabel("Delete")
+
+                        if item.isDirectory {
+                            Image(systemName: "chevron.right")
+                                .font(.caption.weight(.bold))
+                                .foregroundStyle(.secondary)
+                                .frame(width: 20)
+                        }
                     }
                 }
             }
-            .padding(.vertical, 5)
+            .padding(13)
         }
-        .buttonStyle(.plain)
-        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-            Button(role: .destructive) {
-                pendingDeleteItem = item
-                showingDeleteConfirmation = true
-            } label: {
-                Label("Delete", systemImage: "trash")
-            }
-            if !item.isDirectory {
+        .contextMenu {
+            if item.isDirectory {
+                Button {
+                    navigate(to: item.path, server: server)
+                } label: {
+                    Label("Open", systemImage: "folder")
+                }
+            } else {
                 Button {
                     Task {
                         downloadedSFTPFileURL = await appState.downloadSFTPFile(item, from: server)
@@ -222,33 +408,32 @@ struct SFTPFilesView: View {
                 } label: {
                     Label("Download", systemImage: "arrow.down.circle")
                 }
-                .tint(.blue)
+            }
+
+            Button(role: .destructive) {
+                pendingDeleteItem = item
+                showingDeleteConfirmation = true
+            } label: {
+                Label("Delete", systemImage: "trash")
             }
         }
-        .listRowSeparator(.visible)
     }
 
     @ViewBuilder
     private func fileIcon(for item: SFTPRemoteItem) -> some View {
-        switch item.kind {
-        case .directory:
-            Image(systemName: "folder.fill")
-                .font(.title3)
-                .foregroundStyle(.blue)
-        case .symlink:
-            Image(systemName: "link")
-                .font(.title3)
-                .foregroundStyle(.cyan)
-        case .file, .other:
-            let (symbol, color) = iconInfo(for: item.name)
-            Image(systemName: symbol)
-                .font(.title3)
-                .foregroundStyle(color)
-        }
+        let info = iconInfo(for: item)
+        Image(systemName: info.symbol)
+            .font(.headline.weight(.semibold))
+            .foregroundStyle(info.color)
+            .frame(width: 42, height: 42)
+            .background(info.color.opacity(0.14), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
     }
 
-    private func iconInfo(for name: String) -> (String, Color) {
-        let ext = name.components(separatedBy: ".").last?.lowercased() ?? ""
+    private func iconInfo(for item: SFTPRemoteItem) -> (symbol: String, color: Color) {
+        if item.kind == .directory { return ("folder.fill", .blue) }
+        if item.kind == .symlink { return ("link", .cyan) }
+
+        let ext = item.name.components(separatedBy: ".").last?.lowercased() ?? ""
         switch ext {
         case "pdf":
             return ("doc.richtext.fill", .red)
@@ -264,18 +449,14 @@ struct SFTPFilesView: View {
             return ("shippingbox.fill", .brown)
         case "sh", "bash", "zsh", "fish":
             return ("terminal", .green)
-        case "py":
+        case "py", "js", "ts", "jsx", "tsx", "php":
             return ("chevron.left.forwardslash.chevron.right", .blue)
-        case "js", "ts", "jsx", "tsx":
-            return ("chevron.left.forwardslash.chevron.right", .yellow)
         case "swift":
             return ("swift", .orange)
         case "html", "htm":
             return ("globe", .teal)
         case "css", "scss", "sass":
             return ("paintbrush.fill", .teal)
-        case "php":
-            return ("chevron.left.forwardslash.chevron.right", .indigo)
         case "sql", "db", "sqlite", "sqlite3":
             return ("cylinder.fill", .blue)
         case "json", "yaml", "yml", "toml", "xml":
@@ -289,6 +470,41 @@ struct SFTPFilesView: View {
         default:
             return ("doc.fill", .secondary)
         }
+    }
+
+    // MARK: - Navigation
+
+    private var parentPath: String {
+        let trimmed = currentPath.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, trimmed != "/", trimmed != "." else { return "." }
+        let normalized = trimmed.hasSuffix("/") ? String(trimmed.dropLast()) : trimmed
+        guard let slashIndex = normalized.lastIndex(of: "/") else { return "." }
+        if slashIndex == normalized.startIndex { return "/" }
+        return String(normalized[..<slashIndex])
+    }
+
+    private func navigate(to path: String, server: ServerProfile) {
+        guard path != currentPath else { return }
+        pathHistory.append(currentPath)
+        searchText = ""
+        appState.haptic(.light)
+        appState.refreshSFTPDirectory(for: server, path: path)
+    }
+
+    private func navigateBack(server: ServerProfile) {
+        guard let previous = pathHistory.popLast() else { return }
+        searchText = ""
+        appState.haptic(.light)
+        appState.refreshSFTPDirectory(for: server, path: previous)
+    }
+
+    private func swipeBackGesture(server: ServerProfile) -> some Gesture {
+        DragGesture(minimumDistance: 30, coordinateSpace: .local)
+            .onEnded { value in
+                guard value.translation.width > 90,
+                      abs(value.translation.height) < 55 else { return }
+                navigateBack(server: server)
+            }
     }
 
     private func breadcrumb(server: ServerProfile) -> some View {
@@ -306,8 +522,7 @@ struct SFTPFilesView: View {
                         .foregroundStyle(.primary)
                 } else {
                     Button(part) {
-                        let target = targetPath(for: index, parts: parts)
-                        appState.refreshSFTPDirectory(for: server, path: target)
+                        navigate(to: targetPath(for: index, parts: parts), server: server)
                     }
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.cyan)
@@ -324,7 +539,7 @@ struct SFTPFilesView: View {
         let components = p.components(separatedBy: "/").filter { !$0.isEmpty }
         if components.isEmpty { return ["/"] }
         if components.count <= 3 { return components }
-        return ["…"] + Array(components.suffix(2))
+        return ["..."] + Array(components.suffix(2))
     }
 
     private func targetPath(for index: Int, parts: [String]) -> String {
@@ -344,7 +559,7 @@ struct SFTPFilesView: View {
             } label: {
                 Image(systemName: "arrow.up.doc")
             }
-            .accessibilityLabel("Upload file")
+            .accessibilityLabel("Upload File")
 
             Menu {
                 if let server {
@@ -354,14 +569,14 @@ struct SFTPFilesView: View {
                         Label("Refresh", systemImage: "arrow.clockwise")
                     }
                     Button {
-                        appState.refreshSFTPDirectory(for: server, path: ".")
+                        navigate(to: ".", server: server)
                     } label: {
                         Label("Go to Home", systemImage: "house")
                     }
                     Button {
-                        appState.openSFTPParent(for: server)
+                        navigate(to: parentPath, server: server)
                     } label: {
-                        Label("Go Up", systemImage: "arrow.up")
+                        Label("Go Up", systemImage: "arrow.uturn.left")
                     }
                 }
             } label: {

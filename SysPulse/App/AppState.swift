@@ -45,6 +45,8 @@ final class AppState: ObservableObject {
     @Published var logEntriesByServer: [UUID: [LogEntry]] = [:]
     @Published var sftpItemsByServer: [UUID: [SFTPRemoteItem]] = [:]
     @Published var sftpPathByServer: [UUID: String] = [:]
+    @Published var sftpLoadingServerIDs: Set<UUID> = []
+    @Published var metricRefreshingServerIDs: Set<UUID> = []
     @Published var alertRules: [AlertRule] = []
     @Published var areNotificationsAuthorized = false
 
@@ -304,6 +306,16 @@ final class AppState: ObservableObject {
         return sftpPathByServer[server.id] ?? "."
     }
 
+    func isSFTPLoading(for server: ServerProfile?) -> Bool {
+        guard let server else { return false }
+        return sftpLoadingServerIDs.contains(server.id)
+    }
+
+    func isRefreshingMetrics(for server: ServerProfile?) -> Bool {
+        guard let server else { return false }
+        return metricRefreshingServerIDs.contains(server.id)
+    }
+
     @discardableResult
     func addServer(_ server: ServerProfile) -> Bool {
         if !isProUnlocked && serverProfiles.count >= 1 {
@@ -377,6 +389,8 @@ final class AppState: ObservableObject {
         logEntriesByServer.removeValue(forKey: serverID)
         sftpItemsByServer.removeValue(forKey: serverID)
         sftpPathByServer.removeValue(forKey: serverID)
+        sftpLoadingServerIDs.remove(serverID)
+        metricRefreshingServerIDs.remove(serverID)
         terminalSessions.removeAll { $0.serverID == serverID }
         if let credentialIdentifier {
             try? KeychainService.shared.deleteSecret(account: credentialIdentifier)
@@ -419,6 +433,7 @@ final class AppState: ObservableObject {
 
     func refreshMetrics(for server: ServerProfile) {
         lastCommandOutput = localized("Refreshing metrics for %@...", server.name)
+        metricRefreshingServerIDs.insert(server.id)
         Task {
             do {
                 let previous = await MainActor.run {
@@ -427,6 +442,7 @@ final class AppState: ObservableObject {
                 let metrics = try await metricsCollector.collect(server: server, using: sshClient, previous: previous)
                 await MainActor.run {
                     metricsByServer[server.id] = metrics
+                    metricRefreshingServerIDs.remove(server.id)
                     if selectedServer?.id == server.id {
                         selectedServer?.status = .online
                     }
@@ -436,6 +452,7 @@ final class AppState: ObservableObject {
                 }
             } catch {
                 await MainActor.run {
+                    metricRefreshingServerIDs.remove(server.id)
                     if selectedServer?.id == server.id {
                         selectedServer?.status = .warning
                     }
@@ -661,6 +678,8 @@ final class AppState: ObservableObject {
         logEntriesByServer = [:]
         sftpItemsByServer = [:]
         sftpPathByServer = [:]
+        sftpLoadingServerIDs = []
+        metricRefreshingServerIDs = []
         publishWidgetSnapshots()
         uploadProfilesToICloudIfEnabled()
     }
@@ -717,16 +736,19 @@ final class AppState: ObservableObject {
 
         let targetPath = path ?? sftpPath(for: targetServer)
         lastCommandOutput = localized("Loading SFTP directory %@...", targetPath)
+        sftpLoadingServerIDs.insert(targetServer.id)
         Task {
             do {
                 let listing = try await sftpService.listDirectory(at: targetPath, server: targetServer, via: sshClient)
                 await MainActor.run {
                     sftpPathByServer[targetServer.id] = listing.path
                     sftpItemsByServer[targetServer.id] = listing.items
+                    sftpLoadingServerIDs.remove(targetServer.id)
                     lastCommandOutput = localized("Loaded %d SFTP items from %@.", listing.items.count, listing.path)
                 }
             } catch {
                 await MainActor.run {
+                    sftpLoadingServerIDs.remove(targetServer.id)
                     lastCommandOutput = error.localizedDescription
                 }
             }

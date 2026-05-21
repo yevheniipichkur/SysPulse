@@ -139,11 +139,18 @@ struct ServerDetailView: View {
                         Button {
                             appState.refreshMetrics(for: server)
                         } label: {
-                            Image(systemName: "arrow.clockwise")
-                                .frame(width: 34, height: 34)
-                                .background(.thinMaterial, in: Circle())
+                            ZStack {
+                                if appState.isRefreshingMetrics(for: server) {
+                                    ProgressView()
+                                        .controlSize(.small)
+                                } else {
+                                    Image(systemName: "arrow.clockwise")
+                                }
+                            }
+                            .font(.headline.weight(.semibold))
+                            .frame(width: 34, height: 34)
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(PressableGlassButtonStyle(cornerRadius: 17, verticalPadding: 0, horizontalPadding: 0))
                         .accessibilityLabel("Refresh metrics")
                     }
                 }
@@ -440,9 +447,7 @@ struct ServerDetailView: View {
                             .font(.caption.weight(.bold))
                             .frame(maxWidth: .infinity)
                     }
-                    .buttonStyle(.plain)
-                    .padding(.vertical, 10)
-                    .background(.thinMaterial, in: Capsule())
+                    .buttonStyle(PressableGlassButtonStyle(cornerRadius: 18, verticalPadding: 10))
 
                     if let secondaryTitle, let secondarySymbol, let secondaryAction {
                         Button(action: secondaryAction) {
@@ -450,9 +455,7 @@ struct ServerDetailView: View {
                                 .font(.caption.weight(.bold))
                                 .frame(maxWidth: .infinity)
                         }
-                        .buttonStyle(.plain)
-                        .padding(.vertical, 10)
-                        .background(.thinMaterial, in: Capsule())
+                        .buttonStyle(PressableGlassButtonStyle(cornerRadius: 18, verticalPadding: 10))
                     }
                 }
             }

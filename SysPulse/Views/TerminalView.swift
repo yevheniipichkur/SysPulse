@@ -232,8 +232,13 @@ struct TerminalView: View {
                 .padding(.horizontal, 12)
                 .frame(height: 38)
                 .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .stroke(.white.opacity(0.12), lineWidth: 1)
+                }
             }
             .buttonStyle(.plain)
+            .foregroundStyle(.primary)
 
             TerminalIconButton(systemName: "plus") {
                 if let server = appState.selectedServer {
@@ -1026,12 +1031,19 @@ private struct TerminalKeyStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .frame(height: 30)
-            .padding(.horizontal, 4)
+            .padding(.horizontal, 5)
+            .foregroundStyle(isActive ? .cyan : .primary)
             .background(
-                configuration.isPressed
-                    ? AnyShapeStyle(.cyan.opacity(0.28))
-                    : isActive ? AnyShapeStyle(.cyan.opacity(0.20)) : AnyShapeStyle(.thinMaterial),
-                in: RoundedRectangle(cornerRadius: 9, style: .continuous)
+                RoundedRectangle(cornerRadius: 9, style: .continuous)
+                    .fill(.thinMaterial)
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 9, style: .continuous)
+                            .fill(.cyan.opacity(configuration.isPressed ? 0.22 : isActive ? 0.16 : 0.04))
+                    }
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 9, style: .continuous)
+                            .stroke(.white.opacity(configuration.isPressed || isActive ? 0.24 : 0.10), lineWidth: 1)
+                    }
             )
             .scaleEffect(configuration.isPressed ? 0.91 : 1.0)
             .animation(.easeOut(duration: 0.07), value: configuration.isPressed)
@@ -1046,10 +1058,10 @@ private struct TerminalIconButton: View {
         Button(action: action) {
             Image(systemName: systemName)
                 .font(.callout.weight(.bold))
+                .foregroundStyle(.primary)
                 .frame(width: 38, height: 38)
-                .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(PressableGlassButtonStyle(cornerRadius: 12, verticalPadding: 0, horizontalPadding: 0))
     }
 }
 
