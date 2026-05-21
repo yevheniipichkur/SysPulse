@@ -24,6 +24,8 @@ extension AppState {
             productsLoaded: true,
             lastStoreKitMessage: "Lifetime Pro active for screenshots."
         )
+        areNotificationsAuthorized = true
+        alertRules = AlertRule.defaultRules()
 
         let api = ServerProfile(
             id: UUID(uuidString: "11111111-1111-1111-1111-111111111111")!,

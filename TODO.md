@@ -47,5 +47,5 @@
 - [ ] Team accounts.
 - [ ] Web dashboard.
 - [ ] Encrypted profile sharing.
-- [ ] Alert rules and notification scheduling.
+- [x] Alert rules and notification scheduling.
 - [ ] Cloud-based status history.

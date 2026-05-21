@@ -43,12 +43,17 @@ final class AppState: ObservableObject {
     @Published var dockerContainersByServer: [UUID: [DockerContainer]] = [:]
     @Published var systemdServicesByServer: [UUID: [SystemdServiceItem]] = [:]
     @Published var logEntriesByServer: [UUID: [LogEntry]] = [:]
+    @Published var alertRules: [AlertRule] = []
+    @Published var areNotificationsAuthorized = false
 
+    private var modelContext: ModelContext?
     private var profileRepository: ProfileRepository?
     private let settingsStorage = SettingsStorageService()
     private let widgetDataService = WidgetDataService()
     private let liveActivityService = LiveActivityService()
     private let biometricLockService = BiometricLockService()
+    private let notificationService = NotificationService()
+    private let alertEvaluationService = AlertRuleEvaluationService()
     private let metricsCollector = MetricsCollector()
     private let processService = ProcessService()
     private let diskService = DiskService()
@@ -65,6 +70,8 @@ final class AppState: ObservableObject {
     @Published var packageStatuses: [PackageStatus]
     private var autoRefreshTask: Task<Void, Never>?
     private var protectedBackgroundDate: Date?
+    private var alertLastFiredAt: [String: Date] = [:]
+    private let alertCooldown: TimeInterval = 15 * 60
 
     init() {
         let arguments = ProcessInfo.processInfo.arguments
@@ -116,9 +123,12 @@ final class AppState: ObservableObject {
             configureScreenshotDemo()
             return
         }
+        self.modelContext = modelContext
         guard profileRepository == nil else { return }
         profileRepository = SwiftDataProfileRepository(modelContext: modelContext)
         reloadProfilesFromRepository()
+        reloadAlertRules()
+        refreshAlertNotificationAuthorization()
         startAutoRefresh()
     }
 
@@ -406,6 +416,7 @@ final class AppState: ObservableObject {
                     }
                     lastCommandOutput = localized("Metrics refreshed for %@.", server.name)
                     updateLiveActivity(message: localized("Metrics refreshed"))
+                    evaluateAlertRules(for: server, metrics: metrics)
                 }
             } catch {
                 await MainActor.run {
@@ -634,6 +645,80 @@ final class AppState: ObservableObject {
         logEntriesByServer = [:]
         publishWidgetSnapshots()
         uploadProfilesToICloudIfEnabled()
+    }
+
+    func requestAlertNotifications() async {
+        let granted = await notificationService.requestPermission()
+        areNotificationsAuthorized = granted
+        lastCommandOutput = granted
+            ? localized("Notifications enabled for metric alerts.")
+            : localized("Notifications are disabled in iOS Settings.")
+    }
+
+    func refreshAlertNotificationAuthorization() {
+        Task {
+            areNotificationsAuthorized = await notificationService.isAuthorized()
+        }
+    }
+
+    func setAlertRule(_ rule: AlertRule, isEnabled: Bool) {
+        rule.isEnabled = isEnabled
+        saveAlertRules()
+        objectWillChange.send()
+    }
+
+    private func reloadAlertRules() {
+        guard let modelContext else { return }
+        do {
+            let descriptor = FetchDescriptor<AlertRule>(
+                sortBy: [SortDescriptor(\.title, order: .forward)]
+            )
+            var rules = try modelContext.fetch(descriptor)
+            if rules.isEmpty {
+                rules = AlertRule.defaultRules()
+                for rule in rules {
+                    modelContext.insert(rule)
+                }
+                try modelContext.save()
+            }
+            alertRules = rules
+        } catch {
+            lastCommandOutput = localized("Failed to load alert rules: %@", error.localizedDescription)
+        }
+    }
+
+    private func saveAlertRules() {
+        do {
+            try modelContext?.save()
+        } catch {
+            lastCommandOutput = localized("Failed to save alert rules: %@", error.localizedDescription)
+        }
+    }
+
+    private func evaluateAlertRules(for server: ServerProfile, metrics: ServerMetrics) {
+        guard areNotificationsAuthorized else { return }
+        let evaluations = alertEvaluationService.evaluations(for: alertRules, server: server, metrics: metrics)
+        guard !evaluations.isEmpty else { return }
+
+        let now = Date()
+        for evaluation in evaluations {
+            let cooldownKey = evaluation.id
+            if let lastFiredAt = alertLastFiredAt[cooldownKey],
+               now.timeIntervalSince(lastFiredAt) < alertCooldown {
+                continue
+            }
+
+            alertLastFiredAt[cooldownKey] = now
+            let title = localized(evaluation.rule.title)
+            let body = localized(evaluation.metric.notificationBodyKey, evaluation.value, server.name)
+            Task {
+                try? await notificationService.scheduleAlert(
+                    title: title,
+                    body: body,
+                    identifier: "syspulse.\(cooldownKey)"
+                )
+            }
+        }
     }
 
     func startMonitoringLiveActivity() {

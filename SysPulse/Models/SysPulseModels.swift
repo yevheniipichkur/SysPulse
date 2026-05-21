@@ -231,6 +231,111 @@ enum HealthRating: String, Hashable {
     }
 }
 
+enum AlertMetricKey: String, CaseIterable, Identifiable, Codable, Hashable {
+    case cpuUsage = "cpu"
+    case ramUsage = "ram"
+    case diskUsage = "disk"
+    case healthScore = "health"
+    case failedServices = "failed_services"
+
+    var id: String { rawValue }
+
+    var titleKey: LocalizedStringKey {
+        switch self {
+        case .cpuUsage: "CPU usage"
+        case .ramUsage: "RAM usage"
+        case .diskUsage: "Disk usage"
+        case .healthScore: "Health score"
+        case .failedServices: "Failed services"
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .cpuUsage: "cpu"
+        case .ramUsage: "memorychip"
+        case .diskUsage: "externaldrive"
+        case .healthScore: "heart.text.square"
+        case .failedServices: "exclamationmark.triangle"
+        }
+    }
+
+    var defaultTitle: String {
+        switch self {
+        case .cpuUsage: "High CPU"
+        case .ramUsage: "High RAM"
+        case .diskUsage: "High Disk"
+        case .healthScore: "Low Health Score"
+        case .failedServices: "Failed Services"
+        }
+    }
+
+    var defaultThreshold: Double {
+        switch self {
+        case .cpuUsage, .ramUsage:
+            90
+        case .diskUsage:
+            85
+        case .healthScore:
+            50
+        case .failedServices:
+            0
+        }
+    }
+
+    var thresholdFormatKey: String {
+        switch self {
+        case .cpuUsage, .ramUsage, .diskUsage:
+            "Triggers at %.0f%% or higher."
+        case .healthScore:
+            "Triggers at %.0f or lower."
+        case .failedServices:
+            "Triggers when any service fails."
+        }
+    }
+
+    var notificationBodyKey: String {
+        switch self {
+        case .cpuUsage:
+            "CPU is %.0f%% on %@."
+        case .ramUsage:
+            "RAM is %.0f%% on %@."
+        case .diskUsage:
+            "Disk is %.0f%% on %@."
+        case .healthScore:
+            "Health score is %.0f on %@."
+        case .failedServices:
+            "%.0f failed services on %@."
+        }
+    }
+
+    func value(in metrics: ServerMetrics) -> Double {
+        switch self {
+        case .cpuUsage:
+            metrics.cpuUsage
+        case .ramUsage:
+            metrics.ramUsage
+        case .diskUsage:
+            metrics.diskUsage
+        case .healthScore:
+            Double(metrics.healthScore)
+        case .failedServices:
+            Double(metrics.failedServices)
+        }
+    }
+
+    func isTriggered(value: Double, threshold: Double) -> Bool {
+        switch self {
+        case .healthScore:
+            value <= threshold
+        case .failedServices:
+            value > threshold
+        case .cpuUsage, .ramUsage, .diskUsage:
+            value >= threshold
+        }
+    }
+}
+
 @Model
 final class ServerProfile: Identifiable {
     var id: UUID = UUID()
@@ -548,6 +653,22 @@ final class AlertRule: Identifiable {
         self.metricKey = metricKey
         self.threshold = threshold
         self.isEnabled = isEnabled
+    }
+
+    var metric: AlertMetricKey {
+        get { AlertMetricKey(rawValue: metricKey) ?? .cpuUsage }
+        set { metricKey = newValue.rawValue }
+    }
+
+    static func defaultRules() -> [AlertRule] {
+        AlertMetricKey.allCases.map { metric in
+            AlertRule(
+                title: metric.defaultTitle,
+                metricKey: metric.rawValue,
+                threshold: metric.defaultThreshold,
+                isEnabled: true
+            )
+        }
     }
 }
 

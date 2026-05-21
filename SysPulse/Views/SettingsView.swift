@@ -72,6 +72,27 @@ struct SettingsView: View {
                             }
                         }
 
+                        settingsSection("Alerts", symbol: "bell.badge") {
+                            Text("Metric alerts are checked after manual refreshes and auto-refresh.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+
+                            SettingsRow(title: "Notification permission") {
+                                Text(appState.areNotificationsAuthorized ? LocalizedStringKey("Allowed") : LocalizedStringKey("Not allowed"))
+                            }
+
+                            Button("Enable notifications") {
+                                Task {
+                                    await appState.requestAlertNotifications()
+                                }
+                            }
+                            .disabled(appState.areNotificationsAuthorized)
+
+                            ForEach(appState.alertRules) { rule in
+                                AlertRuleToggleRow(rule: rule)
+                            }
+                        }
+
                         settingsSection("About", symbol: "info.circle") {
                             Button {
                                 versionTapCount += 1
@@ -140,6 +161,39 @@ struct SettingsView: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
+    }
+}
+
+private struct AlertRuleToggleRow: View {
+    @EnvironmentObject private var appState: AppState
+    var rule: AlertRule
+
+    var body: some View {
+        Toggle(isOn: Binding(
+            get: { rule.isEnabled },
+            set: { appState.setAlertRule(rule, isEnabled: $0) }
+        )) {
+            HStack(spacing: 10) {
+                Image(systemName: rule.metric.symbol)
+                    .foregroundStyle(.cyan)
+                    .frame(width: 26)
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(LocalizedStringKey(rule.title))
+                        .font(.callout.weight(.semibold))
+                    Text(thresholdText)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+    }
+
+    private var thresholdText: String {
+        if rule.metric == .failedServices {
+            return appState.localized(rule.metric.thresholdFormatKey)
+        }
+        return appState.localized(rule.metric.thresholdFormatKey, rule.threshold)
     }
 }
 
