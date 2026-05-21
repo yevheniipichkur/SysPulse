@@ -1,6 +1,104 @@
 import Foundation
+import SwiftData
 
-struct ProfileStorageService {
+@MainActor
+protocol ProfileRepository {
+    func loadProfiles() throws -> [ServerProfile]
+    func saveProfile(_ profile: ServerProfile) throws
+    func deleteProfile(_ profile: ServerProfile) throws
+    func deleteAllProfiles() throws
+}
+
+@MainActor
+struct SwiftDataProfileRepository: ProfileRepository {
+    private let modelContext: ModelContext
+    private let legacyStorage: LegacyProfileStorageService?
+
+    init(modelContext: ModelContext, legacyUserDefaults: UserDefaults? = .standard) {
+        self.modelContext = modelContext
+        self.legacyStorage = legacyUserDefaults.map { LegacyProfileStorageService(userDefaults: $0) }
+    }
+
+    func loadProfiles() throws -> [ServerProfile] {
+        let profiles = try fetchProfiles()
+        guard profiles.isEmpty, let legacyProfiles = legacyStorage?.loadProfiles(), !legacyProfiles.isEmpty else {
+            return profiles
+        }
+
+        for profile in legacyProfiles {
+            modelContext.insert(profile)
+        }
+        try modelContext.save()
+        legacyStorage?.clearProfiles()
+        return try fetchProfiles()
+    }
+
+    func saveProfile(_ profile: ServerProfile) throws {
+        if let storedProfile = try fetchProfile(id: profile.id) {
+            if storedProfile !== profile {
+                storedProfile.applyPersistentMetadata(from: profile)
+            }
+        } else {
+            modelContext.insert(profile)
+        }
+        try modelContext.save()
+    }
+
+    func deleteProfile(_ profile: ServerProfile) throws {
+        if let storedProfile = try fetchProfile(id: profile.id) {
+            modelContext.delete(storedProfile)
+        }
+        try modelContext.save()
+    }
+
+    func deleteAllProfiles() throws {
+        for profile in try fetchProfiles() {
+            modelContext.delete(profile)
+        }
+        try modelContext.save()
+    }
+
+    private func fetchProfiles() throws -> [ServerProfile] {
+        let descriptor = FetchDescriptor<ServerProfile>(
+            sortBy: [
+                SortDescriptor(\.createdAt, order: .forward),
+                SortDescriptor(\.name, order: .forward)
+            ]
+        )
+        return try modelContext.fetch(descriptor)
+    }
+
+    private func fetchProfile(id: UUID) throws -> ServerProfile? {
+        var descriptor = FetchDescriptor<ServerProfile>(
+            predicate: #Predicate { profile in
+                profile.id == id
+            }
+        )
+        descriptor.fetchLimit = 1
+        return try modelContext.fetch(descriptor).first
+    }
+}
+
+private extension ServerProfile {
+    func applyPersistentMetadata(from profile: ServerProfile) {
+        name = profile.name
+        host = profile.host
+        port = profile.port
+        username = profile.username
+        authenticationTypeRaw = profile.authenticationTypeRaw
+        credentialIdentifier = profile.credentialIdentifier
+        tagsCSV = profile.tagsCSV
+        groupName = profile.groupName
+        icon = profile.icon
+        accentHex = profile.accentHex
+        serverTypeRaw = profile.serverTypeRaw
+        statusRaw = profile.statusRaw
+        createdAt = profile.createdAt
+        updatedAt = profile.updatedAt
+    }
+}
+
+private struct LegacyProfileStorageService {
     private let key = "SysPulse.savedServerProfiles.v1"
     private let userDefaults: UserDefaults
 
@@ -14,12 +112,6 @@ struct ProfileStorageService {
             return []
         }
         return snapshots.map { $0.makeServerProfile() }
-    }
-
-    func saveProfiles(_ profiles: [ServerProfile]) {
-        let snapshots = profiles.map { StoredServerProfile(profile: $0) }
-        guard let data = try? JSONEncoder().encode(snapshots) else { return }
-        userDefaults.set(data, forKey: key)
     }
 
     func clearProfiles() {
@@ -43,24 +135,6 @@ private struct StoredServerProfile: Codable {
     var statusRaw: String
     var createdAt: Date
     var updatedAt: Date
-
-    init(profile: ServerProfile) {
-        self.id = profile.id
-        self.name = profile.name
-        self.host = profile.host
-        self.port = profile.port
-        self.username = profile.username
-        self.authenticationTypeRaw = profile.authenticationTypeRaw
-        self.credentialIdentifier = profile.credentialIdentifier
-        self.tagsCSV = profile.tagsCSV
-        self.groupName = profile.groupName
-        self.icon = profile.icon
-        self.accentHex = profile.accentHex
-        self.serverTypeRaw = profile.serverTypeRaw
-        self.statusRaw = profile.statusRaw
-        self.createdAt = profile.createdAt
-        self.updatedAt = profile.updatedAt
-    }
 
     func makeServerProfile() -> ServerProfile {
         let profile = ServerProfile(

@@ -14,7 +14,7 @@ SysPulse создаётся как нативный SwiftUI-продукт: кр
 - Quick Commands с safety levels и обязательным подтверждением dangerous actions.
 - Command safety analyzer для `reboot`, `rm`, `docker rm`, `systemctl stop`, `kill`, `ufw` changes и package manager actions.
 - Missing Tools screen с preview install commands и ручным подтверждением.
-- Metadata-only persistence для server profiles; секреты остаются только в Keychain.
+- SwiftData-backed metadata persistence для server profiles; секреты остаются только в Keychain.
 - StoreKit 2 paywall skeleton: Monthly, Yearly, Lifetime.
 - Settings: security, appearance, language, data, hidden Developer / QA menu.
 - WidgetKit, ActivityKit и App Intents scaffolds.
@@ -50,7 +50,7 @@ Pro:
 - systemd monitoring.
 - Logs viewer.
 - Widgets and Live Activities.
-- iCloud sync placeholder.
+- SwiftData + CloudKit iCloud sync for saved profile metadata.
 - Premium terminal themes.
 - Command snippets and groups.
 - Smart Insights.

@@ -1,15 +1,11 @@
+import SwiftData
 import XCTest
 @testable import SysPulse
 
 final class ProfileStorageServiceTests: XCTestCase {
-    func testProfileMetadataPersistsWithoutSecretMaterial() {
-        let suiteName = "ProfileStorageServiceTests-\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suiteName)!
-        defer {
-            defaults.removePersistentDomain(forName: suiteName)
-        }
-
-        let service = ProfileStorageService(userDefaults: defaults)
+    @MainActor
+    func testProfileMetadataPersistsInSwiftDataWithoutSecretMaterial() throws {
+        let repository = try makeRepository()
         let profile = ServerProfile(
             name: "Production",
             host: "prod.example.com",
@@ -25,15 +21,61 @@ final class ProfileStorageServiceTests: XCTestCase {
             status: .online
         )
 
-        service.saveProfiles([profile])
-        let loaded = service.loadProfiles()
+        try repository.saveProfile(profile)
+        let loaded = try repository.loadProfiles()
 
         XCTAssertEqual(loaded.count, 1)
         XCTAssertEqual(loaded.first?.host, "prod.example.com")
         XCTAssertEqual(loaded.first?.credentialIdentifier, "keychain-reference-only")
+        XCTAssertEqual(loaded.first?.authenticationType, .privateKeyWithPassphrase)
+        XCTAssertEqual(loaded.first?.tags, ["prod", "nginx"])
+    }
 
-        let rawData = defaults.data(forKey: "SysPulse.savedServerProfiles.v1")
-        XCTAssertNotNil(rawData)
-        XCTAssertFalse(String(data: rawData ?? Data(), encoding: .utf8)?.contains("PRIVATE KEY") ?? true)
+    @MainActor
+    func testSavingExistingProfileUpdatesSingleSwiftDataRecord() throws {
+        let repository = try makeRepository()
+        let profile = ServerProfile(
+            name: "Staging",
+            host: "staging.example.com",
+            username: "ubuntu",
+            credentialIdentifier: "keychain-reference-only",
+            serverType: .vps
+        )
+
+        try repository.saveProfile(profile)
+        profile.name = "Production"
+        profile.host = "prod.example.com"
+        profile.tagsCSV = "prod,nginx"
+        try repository.saveProfile(profile)
+
+        let loaded = try repository.loadProfiles()
+        XCTAssertEqual(loaded.count, 1)
+        XCTAssertEqual(loaded.first?.name, "Production")
+        XCTAssertEqual(loaded.first?.host, "prod.example.com")
+        XCTAssertEqual(loaded.first?.tags, ["prod", "nginx"])
+    }
+
+    @MainActor
+    func testDeletingProfileRemovesSwiftDataRecord() throws {
+        let repository = try makeRepository()
+        let profile = ServerProfile(
+            name: "Disposable",
+            host: "test.example.com",
+            username: "ubuntu",
+            serverType: .custom
+        )
+
+        try repository.saveProfile(profile)
+        try repository.deleteProfile(profile)
+
+        XCTAssertTrue(try repository.loadProfiles().isEmpty)
+    }
+
+    @MainActor
+    private func makeRepository() throws -> SwiftDataProfileRepository {
+        let schema = Schema([ServerProfile.self])
+        let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
+        let container = try ModelContainer(for: schema, configurations: [configuration])
+        return SwiftDataProfileRepository(modelContext: container.mainContext, legacyUserDefaults: nil)
     }
 }

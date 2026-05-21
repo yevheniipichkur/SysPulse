@@ -218,21 +218,21 @@ enum HealthRating: String, Hashable {
 
 @Model
 final class ServerProfile: Identifiable {
-    @Attribute(.unique) var id: UUID
-    var name: String
-    var host: String
-    var port: Int
-    var username: String
-    var authenticationTypeRaw: String
+    var id: UUID = UUID()
+    var name: String = ""
+    var host: String = ""
+    var port: Int = 22
+    var username: String = ""
+    var authenticationTypeRaw: String = SSHAuthenticationType.password.rawValue
     var credentialIdentifier: String?
-    var tagsCSV: String
+    var tagsCSV: String = ""
     var groupName: String?
-    var icon: String
-    var accentHex: String
-    var serverTypeRaw: String
-    var statusRaw: String
-    var createdAt: Date
-    var updatedAt: Date
+    var icon: String = "server.rack"
+    var accentHex: String = "#33C2EA"
+    var serverTypeRaw: String = ServerType.custom.rawValue
+    var statusRaw: String = ServerStatus.unknown.rawValue
+    var createdAt: Date = .now
+    var updatedAt: Date = .now
 
     init(
         id: UUID = UUID(),
@@ -371,13 +371,13 @@ struct ServerMetrics: Identifiable, Codable, Hashable {
 
 @Model
 final class TerminalSession: Identifiable {
-    @Attribute(.unique) var id: UUID
+    var id: UUID = UUID()
     var serverID: UUID?
-    var title: String
-    var startedAt: Date
-    var isActive: Bool
-    var themeRaw: String
-    var transcript: String
+    var title: String = ""
+    var startedAt: Date = .now
+    var isActive: Bool = true
+    var themeRaw: String = TerminalTheme.liquidDark.rawValue
+    var transcript: String = ""
 
     init(
         id: UUID = UUID(),
@@ -405,13 +405,13 @@ final class TerminalSession: Identifiable {
 
 @Model
 final class QuickCommand: Identifiable {
-    @Attribute(.unique) var id: UUID
-    var title: String
-    var details: String
-    var command: String
-    var safetyRaw: String
-    var isPremium: Bool
-    var variablesCSV: String
+    var id: UUID = UUID()
+    var title: String = ""
+    var details: String = ""
+    var command: String = ""
+    var safetyRaw: String = CommandSafetyLevel.safe.rawValue
+    var isPremium: Bool = false
+    var variablesCSV: String = ""
 
     init(
         id: UUID = UUID(),
@@ -445,14 +445,14 @@ final class QuickCommand: Identifiable {
 
 @Model
 final class CommandExecution: Identifiable {
-    @Attribute(.unique) var id: UUID
+    var id: UUID = UUID()
     var commandID: UUID?
     var serverID: UUID?
-    var commandText: String
-    var output: String
-    var exitCode: Int
-    var executedAt: Date
-    var requiredConfirmation: Bool
+    var commandText: String = ""
+    var output: String = ""
+    var exitCode: Int = 0
+    var executedAt: Date = .now
+    var requiredConfirmation: Bool = false
 
     init(
         id: UUID = UUID(),
@@ -477,10 +477,10 @@ final class CommandExecution: Identifiable {
 
 @Model
 final class ServerGroup: Identifiable {
-    @Attribute(.unique) var id: UUID
-    var name: String
-    var accentHex: String
-    var icon: String
+    var id: UUID = UUID()
+    var name: String = ""
+    var accentHex: String = "#33C2EA"
+    var icon: String = "folder"
 
     init(id: UUID = UUID(), name: String, accentHex: String = "#33C2EA", icon: String = "folder") {
         self.id = id
@@ -519,12 +519,12 @@ struct SubscriptionState: Codable, Hashable {
 
 @Model
 final class AlertRule: Identifiable {
-    @Attribute(.unique) var id: UUID
+    var id: UUID = UUID()
     var serverID: UUID?
-    var title: String
-    var metricKey: String
-    var threshold: Double
-    var isEnabled: Bool
+    var title: String = ""
+    var metricKey: String = ""
+    var threshold: Double = 0
+    var isEnabled: Bool = true
 
     init(id: UUID = UUID(), serverID: UUID? = nil, title: String, metricKey: String, threshold: Double, isEnabled: Bool = true) {
         self.id = id
@@ -538,12 +538,12 @@ final class AlertRule: Identifiable {
 
 @Model
 final class ServerEvent: Identifiable {
-    @Attribute(.unique) var id: UUID
+    var id: UUID = UUID()
     var serverID: UUID?
-    var title: String
-    var details: String
-    var severity: String
-    var createdAt: Date
+    var title: String = ""
+    var details: String = ""
+    var severity: String = CommandSafetyLevel.safe.rawValue
+    var createdAt: Date = .now
 
     init(id: UUID = UUID(), serverID: UUID? = nil, title: String, details: String, severity: String, createdAt: Date = .now) {
         self.id = id

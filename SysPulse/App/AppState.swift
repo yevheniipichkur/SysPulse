@@ -1,4 +1,5 @@
 import Foundation
+import SwiftData
 import SwiftUI
 import UIKit
 
@@ -38,7 +39,7 @@ final class AppState: ObservableObject {
     @Published var systemdServicesByServer: [UUID: [SystemdServiceItem]] = [:]
     @Published var logEntriesByServer: [UUID: [LogEntry]] = [:]
 
-    private let profileStorage = ProfileStorageService()
+    private var profileRepository: ProfileRepository?
     private let settingsStorage = SettingsStorageService()
     private let widgetDataService = WidgetDataService()
     private let liveActivityService = LiveActivityService()
@@ -56,20 +57,20 @@ final class AppState: ObservableObject {
     private var autoRefreshTask: Task<Void, Never>?
 
     init() {
-        let savedProfiles = ProfileStorageService().loadProfiles()
-        var metrics: [UUID: ServerMetrics] = [:]
-        for profile in savedProfiles {
-            metrics[profile.id] = ServerMetrics.empty(serverID: profile.id)
-        }
-        self.serverProfiles = savedProfiles
-        self.metricsByServer = metrics
+        self.serverProfiles = []
+        self.metricsByServer = [:]
         self.quickCommands = QuickCommandCatalog.makeQuickCommands()
         self.terminalSessions = []
         self.settings = SettingsStorageService().loadSettings()
         self.subscription = SettingsStorageService().loadSubscription()
         self.packageStatuses = PackageDetector.defaultStatuses
-        self.selectedServer = savedProfiles.first
-        publishWidgetSnapshots()
+        self.selectedServer = nil
+    }
+
+    func configureProfileRepository(modelContext: ModelContext) {
+        guard profileRepository == nil else { return }
+        profileRepository = SwiftDataProfileRepository(modelContext: modelContext)
+        reloadProfilesFromRepository()
         startAutoRefresh()
     }
 
@@ -132,38 +133,74 @@ final class AppState: ObservableObject {
             isPaywallPresented = true
             return false
         }
+
+        guard let profileRepository else {
+            lastCommandOutput = "Profile database is not ready yet."
+            return false
+        }
+
+        do {
+            try profileRepository.saveProfile(server)
+        } catch {
+            lastCommandOutput = "Failed to save profile: \(error.localizedDescription)"
+            return false
+        }
+
         serverProfiles.append(server)
         metricsByServer[server.id] = ServerMetrics.empty(serverID: server.id)
         selectedServer = server
-        profileStorage.saveProfiles(serverProfiles)
         haptic(.light)
         return true
     }
 
     func updateServer(_ server: ServerProfile) {
+        guard let profileRepository else {
+            lastCommandOutput = "Profile database is not ready yet."
+            return
+        }
+
         server.updatedAt = .now
+        do {
+            try profileRepository.saveProfile(server)
+        } catch {
+            lastCommandOutput = "Failed to save profile: \(error.localizedDescription)"
+            return
+        }
+
         if selectedServer?.id == server.id {
             selectedServer = server
         }
-        profileStorage.saveProfiles(serverProfiles)
         objectWillChange.send()
         haptic(.light)
     }
 
     func deleteServer(_ server: ServerProfile) {
-        serverProfiles.removeAll { $0.id == server.id }
-        metricsByServer.removeValue(forKey: server.id)
-        processItemsByServer.removeValue(forKey: server.id)
-        diskInfoByServer.removeValue(forKey: server.id)
-        dockerContainersByServer.removeValue(forKey: server.id)
-        systemdServicesByServer.removeValue(forKey: server.id)
-        logEntriesByServer.removeValue(forKey: server.id)
-        terminalSessions.removeAll { $0.serverID == server.id }
-        if let credentialIdentifier = server.credentialIdentifier {
+        guard let profileRepository else {
+            lastCommandOutput = "Profile database is not ready yet."
+            return
+        }
+
+        let serverID = server.id
+        let credentialIdentifier = server.credentialIdentifier
+        do {
+            try profileRepository.deleteProfile(server)
+        } catch {
+            lastCommandOutput = "Failed to delete profile: \(error.localizedDescription)"
+            return
+        }
+
+        serverProfiles.removeAll { $0.id == serverID }
+        metricsByServer.removeValue(forKey: serverID)
+        processItemsByServer.removeValue(forKey: serverID)
+        diskInfoByServer.removeValue(forKey: serverID)
+        dockerContainersByServer.removeValue(forKey: serverID)
+        systemdServicesByServer.removeValue(forKey: serverID)
+        logEntriesByServer.removeValue(forKey: serverID)
+        terminalSessions.removeAll { $0.serverID == serverID }
+        if let credentialIdentifier {
             try? KeychainService.shared.deleteSecret(account: credentialIdentifier)
         }
-        profileStorage.saveProfiles(serverProfiles)
-        if selectedServer?.id == server.id {
+        if selectedServer?.id == serverID {
             selectedServer = serverProfiles.first
         }
         haptic(.rigid)
@@ -416,10 +453,20 @@ final class AppState: ObservableObject {
     }
 
     func clearSavedProfiles() {
-        serverProfiles
-            .compactMap(\.credentialIdentifier)
-            .forEach { try? KeychainService.shared.deleteSecret(account: $0) }
-        profileStorage.clearProfiles()
+        guard let profileRepository else {
+            lastCommandOutput = "Profile database is not ready yet."
+            return
+        }
+
+        let credentialIdentifiers = serverProfiles.compactMap(\.credentialIdentifier)
+        do {
+            try profileRepository.deleteAllProfiles()
+        } catch {
+            lastCommandOutput = "Failed to clear profiles: \(error.localizedDescription)"
+            return
+        }
+
+        credentialIdentifiers.forEach { try? KeychainService.shared.deleteSecret(account: $0) }
         serverProfiles = []
         metricsByServer = [:]
         terminalSessions = []
@@ -461,6 +508,25 @@ final class AppState: ObservableObject {
 
     private func publishWidgetSnapshots() {
         widgetDataService.save(profiles: serverProfiles, metricsByServer: metricsByServer)
+    }
+
+    private func reloadProfilesFromRepository() {
+        guard let profileRepository else { return }
+        do {
+            let savedProfiles = try profileRepository.loadProfiles()
+            serverProfiles = savedProfiles
+            metricsByServer = Dictionary(
+                uniqueKeysWithValues: savedProfiles.map { profile in
+                    (profile.id, metricsByServer[profile.id] ?? ServerMetrics.empty(serverID: profile.id))
+                }
+            )
+            selectedServer = selectedServer.flatMap { selected in
+                savedProfiles.first { $0.id == selected.id }
+            } ?? savedProfiles.first
+            publishWidgetSnapshots()
+        } catch {
+            lastCommandOutput = "Failed to load profiles: \(error.localizedDescription)"
+        }
     }
 
     func haptic(_ style: UIImpactFeedbackGenerator.FeedbackStyle) {

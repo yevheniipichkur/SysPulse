@@ -1,6 +1,8 @@
+import SwiftData
 import SwiftUI
 
 struct RootView: View {
+    @Environment(\.modelContext) private var modelContext
     @EnvironmentObject private var appState: AppState
 
     var body: some View {
@@ -20,6 +22,9 @@ struct RootView: View {
             DebugMenuView()
                 .presentationDetents([.large])
                 .presentationCornerRadius(34)
+        }
+        .onAppear {
+            appState.configureProfileRepository(modelContext: modelContext)
         }
     }
 }
