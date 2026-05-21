@@ -232,7 +232,7 @@ struct ServerDetailView: View {
 
     private func processes(server: ServerProfile) -> some View {
         let items = appState.processes(for: server)
-        VStack(spacing: 12) {
+        return VStack(spacing: 12) {
             monitorRefreshHeader(
                 title: "Top Processes",
                 message: "Live process snapshot from ps on the selected server.",
@@ -265,7 +265,7 @@ struct ServerDetailView: View {
 
     private func disks(server: ServerProfile) -> some View {
         let disks = appState.disks(for: server)
-        VStack(spacing: 12) {
+        return VStack(spacing: 12) {
             monitorRefreshHeader(
                 title: "Disk usage",
                 message: "Mounted filesystems parsed from df with warning levels.",
@@ -294,7 +294,7 @@ struct ServerDetailView: View {
 
     private func docker(server: ServerProfile) -> some View {
         let containers = appState.dockerContainers(for: server)
-        VStack(spacing: 12) {
+        return VStack(spacing: 12) {
             if !appState.isProUnlocked {
                 PremiumLockedCard(title: "Docker monitoring is Pro", message: "Unlock live container stats, logs and restart actions.")
             }
@@ -326,7 +326,7 @@ struct ServerDetailView: View {
 
     private func services(server: ServerProfile) -> some View {
         let services = appState.systemdServices(for: server)
-        VStack(spacing: 12) {
+        return VStack(spacing: 12) {
             if !appState.isProUnlocked {
                 PremiumLockedCard(title: "Advanced systemd is Pro", message: "Unlock restart/start/stop actions and failed service diagnostics.")
             }
@@ -359,7 +359,7 @@ struct ServerDetailView: View {
 
     private func logs(server: ServerProfile) -> some View {
         let entries = appState.logEntries(for: server)
-        VStack(spacing: 12) {
+        return VStack(spacing: 12) {
             if !appState.isProUnlocked {
                 PremiumLockedCard(title: "Logs viewer is Pro", message: "Unlock journalctl, dmesg, nginx and Docker logs.")
             }
