@@ -72,7 +72,7 @@ struct ProfileCloudSyncService {
 
     private func fetchSnapshotRecord() async throws -> CKRecord? {
         let database = CKContainer.default().privateCloudDatabase
-        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<CKRecord?, Error>) in
+        return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<CKRecord?, Error>) in
             database.fetch(withRecordID: recordID) { record, error in
                 if let ckError = error as? CKError, ckError.code == .unknownItem {
                     continuation.resume(returning: nil)
@@ -91,7 +91,7 @@ struct ProfileCloudSyncService {
 
     private func save(_ record: CKRecord) async throws -> CKRecord {
         let database = CKContainer.default().privateCloudDatabase
-        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<CKRecord, Error>) in
+        return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<CKRecord, Error>) in
             database.save(record) { savedRecord, error in
                 if let error {
                     continuation.resume(throwing: error)
