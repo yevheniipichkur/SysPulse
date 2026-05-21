@@ -1,6 +1,5 @@
 import CloudKit
 import Foundation
-import Security
 
 enum ProfileCloudSyncError: LocalizedError {
     case missingSnapshotData
@@ -137,26 +136,13 @@ struct ProfileCloudSyncService {
     }
 
     private static func isCloudKitEntitled(containerIdentifier: String) -> Bool {
-        let containers = entitlementStrings(for: "com.apple.developer.icloud-container-identifiers")
-        let services = entitlementStrings(for: "com.apple.developer.icloud-services")
-        return containers.contains(containerIdentifier) && services.contains("CloudKit")
-    }
-
-    private static func entitlementStrings(for key: String) -> [String] {
-        guard let task = SecTaskCreateFromSelf(nil),
-              let value = SecTaskCopyValueForEntitlement(task, key as CFString, nil) else {
-            return []
+        guard let profileURL = Bundle.main.url(forResource: "embedded", withExtension: "mobileprovision"),
+              let data = try? Data(contentsOf: profileURL),
+              let profile = String(data: data, encoding: .isoLatin1) ?? String(data: data, encoding: .utf8) else {
+            return false
         }
 
-        if let strings = value as? [String] {
-            return strings
-        }
-
-        if let string = value as? String {
-            return [string]
-        }
-
-        return []
+        return profile.contains(containerIdentifier) && profile.contains("<string>CloudKit</string>")
     }
 }
 
