@@ -12,7 +12,7 @@ struct ServersView: View {
                 VStack(spacing: 18) {
                     PageHeader(
                         title: "Servers",
-                        subtitle: "Linux Monitor & SSH Terminal",
+                        subtitle: "Monitor · SSH · Files",
                         actionSymbol: "plus"
                     ) {
                         isAddingServer = true

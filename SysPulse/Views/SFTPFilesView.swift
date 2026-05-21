@@ -109,6 +109,7 @@ struct SFTPFilesView: View {
             }
         }
         .listStyle(.plain)
+        .scrollContentBackground(.hidden)
         .refreshable {
             appState.refreshSFTPDirectory(for: server)
         }

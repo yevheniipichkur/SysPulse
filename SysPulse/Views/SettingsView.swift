@@ -24,7 +24,9 @@ struct SettingsView: View {
                             }
                             Button("Manage subscription") { appState.isPaywallPresented = true }
                             Button("Restore purchases") {
-                                appState.subscription.lastStoreKitMessage = appState.localized("Restore purchases will sync through StoreKit 2.")
+                                Task {
+                                    try? await appState.restorePurchases()
+                                }
                             }
                         }
 

@@ -18,10 +18,10 @@ struct OnboardingView: View {
             accent: .green
         ),
         OnboardingPage(
-            title: "Smart commands.",
-            subtitle: "Run safe commands, install missing monitoring tools and automate routine checks.",
-            symbol: "bolt.horizontal",
-            accent: .orange
+            title: "Remote File Manager.",
+            subtitle: "Browse, upload and download files on your Linux servers over a secure SFTP connection.",
+            symbol: "folder",
+            accent: .blue
         ),
         OnboardingPage(
             title: "Unlock SysPulse Pro.",

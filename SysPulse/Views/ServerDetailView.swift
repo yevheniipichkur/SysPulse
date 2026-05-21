@@ -40,10 +40,6 @@ struct ServerDetailView: View {
                                     services(server: server)
                                 case .logs:
                                     logs(server: server)
-                                case .packages:
-                                    packages
-                                case .terminal:
-                                    terminalShortcut(server: server)
                                 case .commands:
                                     inlineCommands(server: server)
                                 case .actions:
@@ -100,6 +96,13 @@ struct ServerDetailView: View {
                         UIPasteboard.general.string = appState.lastCommandOutput
                     } label: {
                         Image(systemName: "doc.on.doc")
+                    }
+                    .buttonStyle(.plain)
+                    Button {
+                        appState.lastCommandOutput = ""
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundStyle(.secondary)
                     }
                     .buttonStyle(.plain)
                 }
@@ -178,14 +181,20 @@ struct ServerDetailView: View {
                     } label: {
                         Label(tab.titleKey, systemImage: tab.symbol)
                             .font(.caption.weight(.semibold))
+                            .foregroundStyle(selectedTab == tab ? .cyan : .secondary)
                             .padding(.horizontal, 12)
                             .padding(.vertical, 10)
-                            .background(
-                                selectedTab == tab ? .thinMaterial : .ultraThinMaterial,
-                                in: Capsule()
-                            )
+                            .background(.ultraThinMaterial, in: Capsule())
                             .overlay {
-                                Capsule().stroke(.white.opacity(selectedTab == tab ? 0.24 : 0.08), lineWidth: 1)
+                                if selectedTab == tab {
+                                    Capsule().fill(.cyan.opacity(0.13))
+                                }
+                            }
+                            .overlay {
+                                Capsule().stroke(
+                                    selectedTab == tab ? Color.cyan.opacity(0.45) : Color.white.opacity(0.08),
+                                    lineWidth: 1
+                                )
                             }
                     }
                     .buttonStyle(.plain)
@@ -644,48 +653,6 @@ struct ServerDetailView: View {
         }
     }
 
-    private var packages: some View {
-        VStack(spacing: 12) {
-            GlassCard {
-                VStack(alignment: .leading, spacing: 10) {
-                    Label("Package Diagnostics", systemImage: "wrench.and.screwdriver")
-                        .font(.headline)
-                    ForEach(appState.packageDetector.checkCommandsPreview(), id: \.self) { command in
-                        Text(command)
-                            .font(.caption.monospaced())
-                            .foregroundStyle(.secondary)
-                    }
-                    GlassPrimaryButton(title: "Run Diagnostics", symbol: "stethoscope") {
-                        appState.refreshPackageStatuses(for: appState.selectedServer)
-                    }
-                    GlassPrimaryButton(title: "Open Missing Tools", symbol: "exclamationmark.magnifyingglass") {
-                        showingMissingTools = true
-                    }
-                }
-            }
-
-            ForEach(appState.packageStatuses) { item in
-                GlassCard(cornerRadius: 20, padding: 14) {
-                    HStack {
-                        Image(systemName: item.isInstalled ? "checkmark.circle.fill" : "xmark.circle.fill")
-                            .foregroundStyle(item.isInstalled ? .green : .orange)
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text(item.commandName)
-                                .font(.headline)
-                            Text(LocalizedStringKey(item.featureImpact))
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                        Spacer()
-                        Text(item.packageName)
-                            .font(.caption.monospaced())
-                            .foregroundStyle(.secondary)
-                    }
-                }
-            }
-        }
-    }
-
     private func inlineCommands(server: ServerProfile) -> some View {
         let filtered: [QuickCommand] = commandSearchText.isEmpty
             ? appState.quickCommands
@@ -715,50 +682,102 @@ struct ServerDetailView: View {
         }
     }
 
-    private func terminalShortcut(server: ServerProfile) -> some View {
-        GlassCard {
-            VStack(spacing: 16) {
-                EmptyStateView(
-                    title: "Terminal ready",
-                    message: "Open a protected SSH session for this server.",
-                    symbol: "terminal"
-                )
-                GlassPrimaryButton(title: "Open Terminal", symbol: "terminal") {
+    private func actions(server: ServerProfile) -> some View {
+        VStack(spacing: 14) {
+            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
+                ActionTile(title: "Open Terminal", symbol: "terminal", color: .green) {
                     appState.select(server, tab: .terminal)
                 }
-            }
-        }
-    }
-
-    private func actions(server: ServerProfile) -> some View {
-        GlassCard {
-            VStack(alignment: .leading, spacing: 14) {
-                Label("Server Actions", systemImage: "bolt.horizontal")
-                    .font(.headline)
-                Button("Browse Files (SFTP)") {
+                ActionTile(title: "Browse Files", symbol: "folder", color: .blue) {
                     appState.select(server, tab: .sftp)
                 }
-                Button("Refresh Metrics") {
+                ActionTile(title: "Refresh Metrics", symbol: "arrow.clockwise", color: .cyan) {
                     appState.refreshMetrics(for: server)
                 }
-                Button("Start Live Activity") {
+                ActionTile(title: "Live Activity", symbol: "livephoto.play", color: .purple) {
                     appState.startMonitoringLiveActivity()
                 }
-                Button("End Live Activity") {
-                    appState.endLiveActivity()
-                }
-                Button("Reboot Server", role: .destructive) {
-                    confirm("sudo reboot", message: appState.localized("Reboot %@? This command runs remotely over SSH.", server.name))
+            }
+
+            GlassCard(cornerRadius: 22, padding: 15) {
+                VStack(alignment: .leading, spacing: 12) {
+                    Label("Diagnostics", systemImage: "wrench.and.screwdriver")
+                        .font(.headline)
+                    Text("Scan installed tools and detect missing monitoring utilities.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    HStack(spacing: 10) {
+                        Button {
+                            appState.refreshPackageStatuses(for: appState.selectedServer)
+                        } label: {
+                            Label("Run Diagnostics", systemImage: "stethoscope")
+                                .font(.caption.weight(.bold))
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.plain)
+                        .padding(.vertical, 10)
+                        .background(.thinMaterial, in: Capsule())
+
+                        Button {
+                            showingMissingTools = true
+                        } label: {
+                            Label("Missing Tools", systemImage: "exclamationmark.magnifyingglass")
+                                .font(.caption.weight(.bold))
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.plain)
+                        .padding(.vertical, 10)
+                        .background(.thinMaterial, in: Capsule())
+                    }
+
+                    if !appState.packageStatuses.isEmpty {
+                        Divider()
+                        ForEach(appState.packageStatuses) { item in
+                            HStack(spacing: 10) {
+                                Image(systemName: item.isInstalled ? "checkmark.circle.fill" : "xmark.circle.fill")
+                                    .foregroundStyle(item.isInstalled ? .green : .orange)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(item.commandName)
+                                        .font(.subheadline.weight(.semibold))
+                                    Text(LocalizedStringKey(item.featureImpact))
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                                Spacer()
+                                Text(item.packageName)
+                                    .font(.caption.monospaced())
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
                 }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
+
+            GlassCard(cornerRadius: 22, padding: 15) {
+                VStack(alignment: .leading, spacing: 12) {
+                    Label("Danger Zone", systemImage: "exclamationmark.triangle.fill")
+                        .font(.headline)
+                        .foregroundStyle(.red)
+                    Button(role: .destructive) {
+                        confirm("sudo reboot", message: appState.localized("Reboot %@? This command runs remotely over SSH.", server.name))
+                    } label: {
+                        Label("Reboot Server", systemImage: "power")
+                            .font(.subheadline.weight(.bold))
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 12)
+                            .foregroundStyle(.white)
+                            .background(.red.opacity(0.82), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
         }
     }
 
     private func confirm(_ command: String, message: String? = nil) {
         confirmationMessage = message ?? command
         pendingRemoteCommand = command
-        pendingSFTPDeleteItem = nil
         showingConfirmation = true
     }
 
@@ -793,8 +812,6 @@ private enum DetailTab: String, CaseIterable, Identifiable {
     case docker = "Docker"
     case services = "Services"
     case logs = "Logs"
-    case packages = "Packages"
-    case terminal = "Terminal"
     case commands = "Commands"
     case actions = "Actions"
 
@@ -809,10 +826,8 @@ private enum DetailTab: String, CaseIterable, Identifiable {
         case .docker: "shippingbox"
         case .services: "gearshape.2"
         case .logs: "doc.text.magnifyingglass"
-        case .packages: "wrench.and.screwdriver"
-        case .terminal: "terminal"
         case .commands: "bolt.horizontal"
-        case .actions: "ellipsis.circle"
+        case .actions: "square.grid.2x2"
         }
     }
 }
@@ -868,6 +883,37 @@ struct CompactProgress: View {
                 }
         }
         .frame(height: 8)
+    }
+}
+
+private struct ActionTile: View {
+    var title: LocalizedStringKey
+    var symbol: String
+    var color: Color
+    var action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: 10) {
+                Image(systemName: symbol)
+                    .font(.title2.weight(.semibold))
+                    .foregroundStyle(color)
+                    .frame(width: 48, height: 48)
+                    .background(color.opacity(0.14), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                Text(title)
+                    .font(.caption.weight(.semibold))
+                    .multilineTextAlignment(.center)
+                    .foregroundStyle(.primary)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 16)
+            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .stroke(.white.opacity(0.12), lineWidth: 1)
+            }
+        }
+        .buttonStyle(.plain)
     }
 }
 
