@@ -120,7 +120,7 @@ final class PTYSession {
             terminalPixelWidth: 0,
             terminalPixelHeight: 0,
             terminalModes: SSHTerminalModes([
-                .ECHO: 1,
+                .ECHO: 0,
                 .ICANON: 1,
                 .ISIG: 1,
                 .IEXTEN: 1,
@@ -136,6 +136,6 @@ final class PTYSession {
     }
 
     private static let bootstrapCommand = """
-    export TERM=xterm-256color CLICOLOR=1 PROMPT_DIRTRIM=3; stty echo 2>/dev/null || true; export LS_COLORS='di=1;34:ln=1;36:ex=1;32:*.sh=1;32:*.py=1;32:*.rb=1;32:*.js=1;32:*.swift=1;35:*.json=0;33:*.log=0;90:*.conf=0;36:*.yml=0;36:*.yaml=0;36:*.md=0;37'; alias ls='ls --color=always -C' 2>/dev/null || true; export PROMPT_COMMAND='printf "\\033]777;cwd:%s;home:%s;host:%s\\007" "$PWD" "$HOME" "$(hostname 2>/dev/null || uname -n)"'; export PS1='\\[\\033[1;32m\\]\\u@\\h\\[\\033[0m\\]:\\[\\033[1;36m\\]\\w\\[\\033[0m\\] \\$ '; printf '\\033]777;cwd:%s;home:%s;host:%s\\007' "$PWD" "$HOME" "$(hostname 2>/dev/null || uname -n)"
+    printf '\\r\\033[2K'; export TERM=xterm-256color CLICOLOR=1 PROMPT_DIRTRIM=3; stty echo 2>/dev/null || true; export LS_COLORS='di=1;34:ln=1;36:ex=1;32:*.sh=1;32:*.py=1;32:*.rb=1;32:*.js=1;32:*.swift=1;35:*.json=0;33:*.log=0;90:*.conf=0;36:*.yml=0;36:*.yaml=0;36:*.md=0;37'; alias ls='ls --color=always -C' 2>/dev/null || true; export PROMPT_COMMAND='printf "\\033]777;cwd:%s;home:%s;host:%s\\007" "$PWD" "$HOME" "$(hostname 2>/dev/null || uname -n)"'; export PS1='\\[\\033[1;32m\\]\\u@\\h\\[\\033[0m\\]:\\[\\033[1;36m\\]\\w\\[\\033[0m\\] \\$ '; printf '\\033]777;cwd:%s;home:%s;host:%s\\007' "$PWD" "$HOME" "$(hostname 2>/dev/null || uname -n)"
     """
 }
