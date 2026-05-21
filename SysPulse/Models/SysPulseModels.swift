@@ -6,7 +6,7 @@ enum AppTab: String, CaseIterable, Identifiable, Hashable {
     case servers
     case monitor
     case terminal
-    case commands
+    case sftp
     case settings
 
     var id: String { rawValue }
@@ -19,8 +19,8 @@ enum AppTab: String, CaseIterable, Identifiable, Hashable {
             "Monitor"
         case .terminal:
             "Terminal"
-        case .commands:
-            "Commands"
+        case .sftp:
+            "Files"
         case .settings:
             "Settings"
         }
@@ -33,7 +33,7 @@ enum AppTab: String, CaseIterable, Identifiable, Hashable {
         case .servers: "server.rack"
         case .monitor: "waveform.path.ecg"
         case .terminal: "terminal"
-        case .commands: "bolt.horizontal"
+        case .sftp: "folder"
         case .settings: "gearshape"
         }
     }

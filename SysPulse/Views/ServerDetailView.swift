@@ -9,9 +9,7 @@ struct ServerDetailView: View {
     @State private var confirmationMessage = ""
     @State private var showingConfirmation = false
     @State private var pendingRemoteCommand: String?
-    @State private var pendingSFTPDeleteItem: SFTPRemoteItem?
-    @State private var isImportingSFTPFile = false
-    @State private var downloadedSFTPFileURL: URL?
+    @State private var commandSearchText = ""
 
     private let dockerService = DockerService()
     private let systemdService = SystemdService()
@@ -46,8 +44,8 @@ struct ServerDetailView: View {
                                     packages
                                 case .terminal:
                                     terminalShortcut(server: server)
-                                case .sftp:
-                                    sftp(server: server)
+                                case .commands:
+                                    inlineCommands(server: server)
                                 case .actions:
                                     actions(server: server)
                                 }
@@ -76,26 +74,15 @@ struct ServerDetailView: View {
                 .presentationDetents([.large])
                 .presentationCornerRadius(32)
         }
-        .fileImporter(
-            isPresented: $isImportingSFTPFile,
-            allowedContentTypes: [.data],
-            allowsMultipleSelection: false
-        ) { result in
-            importSFTPFile(result)
-        }
         .alert("Confirmation required", isPresented: $showingConfirmation) {
             Button("Cancel", role: .cancel) {
                 pendingRemoteCommand = nil
-                pendingSFTPDeleteItem = nil
             }
             Button("Confirm", role: .destructive) {
-                if let pendingSFTPDeleteItem, let server = appState.selectedServer {
-                    appState.deleteSFTPItem(pendingSFTPDeleteItem, from: server)
-                } else if let pendingRemoteCommand {
+                if let pendingRemoteCommand {
                     runRemote(pendingRemoteCommand)
                 }
                 pendingRemoteCommand = nil
-                pendingSFTPDeleteItem = nil
             }
         } message: {
             Text(confirmationMessage)
@@ -699,124 +686,31 @@ struct ServerDetailView: View {
         }
     }
 
-    private func sftp(server: ServerProfile) -> some View {
-        let items = appState.sftpItems(for: server)
-        let path = appState.sftpPath(for: server)
+    private func inlineCommands(server: ServerProfile) -> some View {
+        let filtered: [QuickCommand] = commandSearchText.isEmpty
+            ? appState.quickCommands
+            : appState.quickCommands.filter {
+                $0.title.localizedCaseInsensitiveContains(commandSearchText) ||
+                $0.command.localizedCaseInsensitiveContains(commandSearchText)
+            }
 
         return VStack(spacing: 12) {
-            monitorRefreshHeader(
-                title: "SFTP Files",
-                message: "Browse, upload and download files over the selected SSH connection.",
-                primaryTitle: "Refresh Files",
-                primarySymbol: "arrow.clockwise",
-                primaryAction: { appState.refreshSFTPDirectory(for: server) },
-                secondaryTitle: "Upload File",
-                secondarySymbol: "square.and.arrow.up",
-                secondaryAction: { isImportingSFTPFile = true }
-            )
-
-            GlassCard(cornerRadius: 18, padding: 12) {
-                HStack(spacing: 10) {
-                    Image(systemName: "folder")
-                        .foregroundStyle(.cyan)
-                    Text(path)
-                        .font(.caption.monospaced())
-                        .lineLimit(1)
-                    Spacer()
-                    Button {
-                        appState.openSFTPParent(for: server)
-                    } label: {
-                        Label("Up", systemImage: "arrow.up")
-                            .labelStyle(.iconOnly)
-                    }
-                    .buttonStyle(.plain)
-                    Button {
-                        appState.refreshSFTPDirectory(for: server, path: ".")
-                    } label: {
-                        Label("Home", systemImage: "house")
-                            .labelStyle(.iconOnly)
-                    }
-                    .buttonStyle(.plain)
-                }
+            GlassCard(cornerRadius: 20, padding: 14) {
+                TextField("Search commands", text: $commandSearchText)
+                    .textInputAutocapitalization(.never)
+                    .font(.subheadline)
             }
 
-            if let downloadedSFTPFileURL {
-                GlassCard(cornerRadius: 18, padding: 12) {
-                    HStack(spacing: 10) {
-                        Image(systemName: "checkmark.circle.fill")
-                            .foregroundStyle(.green)
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("SFTP download ready")
-                                .font(.headline)
-                            Text(downloadedSFTPFileURL.lastPathComponent)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                                .lineLimit(1)
-                        }
-                        Spacer()
-                        ShareLink(item: downloadedSFTPFileURL) {
-                            Image(systemName: "square.and.arrow.up")
-                        }
-                    }
-                }
+            ForEach(filtered) { command in
+                commandPreview(title: LocalizedStringKey(command.title), command: command.command)
             }
 
-            if items.isEmpty {
+            if filtered.isEmpty {
                 EmptyStateView(
-                    title: "No files loaded",
-                    message: "Refresh to browse the remote directory.",
-                    symbol: "folder"
+                    title: "No commands found",
+                    message: "Try a different search term.",
+                    symbol: "bolt.horizontal"
                 )
-                .onAppear {
-                    appState.refreshSFTPDirectory(for: server)
-                }
-            } else {
-                ForEach(items) { item in
-                    sftpRow(item, server: server)
-                }
-            }
-        }
-    }
-
-    private func sftpRow(_ item: SFTPRemoteItem, server: ServerProfile) -> some View {
-        GlassCard(cornerRadius: 18, padding: 13) {
-            VStack(alignment: .leading, spacing: 10) {
-                HStack(alignment: .firstTextBaseline, spacing: 10) {
-                    Image(systemName: item.kind.symbol)
-                        .foregroundStyle(item.isDirectory ? .cyan : .secondary)
-                        .frame(width: 22)
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text(item.name)
-                            .font(.headline.monospaced())
-                            .lineLimit(1)
-                        Text("\(item.permissions) · \(item.modifiedAt)")
-                            .font(.caption2.monospaced())
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                    }
-                    Spacer()
-                    Text(item.isDirectory ? appState.localized("Directory") : byteCount(item.size))
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.secondary)
-                }
-
-                HStack(spacing: 12) {
-                    if item.isDirectory {
-                        Button("Open") {
-                            appState.refreshSFTPDirectory(for: server, path: item.path)
-                        }
-                    } else {
-                        Button("Download") {
-                            Task {
-                                downloadedSFTPFileURL = await appState.downloadSFTPFile(item, from: server)
-                            }
-                        }
-                    }
-                    Button("Delete", role: .destructive) {
-                        confirmSFTPDelete(item)
-                    }
-                }
-                .font(.caption.weight(.semibold))
             }
         }
     }
@@ -841,8 +735,8 @@ struct ServerDetailView: View {
             VStack(alignment: .leading, spacing: 14) {
                 Label("Server Actions", systemImage: "bolt.horizontal")
                     .font(.headline)
-                Button("Run Quick Command") {
-                    appState.select(server, tab: .commands)
+                Button("Browse Files (SFTP)") {
+                    appState.select(server, tab: .sftp)
                 }
                 Button("Refresh Metrics") {
                     appState.refreshMetrics(for: server)
@@ -866,23 +760,6 @@ struct ServerDetailView: View {
         pendingRemoteCommand = command
         pendingSFTPDeleteItem = nil
         showingConfirmation = true
-    }
-
-    private func confirmSFTPDelete(_ item: SFTPRemoteItem) {
-        confirmationMessage = appState.localized("Delete %@ from SFTP?", item.name)
-        pendingRemoteCommand = nil
-        pendingSFTPDeleteItem = item
-        showingConfirmation = true
-    }
-
-    private func importSFTPFile(_ result: Result<[URL], Error>) {
-        do {
-            guard let server = appState.selectedServer,
-                  let url = try result.get().first else { return }
-            appState.uploadSFTPFile(from: url, to: server)
-        } catch {
-            appState.lastCommandOutput = error.localizedDescription
-        }
     }
 
     private func runRemote(_ command: String) {
@@ -918,7 +795,7 @@ private enum DetailTab: String, CaseIterable, Identifiable {
     case logs = "Logs"
     case packages = "Packages"
     case terminal = "Terminal"
-    case sftp = "SFTP"
+    case commands = "Commands"
     case actions = "Actions"
 
     var id: String { rawValue }
@@ -934,8 +811,8 @@ private enum DetailTab: String, CaseIterable, Identifiable {
         case .logs: "doc.text.magnifyingglass"
         case .packages: "wrench.and.screwdriver"
         case .terminal: "terminal"
-        case .sftp: "folder.badge.gearshape"
-        case .actions: "bolt.horizontal"
+        case .commands: "bolt.horizontal"
+        case .actions: "ellipsis.circle"
         }
     }
 }

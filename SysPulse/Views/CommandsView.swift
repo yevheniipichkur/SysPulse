@@ -62,7 +62,7 @@ struct CommandsView: View {
                 .scrollIndicators(.hidden)
             }
         }
-        .accessibilityIdentifier(AppTab.commands.screenAccessibilityIdentifier)
+        .accessibilityIdentifier("screen_commands")
         .alert("Run dangerous command?", isPresented: $showingConfirmation) {
             Button("Cancel", role: .cancel) {}
             Button("Run", role: .destructive) {

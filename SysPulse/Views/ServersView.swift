@@ -46,9 +46,9 @@ struct ServersView: View {
                                 }
                                 Button {
                                     appState.selectedServer = server
-                                    appState.selectedTab = .commands
+                                    appState.selectedTab = .sftp
                                 } label: {
-                                    Label("Run Quick Command", systemImage: "bolt.horizontal")
+                                    Label("Browse Files", systemImage: "folder")
                                 }
                                 Divider()
                                 Button(role: .destructive) {

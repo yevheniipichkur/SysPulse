@@ -128,9 +128,9 @@ struct MainShellView: View {
             TerminalView()
                 .tabItem { tabLabel(for: .terminal) }
                 .tag(AppTab.terminal)
-            CommandsView()
-                .tabItem { tabLabel(for: .commands) }
-                .tag(AppTab.commands)
+            SFTPFilesView()
+                .tabItem { tabLabel(for: .sftp) }
+                .tag(AppTab.sftp)
             SettingsView()
                 .tabItem { tabLabel(for: .settings) }
                 .tag(AppTab.settings)
