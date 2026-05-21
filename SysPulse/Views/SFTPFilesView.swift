@@ -89,7 +89,7 @@ struct SFTPFilesView: View {
             }
 
             if visibleItems.isEmpty && !searchText.isEmpty {
-                Text("No results for "\(searchText)"")
+                Text("No results for \"\(searchText)\"")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .listRowBackground(Color.clear)
