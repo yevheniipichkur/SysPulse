@@ -107,15 +107,22 @@ final class StoreKitService: ObservableObject {
     private func state(from transaction: Transaction) -> SubscriptionState {
         var s = SubscriptionState()
         s.expiresAt = transaction.expirationDate
-        s.isActive = transaction.revocationDate == nil &&
-            (transaction.expirationDate.map { $0 > .now } ?? true)
-        if transaction.productID.contains("lifetime") {
+
+        let product = products.first { $0.id == transaction.productID }
+        let isNonConsumable = product?.type == .nonConsumable
+
+        if isNonConsumable {
+            // Non-consumable (lifetime): never expires, only revocable
             s.plan = .lifetime
-            s.isActive = true
+            s.isActive = transaction.revocationDate == nil
         } else if transaction.productID.contains("yearly") {
             s.plan = .proYearly
+            s.isActive = transaction.revocationDate == nil &&
+                (transaction.expirationDate.map { $0 > .now } ?? false)
         } else {
             s.plan = .proMonthly
+            s.isActive = transaction.revocationDate == nil &&
+                (transaction.expirationDate.map { $0 > .now } ?? false)
         }
         s.productsLoaded = true
         return s
