@@ -32,6 +32,10 @@ final class AppState: ObservableObject {
     }
     @Published var isPaywallPresented = false
     @Published var isDebugMenuPresented = false
+    @Published var isSecurityUnlocked = false
+    @Published var isSecurityPromptInProgress = false
+    @Published var isPrivacyShieldVisible = false
+    @Published var securityLockMessage = ""
     @Published var lastCommandOutput = ""
     @Published var processItemsByServer: [UUID: [ProcessInfoItem]] = [:]
     @Published var diskInfoByServer: [UUID: [DiskInfo]] = [:]
@@ -43,6 +47,7 @@ final class AppState: ObservableObject {
     private let settingsStorage = SettingsStorageService()
     private let widgetDataService = WidgetDataService()
     private let liveActivityService = LiveActivityService()
+    private let biometricLockService = BiometricLockService()
     private let metricsCollector = MetricsCollector()
     private let processService = ProcessService()
     private let diskService = DiskService()
@@ -55,6 +60,7 @@ final class AppState: ObservableObject {
     let sshClient: SSHClientProtocol = RealSSHClient()
     @Published var packageStatuses: [PackageStatus]
     private var autoRefreshTask: Task<Void, Never>?
+    private var protectedBackgroundDate: Date?
 
     init() {
         self.serverProfiles = []
@@ -86,9 +92,110 @@ final class AppState: ObservableObject {
         }
     }
 
+    var shouldShowSecurityLock: Bool {
+        settings.requiresBiometrics && hasSeenOnboarding && (isPrivacyShieldVisible || !isSecurityUnlocked)
+    }
+
     func completeOnboarding() {
         hasSeenOnboarding = true
         haptic(.medium)
+    }
+
+    func handleScenePhase(_ phase: ScenePhase) {
+        guard settings.requiresBiometrics, hasSeenOnboarding else {
+            isSecurityUnlocked = true
+            isPrivacyShieldVisible = false
+            return
+        }
+
+        switch phase {
+        case .active:
+            Task {
+                await unlockAppIfNeeded()
+            }
+        case .inactive, .background:
+            protectedBackgroundDate = .now
+            isPrivacyShieldVisible = true
+        @unknown default:
+            break
+        }
+    }
+
+    func unlockAppIfNeeded(force: Bool = false) async {
+        guard settings.requiresBiometrics, hasSeenOnboarding else {
+            isSecurityUnlocked = true
+            isPrivacyShieldVisible = false
+            securityLockMessage = ""
+            return
+        }
+
+        let didPassAutoLock = protectedBackgroundDate.map { backgroundDate in
+            Date.now.timeIntervalSince(backgroundDate) >= TimeInterval(settings.autoLockMinutes * 60)
+        } ?? false
+
+        guard force || !isSecurityUnlocked || didPassAutoLock else {
+            isPrivacyShieldVisible = false
+            return
+        }
+
+        isSecurityUnlocked = false
+        isPrivacyShieldVisible = true
+        await authenticateForSecurityUnlock(reason: "Unlock SysPulse")
+    }
+
+    func enableBiometricLockFromSettings() async {
+        guard !settings.requiresBiometrics else { return }
+
+        isPrivacyShieldVisible = true
+        let result = await biometricLockService.unlock(reason: "Enable Face ID lock for SysPulse")
+        switch result {
+        case .success:
+            settings.requiresBiometrics = true
+            isSecurityUnlocked = true
+            isPrivacyShieldVisible = false
+            securityLockMessage = ""
+            lastCommandOutput = "Face ID lock enabled."
+        case .unavailable(let message), .failed(let message):
+            isSecurityUnlocked = true
+            isPrivacyShieldVisible = false
+            securityLockMessage = message
+            lastCommandOutput = "Face ID lock was not enabled: \(message)"
+        }
+    }
+
+    func disableBiometricLock() {
+        settings.requiresBiometrics = false
+        isSecurityUnlocked = true
+        isPrivacyShieldVisible = false
+        securityLockMessage = ""
+        lastCommandOutput = "Face ID lock disabled."
+    }
+
+    private func authenticateForSecurityUnlock(reason: String) async {
+        guard !isSecurityPromptInProgress else { return }
+
+        isSecurityPromptInProgress = true
+        securityLockMessage = ""
+        let result = await biometricLockService.unlock(reason: reason)
+        isSecurityPromptInProgress = false
+
+        switch result {
+        case .success:
+            isSecurityUnlocked = true
+            isPrivacyShieldVisible = false
+            securityLockMessage = ""
+            protectedBackgroundDate = nil
+        case .unavailable(let message):
+            settings.requiresBiometrics = false
+            isSecurityUnlocked = true
+            isPrivacyShieldVisible = false
+            securityLockMessage = ""
+            lastCommandOutput = "Face ID lock is unavailable and was turned off: \(message)"
+        case .failed(let message):
+            isSecurityUnlocked = false
+            isPrivacyShieldVisible = true
+            securityLockMessage = message
+        }
     }
 
     func metric(for server: ServerProfile?) -> ServerMetrics {

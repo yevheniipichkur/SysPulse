@@ -92,18 +92,28 @@ final class KeychainService {
     }
 }
 
+enum BiometricUnlockResult: Hashable {
+    case success
+    case unavailable(String)
+    case failed(String)
+}
+
 struct BiometricLockService {
-    func unlock(reason: String = "Unlock saved server profiles") async -> Bool {
+    func unlock(reason: String = "Unlock saved server profiles") async -> BiometricUnlockResult {
         let context = LAContext()
+        context.localizedCancelTitle = "Cancel"
+        context.localizedFallbackTitle = "Use Passcode"
+
         var error: NSError?
-        guard context.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: &error) else {
-            return true
+        guard context.canEvaluatePolicy(.deviceOwnerAuthentication, error: &error) else {
+            return .unavailable(error?.localizedDescription ?? "Face ID or device passcode is not available.")
         }
 
         do {
-            return try await context.evaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, localizedReason: reason)
+            let didUnlock = try await context.evaluatePolicy(.deviceOwnerAuthentication, localizedReason: reason)
+            return didUnlock ? .success : .failed("Authentication failed.")
         } catch {
-            return false
+            return .failed(error.localizedDescription)
         }
     }
 }

@@ -25,7 +25,7 @@ struct SettingsView: View {
                         }
 
                         settingsSection("Security", symbol: "lock.shield") {
-                            Toggle("Face ID lock", isOn: $appState.settings.requiresBiometrics)
+                            Toggle("Face ID lock", isOn: biometricLockBinding)
                             Stepper("Auto-lock: \(appState.settings.autoLockMinutes) min", value: $appState.settings.autoLockMinutes, in: 1...30)
                             Toggle("Hide sensitive data", isOn: $appState.settings.hideSensitiveData)
                             Toggle("Clear clipboard warning", isOn: $appState.settings.clipboardWarning)
@@ -94,6 +94,20 @@ struct SettingsView: View {
                     .padding(.top, 8)
                 }
                 .scrollIndicators(.hidden)
+            }
+        }
+    }
+
+    private var biometricLockBinding: Binding<Bool> {
+        Binding {
+            appState.settings.requiresBiometrics
+        } set: { isEnabled in
+            if isEnabled {
+                Task {
+                    await appState.enableBiometricLockFromSettings()
+                }
+            } else {
+                appState.disableBiometricLock()
             }
         }
     }
