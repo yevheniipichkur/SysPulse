@@ -122,9 +122,12 @@ struct SettingsView: View {
             }
 
             appState.settings.iCloudSyncEnabled = isEnabled
-            appState.lastCommandOutput = isEnabled
-                ? "iCloud sync will start after app restart."
-                : "iCloud sync will turn off after app restart."
+            if isEnabled {
+                appState.lastCommandOutput = "Starting iCloud profile sync..."
+                appState.syncProfilesWithICloud(mergeRemote: true)
+            } else {
+                appState.lastCommandOutput = "iCloud sync disabled."
+            }
         }
     }
 

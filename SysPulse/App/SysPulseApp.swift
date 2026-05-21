@@ -7,9 +7,8 @@ struct SysPulseApp: App {
     private let modelContainer: ModelContainer
 
     init() {
-        let settings = SettingsStorageService().loadSettings()
         do {
-            modelContainer = try SysPulseModelContainerFactory.makeContainer(iCloudSyncEnabled: settings.iCloudSyncEnabled)
+            modelContainer = try SysPulseModelContainerFactory.makeContainer()
         } catch {
             fatalError("Unable to create SysPulse model container: \(error)")
         }

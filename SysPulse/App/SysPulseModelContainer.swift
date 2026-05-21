@@ -13,10 +13,10 @@ enum SysPulseModelContainerFactory {
         ServerEvent.self
     ])
 
-    static func makeContainer(iCloudSyncEnabled: Bool) throws -> ModelContainer {
+    static func makeContainer() throws -> ModelContainer {
         let configuration = ModelConfiguration(
             schema: schema,
-            cloudKitDatabase: iCloudSyncEnabled ? .private(iCloudContainerIdentifier) : .none
+            cloudKitDatabase: .none
         )
         return try ModelContainer(for: schema, configurations: [configuration])
     }

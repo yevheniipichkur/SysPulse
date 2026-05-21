@@ -48,6 +48,7 @@ final class AppState: ObservableObject {
     private let widgetDataService = WidgetDataService()
     private let liveActivityService = LiveActivityService()
     private let biometricLockService = BiometricLockService()
+    private let profileCloudSyncService = ProfileCloudSyncService()
     private let metricsCollector = MetricsCollector()
     private let processService = ProcessService()
     private let diskService = DiskService()
@@ -77,6 +78,9 @@ final class AppState: ObservableObject {
         guard profileRepository == nil else { return }
         profileRepository = SwiftDataProfileRepository(modelContext: modelContext)
         reloadProfilesFromRepository()
+        if settings.iCloudSyncEnabled {
+            syncProfilesWithICloud(mergeRemote: true)
+        }
         startAutoRefresh()
     }
 
@@ -256,6 +260,7 @@ final class AppState: ObservableObject {
         serverProfiles.append(server)
         metricsByServer[server.id] = ServerMetrics.empty(serverID: server.id)
         selectedServer = server
+        syncProfilesWithICloud()
         haptic(.light)
         return true
     }
@@ -278,6 +283,7 @@ final class AppState: ObservableObject {
             selectedServer = server
         }
         objectWillChange.send()
+        syncProfilesWithICloud()
         haptic(.light)
     }
 
@@ -310,6 +316,7 @@ final class AppState: ObservableObject {
         if selectedServer?.id == serverID {
             selectedServer = serverProfiles.first
         }
+        syncProfilesWithICloud()
         haptic(.rigid)
     }
 
@@ -584,6 +591,7 @@ final class AppState: ObservableObject {
         systemdServicesByServer = [:]
         logEntriesByServer = [:]
         publishWidgetSnapshots()
+        syncProfilesWithICloud()
     }
 
     func startMonitoringLiveActivity() {
@@ -633,6 +641,30 @@ final class AppState: ObservableObject {
             publishWidgetSnapshots()
         } catch {
             lastCommandOutput = "Failed to load profiles: \(error.localizedDescription)"
+        }
+    }
+
+    func syncProfilesWithICloud(mergeRemote: Bool = false) {
+        guard settings.iCloudSyncEnabled else { return }
+        guard let profileRepository else { return }
+
+        let localProfiles = serverProfiles
+        Task {
+            do {
+                if mergeRemote {
+                    let syncedProfiles = try await profileCloudSyncService.mergeAndUpload(localProfiles: localProfiles)
+                    for profile in syncedProfiles {
+                        try profileRepository.saveProfile(profile)
+                    }
+                    reloadProfilesFromRepository()
+                    lastCommandOutput = "iCloud profile sync completed."
+                } else {
+                    try await profileCloudSyncService.uploadSnapshot(localProfiles: localProfiles)
+                    lastCommandOutput = "iCloud profile snapshot updated."
+                }
+            } catch {
+                lastCommandOutput = "iCloud sync failed: \(error.localizedDescription)"
+            }
         }
     }
 

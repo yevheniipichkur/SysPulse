@@ -50,7 +50,7 @@ Pro:
 - systemd monitoring.
 - Logs viewer.
 - Widgets and Live Activities.
-- SwiftData + CloudKit iCloud sync for saved profile metadata.
+- CloudKit iCloud sync for saved profile metadata.
 - Premium terminal themes.
 - Command snippets and groups.
 - Smart Insights.
