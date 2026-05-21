@@ -1,4 +1,5 @@
 import Foundation
+import StoreKit
 import SwiftData
 import SwiftUI
 import UIKit
@@ -58,6 +59,7 @@ final class AppState: ObservableObject {
     let insightsService = InsightsService()
     let packageDetector = PackageDetector()
     let sshClient: SSHClientProtocol = RealSSHClient()
+    let storeKit = StoreKitService()
     @Published var packageStatuses: [PackageStatus]
     private var autoRefreshTask: Task<Void, Never>?
     private var protectedBackgroundDate: Date?
@@ -71,6 +73,29 @@ final class AppState: ObservableObject {
         self.subscription = SettingsStorageService().loadSubscription()
         self.packageStatuses = PackageDetector.defaultStatuses
         self.selectedServer = nil
+        startStoreKit()
+    }
+
+    private func startStoreKit() {
+        storeKit.onSubscriptionChange = { [weak self] state in
+            self?.subscription = state
+        }
+        Task {
+            await storeKit.loadProducts()
+            let state = await storeKit.verifyCurrentEntitlements()
+            if state.isPro { subscription = state }
+        }
+    }
+
+    func purchaseProduct(_ product: Product) async throws {
+        let state = try await storeKit.purchase(product)
+        subscription = state
+        isPaywallPresented = false
+    }
+
+    func restorePurchases() async throws {
+        try await storeKit.restorePurchases()
+        if subscription.isPro { isPaywallPresented = false }
     }
 
     func configureProfileRepository(modelContext: ModelContext) {

@@ -1,16 +1,21 @@
+import StoreKit
 import SwiftUI
 
 struct PaywallView: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var appState: AppState
+    @State private var isPurchasing = false
+    @State private var isRestoring = false
+    @State private var errorMessage: String?
+    @State private var showError = false
 
-    private let benefits = [
-        ("Unlimited servers", "server.rack"),
-        ("Docker, services and logs", "shippingbox"),
-        ("Premium terminal themes", "terminal"),
-        ("Widgets and Live Activities", "rectangle.stack.badge.play"),
-        ("Secure iCloud sync", "icloud"),
-        ("One app for all your Linux machines", "sparkles")
+    private let benefits: [(String, String)] = [
+        ("Unlimited servers",                   "server.rack"),
+        ("Docker, services and logs",            "shippingbox"),
+        ("Premium terminal themes",              "terminal"),
+        ("Widgets and Live Activities",          "rectangle.stack.badge.play"),
+        ("Secure iCloud sync",                   "icloud"),
+        ("One app for all your Linux machines",  "sparkles")
     ]
 
     var body: some View {
@@ -19,79 +24,167 @@ struct PaywallView: View {
 
             ScrollView {
                 VStack(spacing: 20) {
-                    VStack(spacing: 12) {
-                        Image(systemName: "sparkles.rectangle.stack")
-                            .font(.system(size: 56, weight: .semibold))
-                            .foregroundStyle(.cyan)
-                            .frame(width: 112, height: 112)
-                            .background(.ultraThinMaterial, in: Circle())
-
-                        Text("Unlock Pro Monitoring")
-                            .font(.largeTitle.weight(.bold))
-                            .multilineTextAlignment(.center)
-
-                        Text("Everything you need to monitor Linux servers from your iPhone.")
-                            .font(.callout)
-                            .foregroundStyle(.secondary)
-                            .multilineTextAlignment(.center)
-                    }
-                    .padding(.top, 30)
-
-                    GlassCard {
-                        VStack(spacing: 14) {
-                            ForEach(benefits, id: \.0) { item in
-                                HStack(spacing: 12) {
-                                    Image(systemName: item.1)
-                                        .foregroundStyle(.cyan)
-                                        .frame(width: 28)
-                                    Text(LocalizedStringKey(item.0))
-                                        .font(.headline)
-                                    Spacer()
-                                }
-                            }
-                        }
-                    }
-
-                    VStack(spacing: 12) {
-                        PlanCard(title: "Pro Monthly", price: "$3.99 / month", subtitle: "Flexible monitoring for all servers.", isBestValue: false) {
-                            unlock(.proMonthly)
-                        }
-                        PlanCard(title: "Pro Yearly", price: "$29.99 / year", subtitle: "Best Value", isBestValue: true) {
-                            unlock(.proYearly)
-                        }
-                        PlanCard(title: "Lifetime Pro", price: "$79.99 one-time", subtitle: "Unlock all local premium features.", isBestValue: false) {
-                            unlock(.lifetime)
-                        }
-                    }
-
-                    Button("Restore purchases") {
-                        appState.subscription.lastStoreKitMessage = appState.localized("Restore uses StoreKit 2 when products are configured.")
-                    }
-                    .font(.callout.weight(.semibold))
-
-                    Text("Mock StoreKit is enabled for development. Configure product IDs in App Store Connect before TestFlight.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .multilineTextAlignment(.center)
-                        .padding(.bottom, 24)
+                    header
+                    benefitsCard
+                    planCards
+                    footer
                 }
                 .padding(20)
             }
         }
+        .alert("Purchase failed", isPresented: $showError, presenting: errorMessage) { _ in
+            Button("OK", role: .cancel) {}
+        } message: { msg in
+            Text(msg)
+        }
     }
 
-    private func unlock(_ plan: SubscriptionPlan) {
-        appState.subscription.plan = plan
-        appState.subscription.isActive = true
-        dismiss()
+    // MARK: - Sections
+
+    private var header: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "sparkles.rectangle.stack")
+                .font(.system(size: 56, weight: .semibold))
+                .foregroundStyle(.cyan)
+                .frame(width: 112, height: 112)
+                .background(.ultraThinMaterial, in: Circle())
+
+            Text("Unlock Pro Monitoring")
+                .font(.largeTitle.weight(.bold))
+                .multilineTextAlignment(.center)
+
+            Text("Everything you need to monitor Linux servers from your iPhone.")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+        }
+        .padding(.top, 30)
+    }
+
+    private var benefitsCard: some View {
+        GlassCard {
+            VStack(spacing: 14) {
+                ForEach(benefits, id: \.0) { item in
+                    HStack(spacing: 12) {
+                        Image(systemName: item.1)
+                            .foregroundStyle(.cyan)
+                            .frame(width: 28)
+                        Text(LocalizedStringKey(item.0))
+                            .font(.headline)
+                        Spacer()
+                        Image(systemName: "checkmark")
+                            .font(.caption.weight(.bold))
+                            .foregroundStyle(.green)
+                    }
+                }
+            }
+        }
+    }
+
+    private var planCards: some View {
+        VStack(spacing: 12) {
+            if appState.storeKit.isLoading {
+                ProgressView("Loading products…")
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 24)
+            } else if appState.storeKit.products.isEmpty {
+                // Fallback when products aren't available (sandbox / no network)
+                fallbackPlanCards
+            } else {
+                ForEach(appState.storeKit.products, id: \.id) { product in
+                    PlanCard(
+                        title: product.displayName,
+                        price: product.displayPrice,
+                        subtitle: subtitle(for: product),
+                        isBestValue: product.id.contains("yearly"),
+                        isLoading: isPurchasing
+                    ) {
+                        buy(product)
+                    }
+                }
+            }
+        }
+    }
+
+    private var fallbackPlanCards: some View {
+        Group {
+            PlanCard(title: "Pro Monthly",  price: "$3.99 / month",  subtitle: "Flexible monitoring for all servers.", isBestValue: false, isLoading: false) {}
+            PlanCard(title: "Pro Yearly",   price: "$29.99 / year",  subtitle: "Best Value — save 37%.",              isBestValue: true,  isLoading: false) {}
+            PlanCard(title: "Lifetime Pro", price: "$79.99 one-time", subtitle: "All future features included.",      isBestValue: false, isLoading: false) {}
+        }
+    }
+
+    private var footer: some View {
+        VStack(spacing: 16) {
+            Button {
+                restore()
+            } label: {
+                if isRestoring {
+                    ProgressView()
+                } else {
+                    Text("Restore purchases")
+                        .font(.callout.weight(.semibold))
+                }
+            }
+            .disabled(isRestoring || isPurchasing)
+
+            Text("Subscriptions auto-renew unless cancelled. Manage in Settings → Apple ID → Subscriptions.")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .padding(.bottom, 24)
+        }
+    }
+
+    // MARK: - Actions
+
+    private func buy(_ product: Product) {
+        guard !isPurchasing else { return }
+        isPurchasing = true
+        Task {
+            defer { isPurchasing = false }
+            do {
+                try await appState.purchaseProduct(product)
+                dismiss()
+            } catch StoreKitServiceError.purchaseFailed(let msg) where msg == "Purchase was cancelled." {
+                // silent — user cancelled
+            } catch {
+                errorMessage = error.localizedDescription
+                showError = true
+            }
+        }
+    }
+
+    private func restore() {
+        guard !isRestoring else { return }
+        isRestoring = true
+        Task {
+            defer { isRestoring = false }
+            do {
+                try await appState.restorePurchases()
+                if appState.subscription.isPro { dismiss() }
+            } catch {
+                errorMessage = error.localizedDescription
+                showError = true
+            }
+        }
+    }
+
+    private func subtitle(for product: Product) -> String {
+        if product.id.contains("lifetime") { return "All future features included." }
+        if product.id.contains("yearly")   { return "Best Value — save 37%." }
+        return "Flexible monitoring for all servers."
     }
 }
 
+// MARK: - Plan card
+
 private struct PlanCard: View {
-    var title: LocalizedStringKey
+    var title: String
     var price: String
-    var subtitle: LocalizedStringKey
+    var subtitle: String
     var isBestValue: Bool
+    var isLoading: Bool
     var action: () -> Void
 
     var body: some View {
@@ -116,12 +209,17 @@ private struct PlanCard: View {
                             .foregroundStyle(.secondary)
                     }
                     Spacer()
-                    Text(price)
-                        .font(.subheadline.weight(.bold))
-                        .multilineTextAlignment(.trailing)
+                    if isLoading {
+                        ProgressView()
+                    } else {
+                        Text(price)
+                            .font(.subheadline.weight(.bold))
+                            .multilineTextAlignment(.trailing)
+                    }
                 }
             }
         }
         .buttonStyle(.plain)
+        .disabled(isLoading)
     }
 }
