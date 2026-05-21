@@ -189,7 +189,6 @@ struct TerminalView: View {
         VStack(spacing: 8) {
             connectionBar
             if keyboardActive { historySuggestions }
-            inputPreviewBar
             keyboardAccessory
         }
         .padding(.horizontal, 8)
@@ -242,6 +241,13 @@ struct TerminalView: View {
                 } else {
                     appState.selectedTab = .servers
                 }
+            }
+
+            TerminalIconButton(systemName: "doc.on.clipboard") {
+                guard let text = UIPasteboard.general.string else { return }
+                sendRawToActivePTY(Array(text.utf8), mirrorInput: true)
+                keyboardActive = true
+                focusActiveTerminal()
             }
 
             Menu {
