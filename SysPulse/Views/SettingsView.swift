@@ -68,6 +68,7 @@ struct SettingsView: View {
 
                         settingsSection("Data", symbol: "externaldrive") {
                             Toggle("iCloud sync", isOn: iCloudSyncBinding)
+                            ICloudEntitlementStatusRow(diagnostic: iCloudEntitlementDiagnostic)
                             SecureField("Sharing passphrase", text: $sharingPassphrase)
                                 .textInputAutocapitalization(.never)
                                 .autocorrectionDisabled()
@@ -170,6 +171,12 @@ struct SettingsView: View {
                 return
             }
 
+            if isEnabled, !iCloudEntitlementDiagnostic.isReady {
+                appState.settings.iCloudSyncEnabled = false
+                appState.lastCommandOutput = appState.localized(iCloudEntitlementDiagnostic.messageKey)
+                return
+            }
+
             appState.settings.iCloudSyncEnabled = isEnabled
             if isEnabled {
                 appState.lastCommandOutput = appState.localized("Starting iCloud profile sync...")
@@ -178,6 +185,10 @@ struct SettingsView: View {
                 appState.lastCommandOutput = appState.localized("iCloud sync disabled.")
             }
         }
+    }
+
+    private var iCloudEntitlementDiagnostic: CloudKitEntitlementDiagnostic {
+        ProfileCloudSyncService.entitlementDiagnostic()
     }
 
     private func settingsSection<Content: View>(_ title: LocalizedStringKey, symbol: String, @ViewBuilder content: () -> Content) -> some View {
@@ -203,6 +214,42 @@ struct SettingsView: View {
             appState.importEncryptedProfiles(from: url, passphrase: sharingPassphrase)
         } catch {
             appState.lastCommandOutput = error.localizedDescription
+        }
+    }
+}
+
+private struct ICloudEntitlementStatusRow: View {
+    var diagnostic: CloudKitEntitlementDiagnostic
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: diagnostic.isReady ? "checkmark.seal.fill" : "exclamationmark.triangle.fill")
+                .font(.headline)
+                .foregroundStyle(diagnostic.isReady ? .green : .orange)
+                .frame(width: 24)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text("CloudKit entitlement")
+                    .font(.caption.weight(.semibold))
+                Text(LocalizedStringKey(diagnostic.messageKey))
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                if !diagnostic.isReady {
+                    Text(diagnostic.containerIdentifier)
+                        .font(.caption2.monospaced())
+                        .foregroundStyle(.secondary.opacity(0.82))
+                        .lineLimit(1)
+                }
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(12)
+        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke((diagnostic.isReady ? Color.green : Color.orange).opacity(0.22), lineWidth: 1)
         }
     }
 }

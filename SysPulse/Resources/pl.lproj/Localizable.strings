@@ -394,6 +394,12 @@
 "iCloud sync requires CloudKit entitlement for %@." = "Synchronizacja iCloud wymaga uprawnienia CloudKit dla %@.";
 "Starting iCloud profile sync..." = "Uruchamianie synchronizacji profili iCloud...";
 "iCloud sync disabled." = "Synchronizacja iCloud wyłączona.";
+"CloudKit entitlement" = "Uprawnienie CloudKit";
+"Signed build is ready for iCloud sync." = "Podpisana kompilacja jest gotowa do synchronizacji iCloud.";
+"Provisioning profile is missing in this build." = "W tej kompilacji brakuje profilu provisioning.";
+"iCloud container is missing from the provisioning profile." = "W profilu provisioning brakuje kontenera iCloud.";
+"CloudKit service is missing from the provisioning profile." = "W profilu provisioning brakuje usługi CloudKit.";
+"iCloud sync is not available in this build." = "Synchronizacja iCloud nie jest dostępna w tej kompilacji.";
 
 "Restore purchases will sync through StoreKit 2." = "Zakupy zostaną przywrócone przez StoreKit 2.";
 "Export profiles placeholder." = "Eksport profili jest jeszcze placeholderem.";

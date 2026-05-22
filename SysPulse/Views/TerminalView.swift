@@ -200,6 +200,7 @@ struct TerminalView: View {
                 .fill(.white.opacity(0.08))
                 .frame(height: 1)
         }
+        .animation(appState.areUITestAnimationsDisabled ? nil : .spring(response: 0.24, dampingFraction: 0.88), value: currentInput)
     }
 
     private var connectionBar: some View {
@@ -284,16 +285,11 @@ struct TerminalView: View {
 
     // Shows recent commands or prefix-filtered history when typing
     private var historySuggestions: some View {
-        let suggestions: [String]
-        if currentInput.isEmpty {
-            suggestions = Array(commandHistory.reversed().prefix(6))
-        } else {
-            suggestions = Array(
-                commandHistory.reversed()
-                    .filter { $0.hasPrefix(currentInput) && $0 != currentInput }
-                    .prefix(6)
-            )
-        }
+        let suggestions = currentInput.isEmpty ? [] : Array(
+            commandHistory.reversed()
+                .filter { $0.hasPrefix(currentInput) && $0 != currentInput }
+                .prefix(6)
+        )
 
         return Group {
             if !suggestions.isEmpty {
@@ -314,6 +310,7 @@ struct TerminalView: View {
                     .padding(.horizontal, 2)
                 }
                 .scrollIndicators(.hidden)
+                .transition(.opacity.combined(with: .move(edge: .bottom)))
             }
         }
     }
@@ -784,6 +781,7 @@ private final class TerminalFeedBridge: ObservableObject {
     private var focusHandler: (() -> Void)?
     private var pending: [[UInt8]] = []
     private var pendingFocus = false
+    private var isReadyForOutput = false
 
     func bind(
         feed: @escaping ([UInt8]) -> Void,
@@ -793,20 +791,21 @@ private final class TerminalFeedBridge: ObservableObject {
         feedHandler = feed
         resetHandler = reset
         focusHandler = focus
-        if !pending.isEmpty {
-            let buffered = pending
-            pending.removeAll(keepingCapacity: true)
-            buffered.forEach(feed)
-        }
+        flushPendingIfPossible()
         if pendingFocus {
             pendingFocus = false
             focus()
         }
     }
 
+    func markReadyForOutput() {
+        isReadyForOutput = true
+        flushPendingIfPossible()
+    }
+
     func feed(_ bytes: [UInt8]) {
         guard !bytes.isEmpty else { return }
-        if let feedHandler {
+        if isReadyForOutput, let feedHandler {
             feedHandler(bytes)
         } else {
             pending.append(bytes)
@@ -829,6 +828,13 @@ private final class TerminalFeedBridge: ObservableObject {
             pendingFocus = true
         }
     }
+
+    private func flushPendingIfPossible() {
+        guard isReadyForOutput, let feedHandler, !pending.isEmpty else { return }
+        let buffered = pending
+        pending.removeAll(keepingCapacity: true)
+        buffered.forEach(feedHandler)
+    }
 }
 
 private struct SwiftTermTerminalSurface: UIViewRepresentable {
@@ -839,7 +845,7 @@ private struct SwiftTermTerminalSurface: UIViewRepresentable {
     var onResize: (Int, Int) -> Void
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(onInput: onInput, onResize: onResize)
+        Coordinator(bridge: bridge, onInput: onInput, onResize: onResize)
     }
 
     func makeUIView(context: Context) -> SwiftTerm.TerminalView {
@@ -864,6 +870,7 @@ private struct SwiftTermTerminalSurface: UIViewRepresentable {
     }
 
     func updateUIView(_ uiView: SwiftTerm.TerminalView, context: Context) {
+        context.coordinator.bridge = bridge
         context.coordinator.onInput = onInput
         context.coordinator.onResize = onResize
         uiView.font = UIFont.monospacedSystemFont(ofSize: fontSize, weight: .regular)
@@ -888,18 +895,40 @@ private struct SwiftTermTerminalSurface: UIViewRepresentable {
                 }
             }
         )
+        scheduleOutputReadinessFallback(for: terminalView)
+    }
+
+    private func scheduleOutputReadinessFallback(for terminalView: SwiftTerm.TerminalView) {
+        let outputBridge = bridge
+        DispatchQueue.main.async { [weak terminalView, weak outputBridge] in
+            guard let terminalView,
+                  terminalView.bounds.width >= 180,
+                  terminalView.bounds.height >= 120 else { return }
+            outputBridge?.markReadyForOutput()
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { [weak terminalView, weak outputBridge] in
+            guard let terminalView,
+                  terminalView.bounds.width >= 180,
+                  terminalView.bounds.height >= 120 else { return }
+            outputBridge?.markReadyForOutput()
+        }
     }
 
     final class Coordinator: NSObject, SwiftTerm.TerminalViewDelegate {
+        weak var bridge: TerminalFeedBridge?
         var onInput: ([UInt8]) -> Void
         var onResize: (Int, Int) -> Void
 
-        init(onInput: @escaping ([UInt8]) -> Void, onResize: @escaping (Int, Int) -> Void) {
+        init(bridge: TerminalFeedBridge, onInput: @escaping ([UInt8]) -> Void, onResize: @escaping (Int, Int) -> Void) {
+            self.bridge = bridge
             self.onInput = onInput
             self.onResize = onResize
         }
 
         func sizeChanged(source: SwiftTerm.TerminalView, newCols: Int, newRows: Int) {
+            if newCols >= 24, newRows >= 8 {
+                bridge?.markReadyForOutput()
+            }
             onResize(newCols, newRows)
         }
 

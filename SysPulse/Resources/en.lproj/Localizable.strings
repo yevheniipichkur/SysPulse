@@ -394,6 +394,12 @@
 "iCloud sync requires CloudKit entitlement for %@." = "iCloud sync requires CloudKit entitlement for %@.";
 "Starting iCloud profile sync..." = "Starting iCloud profile sync...";
 "iCloud sync disabled." = "iCloud sync disabled.";
+"CloudKit entitlement" = "CloudKit entitlement";
+"Signed build is ready for iCloud sync." = "Signed build is ready for iCloud sync.";
+"Provisioning profile is missing in this build." = "Provisioning profile is missing in this build.";
+"iCloud container is missing from the provisioning profile." = "iCloud container is missing from the provisioning profile.";
+"CloudKit service is missing from the provisioning profile." = "CloudKit service is missing from the provisioning profile.";
+"iCloud sync is not available in this build." = "iCloud sync is not available in this build.";
 
 "Restore purchases will sync through StoreKit 2." = "Restore purchases will sync through StoreKit 2.";
 "Export profiles placeholder." = "Export profiles placeholder.";

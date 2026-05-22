@@ -24,7 +24,11 @@ struct ServersView: View {
                     }
 
                     ForEach(appState.serverProfiles) { server in
-                        ServerCardView(server: server, metrics: appState.metric(for: server))
+                        ServerCardView(
+                            server: server,
+                            metrics: appState.metric(for: server),
+                            isRefreshing: appState.isRefreshingMetrics(for: server)
+                        )
                             .onTapGesture {
                                 appState.select(server, tab: .monitor)
                             }
@@ -115,6 +119,7 @@ private struct FreePlanBanner: View {
 struct ServerCardView: View {
     var server: ServerProfile
     var metrics: ServerMetrics
+    var isRefreshing = false
 
     private var accent: Color { Color(hex: server.accentHex) }
 
@@ -151,7 +156,14 @@ struct ServerCardView: View {
                     }
 
                     Spacer()
-                    StatusPill(status: server.status)
+                    VStack(alignment: .trailing, spacing: 7) {
+                        StatusPill(status: server.status)
+                        if isRefreshing {
+                            ProgressView()
+                                .controlSize(.small)
+                                .transition(.opacity.combined(with: .scale(scale: 0.82)))
+                        }
+                    }
                 }
 
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 76), spacing: 10)], spacing: 10) {
@@ -179,6 +191,8 @@ struct ServerCardView: View {
                 .scrollIndicators(.hidden)
             }
         }
+        .scaleEffect(isRefreshing ? 0.995 : 1)
+        .animation(.spring(response: 0.24, dampingFraction: 0.86), value: isRefreshing)
     }
 }
 

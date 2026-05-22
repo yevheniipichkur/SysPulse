@@ -136,13 +136,64 @@ struct ProfileCloudSyncService {
     }
 
     private static func isCloudKitEntitled(containerIdentifier: String) -> Bool {
+        entitlementDiagnostic(containerIdentifier: containerIdentifier).isReady
+    }
+
+    static func entitlementDiagnostic(
+        containerIdentifier: String = SysPulseModelContainerFactory.iCloudContainerIdentifier
+    ) -> CloudKitEntitlementDiagnostic {
+        guard let profile = embeddedProvisioningProfileText() else {
+            return CloudKitEntitlementDiagnostic(
+                containerIdentifier: containerIdentifier,
+                hasEmbeddedProvisioningProfile: false,
+                hasContainerIdentifier: false,
+                hasCloudKitService: false
+            )
+        }
+
+        return CloudKitEntitlementDiagnostic(
+            containerIdentifier: containerIdentifier,
+            hasEmbeddedProvisioningProfile: true,
+            hasContainerIdentifier: profile.contains(containerIdentifier),
+            hasCloudKitService: profile.contains("<string>CloudKit</string>")
+        )
+    }
+
+    private static func embeddedProvisioningProfileText() -> String? {
         guard let profileURL = Bundle.main.url(forResource: "embedded", withExtension: "mobileprovision"),
               let data = try? Data(contentsOf: profileURL),
               let profile = String(data: data, encoding: .isoLatin1) ?? String(data: data, encoding: .utf8) else {
-            return false
+            return nil
         }
 
-        return profile.contains(containerIdentifier) && profile.contains("<string>CloudKit</string>")
+        return profile
+    }
+}
+
+struct CloudKitEntitlementDiagnostic: Equatable {
+    var containerIdentifier: String
+    var hasEmbeddedProvisioningProfile: Bool
+    var hasContainerIdentifier: Bool
+    var hasCloudKitService: Bool
+
+    var isReady: Bool {
+        hasEmbeddedProvisioningProfile && hasContainerIdentifier && hasCloudKitService
+    }
+
+    var messageKey: String {
+        if isReady {
+            return "Signed build is ready for iCloud sync."
+        }
+        if !hasEmbeddedProvisioningProfile {
+            return "Provisioning profile is missing in this build."
+        }
+        if !hasContainerIdentifier {
+            return "iCloud container is missing from the provisioning profile."
+        }
+        if !hasCloudKitService {
+            return "CloudKit service is missing from the provisioning profile."
+        }
+        return "iCloud sync is not available in this build."
     }
 }
 

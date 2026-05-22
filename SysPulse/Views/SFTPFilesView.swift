@@ -10,6 +10,7 @@ struct SFTPFilesView: View {
     @State private var pendingDeleteItem: SFTPRemoteItem?
     @State private var showingDeleteConfirmation = false
     @State private var pathHistory: [String] = []
+    @State private var pendingNavigationPath: String?
 
     private var server: ServerProfile? { appState.selectedServer }
     private var currentPath: String { appState.sftpPath(for: server) }
@@ -81,6 +82,12 @@ struct SFTPFilesView: View {
             pathHistory.removeAll()
             searchText = ""
             downloadedSFTPFileURL = nil
+            pendingNavigationPath = nil
+        }
+        .onChange(of: isLoading) { _, isLoading in
+            if !isLoading {
+                pendingNavigationPath = nil
+            }
         }
     }
 
@@ -121,6 +128,7 @@ struct SFTPFilesView: View {
             .animation(activeAnimation, value: currentPath)
             .animation(activeAnimation, value: visibleItems)
             .animation(activeAnimation, value: isLoading)
+            .animation(activeAnimation, value: pendingNavigationPath)
         }
         .refreshable {
             appState.refreshSFTPDirectory(for: server)
@@ -208,8 +216,7 @@ struct SFTPFilesView: View {
                 Button {
                     navigate(to: ".", server: server)
                 } label: {
-                    Image(systemName: "house")
-                        .frame(width: 32, height: 32)
+                    navigationButtonIcon(symbol: "house", path: ".")
                 }
                 .buttonStyle(PressableGlassButtonStyle(cornerRadius: 13, verticalPadding: 0, horizontalPadding: 0))
                 .disabled(currentPath == "." || currentPath == "~")
@@ -218,8 +225,7 @@ struct SFTPFilesView: View {
                 Button {
                     navigate(to: parentPath, server: server)
                 } label: {
-                    Image(systemName: "arrow.uturn.left")
-                        .frame(width: 32, height: 32)
+                    navigationButtonIcon(symbol: "arrow.uturn.left", path: parentPath)
                 }
                 .buttonStyle(PressableGlassButtonStyle(cornerRadius: 13, verticalPadding: 0, horizontalPadding: 0))
                 .disabled(currentPath == "." || currentPath == "/")
@@ -309,7 +315,7 @@ struct SFTPFilesView: View {
                 message: searchText.isEmpty ? "This directory has no files." : "Try a different search term.",
                 symbol: searchText.isEmpty ? "folder.badge.questionmark" : "magnifyingglass"
             )
-            .frame(maxWidth: .infinity)
+            .frame(maxWidth: .infinity, minHeight: 300, alignment: .center)
         }
     }
 
@@ -383,10 +389,18 @@ struct SFTPFilesView: View {
                         .accessibilityLabel("Delete")
 
                         if item.isDirectory {
-                            Image(systemName: "chevron.right")
-                                .font(.caption.weight(.bold))
-                                .foregroundStyle(.secondary)
-                                .frame(width: 20)
+                            if pendingNavigationPath == item.path, isLoading {
+                                ProgressView()
+                                    .controlSize(.small)
+                                    .frame(width: 20)
+                                    .transition(.opacity)
+                            } else {
+                                Image(systemName: "chevron.right")
+                                    .font(.caption.weight(.bold))
+                                    .foregroundStyle(.secondary)
+                                    .frame(width: 20)
+                                    .transition(.opacity)
+                            }
                         }
                     }
                 }
@@ -486,6 +500,7 @@ struct SFTPFilesView: View {
     private func navigate(to path: String, server: ServerProfile) {
         guard path != currentPath else { return }
         pathHistory.append(currentPath)
+        pendingNavigationPath = path
         searchText = ""
         appState.haptic(.light)
         appState.refreshSFTPDirectory(for: server, path: path)
@@ -493,9 +508,24 @@ struct SFTPFilesView: View {
 
     private func navigateBack(server: ServerProfile) {
         guard let previous = pathHistory.popLast() else { return }
+        pendingNavigationPath = previous
         searchText = ""
         appState.haptic(.light)
         appState.refreshSFTPDirectory(for: server, path: previous)
+    }
+
+    @ViewBuilder
+    private func navigationButtonIcon(symbol: String, path: String) -> some View {
+        if pendingNavigationPath == path, isLoading {
+            ProgressView()
+                .controlSize(.small)
+                .frame(width: 32, height: 32)
+                .transition(.opacity)
+        } else {
+            Image(systemName: symbol)
+                .frame(width: 32, height: 32)
+                .transition(.opacity)
+        }
     }
 
     private func swipeBackGesture(server: ServerProfile) -> some Gesture {
