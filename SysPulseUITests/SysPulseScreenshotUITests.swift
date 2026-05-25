@@ -15,9 +15,21 @@ final class SysPulseScreenshotUITests: XCTestCase {
     }
 
     func testCaptureAppStoreScreenshots() throws {
+        for tab in ScreenshotTab.captureOrder {
+            let app = launchApp(on: tab)
+            XCTAssertTrue(app.tabBars.firstMatch.waitForExistence(timeout: 12), "Main tab bar did not appear for \(tab.rawValue).")
+            XCTAssertTrue(waitForScreen(tab, in: app), "\(tab.screenIdentifier) did not appear for \(tab.rawValue).")
+            try capture(tab.filename, app: app)
+            app.terminate()
+        }
+    }
+
+    private func launchApp(on tab: ScreenshotTab) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchArguments = [
             "-sysPulseScreenshotMode",
+            "-sysPulseScreenshotTab",
+            tab.rawValue,
             "UITEST_SCREENSHOTS",
             "DISABLE_ANIMATIONS",
             "-AppleLanguages", "(en)",
@@ -25,44 +37,7 @@ final class SysPulseScreenshotUITests: XCTestCase {
         ]
         app.launchEnvironment["UITEST_DISABLE_ANIMATIONS"] = "1"
         app.launch()
-
-        XCTAssertTrue(app.tabBars.firstMatch.waitForExistence(timeout: 12), "Main tab bar did not appear.")
-        XCTAssertTrue(waitForScreen(.servers, in: app), "Servers screen did not appear.")
-
-        try capture("01-servers", app: app)
-
-        openTab(.monitor, in: app)
-        try capture("02-monitor", app: app)
-
-        openTab(.terminal, in: app)
-        try capture("03-terminal", app: app)
-
-        openTab(.sftp, in: app)
-        try capture("04-files", app: app)
-
-        openTab(.settings, in: app)
-        try capture("05-settings", app: app)
-    }
-
-    private func openTab(_ tab: ScreenshotTab, in app: XCUIApplication) {
-        let tabBar = app.tabBars.firstMatch
-        XCTAssertTrue(tabBar.waitForExistence(timeout: 8), "Tab bar did not exist before opening \(tab.tabIdentifier).")
-
-        let tabButton = tabBar.buttons[tab.tabIdentifier].firstMatch
-        if tabButton.waitForExistence(timeout: 3), tabButton.isHittable {
-            tabButton.tap()
-        } else {
-            tapTabByCoordinate(tab, tabBar: tabBar)
-        }
-
-        waitForRender()
-        XCTAssertTrue(waitForScreen(tab, in: app), "\(tab.screenIdentifier) did not appear after tapping \(tab.tabIdentifier).")
-    }
-
-    private func tapTabByCoordinate(_ tab: ScreenshotTab, tabBar: XCUIElement) {
-        let normalizedX = (CGFloat(tab.index) + 0.5) / CGFloat(ScreenshotTab.visibleTabCount)
-        let coordinate = tabBar.coordinate(withNormalizedOffset: CGVector(dx: normalizedX, dy: 0.5))
-        coordinate.tap()
+        return app
     }
 
     private func waitForScreen(_ tab: ScreenshotTab, in app: XCUIApplication) -> Bool {
@@ -86,44 +61,14 @@ final class SysPulseScreenshotUITests: XCTestCase {
     }
 }
 
-private enum ScreenshotTab {
+private enum ScreenshotTab: String {
     case servers
     case monitor
     case terminal
     case sftp
     case settings
 
-    static let visibleTabCount = 5
-
-    var index: Int {
-        switch self {
-        case .servers:
-            0
-        case .monitor:
-            1
-        case .terminal:
-            2
-        case .sftp:
-            3
-        case .settings:
-            4
-        }
-    }
-
-    var tabIdentifier: String {
-        switch self {
-        case .servers:
-            "tab_servers"
-        case .monitor:
-            "tab_monitor"
-        case .terminal:
-            "tab_terminal"
-        case .sftp:
-            "tab_sftp"
-        case .settings:
-            "tab_settings"
-        }
-    }
+    static let captureOrder: [ScreenshotTab] = [.servers, .monitor, .terminal, .sftp, .settings]
 
     var screenIdentifier: String {
         switch self {
@@ -137,6 +82,21 @@ private enum ScreenshotTab {
             "screen_sftp"
         case .settings:
             "screen_settings"
+        }
+    }
+
+    var filename: String {
+        switch self {
+        case .servers:
+            "01-servers"
+        case .monitor:
+            "02-monitor"
+        case .terminal:
+            "03-terminal"
+        case .sftp:
+            "04-files"
+        case .settings:
+            "05-settings"
         }
     }
 }

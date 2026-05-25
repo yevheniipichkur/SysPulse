@@ -66,6 +66,7 @@ jobs:
 
       - name: Capture screenshots
         run: |
+          set +e
           set -o pipefail
           mkdir -p build/screenshots build/logs build/SourcePackages
           xcrun simctl boot "${SIMULATOR_DESTINATION#id=}" || true
@@ -82,6 +83,13 @@ jobs:
             CODE_SIGNING_REQUIRED=NO \
             ONLY_ACTIVE_ARCH=YES \
             | tee build/logs/screenshots.log
+          status=${PIPESTATUS[0]}
+          if [ "$status" -ne 0 ]; then
+            echo "::group::Screenshot failure excerpt"
+            grep -E "error:|XCTAssert|failed|Failure|Timed out|waitFor|Unable to|Exception|Test Case|Issue recorded" build/logs/screenshots.log | tail -n 220 || true
+            echo "::endgroup::"
+          fi
+          exit "$status"
 
       - name: Upload screenshots
         uses: actions/upload-artifact@v4

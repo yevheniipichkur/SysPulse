@@ -102,6 +102,7 @@ struct TerminalView: View {
         .onAppear {
             setTerminalSurfaceVisible(true)
             ensureSessionForSelectedServer()
+            guard !appState.isScreenshotMode else { return }
             Task { @MainActor in
                 try? await Task.sleep(for: .seconds(appState.shouldReduceMotion ? 0.05 : 0.5))
                 keyboardActive = true
@@ -117,6 +118,7 @@ struct TerminalView: View {
                 return
             }
             setTerminalSurfaceVisible(true)
+            guard !appState.isScreenshotMode else { return }
             Task { @MainActor in
                 try? await Task.sleep(for: .seconds(appState.shouldReduceMotion ? 0.05 : 0.35))
                 keyboardActive = true
@@ -738,7 +740,9 @@ struct TerminalView: View {
             selectedSessionID = session.id
         }
         appState.haptic(.light)
-        keyboardActive = true
+        if !appState.isScreenshotMode {
+            keyboardActive = true
+        }
         connectPTY(sessionID: session.id, server: server)
     }
 
