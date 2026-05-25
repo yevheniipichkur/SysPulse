@@ -263,7 +263,7 @@ struct SFTPFilesView: View {
 
                 ScrollView(.horizontal) {
                     HStack(spacing: 7) {
-                        ForEach(addressCrumbs) { crumb in
+                        SwiftUI.ForEach(addressCrumbs, id: \.id) { (crumb: SFTPAddressCrumb) in
                             if crumb.id > 0 {
                                 Image(systemName: "chevron.right")
                                     .font(.caption2.weight(.semibold))
