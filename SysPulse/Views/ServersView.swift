@@ -7,6 +7,27 @@ struct ServersView: View {
     @State private var editingServer: ServerProfile?
 
     var body: some View {
+        Group {
+            if appState.isScreenshotMode {
+                screenshotServersBody
+            } else {
+                serversListBody
+            }
+        }
+        .accessibilityIdentifier(AppTab.servers.screenAccessibilityIdentifier)
+        .sheet(isPresented: $isAddingServer) {
+            AddServerView()
+                .presentationDetents([.large])
+                .presentationCornerRadius(32)
+        }
+        .sheet(item: $editingServer) { server in
+            AddServerView(editingServer: server)
+                .presentationDetents([.large])
+                .presentationCornerRadius(32)
+        }
+    }
+
+    private var serversListBody: some View {
         ScrollView {
             VStack(spacing: 18) {
                 PageHeader(
@@ -80,17 +101,36 @@ struct ServersView: View {
             .padding(.top, 8)
         }
         .scrollIndicators(.hidden)
-        .accessibilityIdentifier(AppTab.servers.screenAccessibilityIdentifier)
-        .sheet(isPresented: $isAddingServer) {
-            AddServerView()
-                .presentationDetents([.large])
-                .presentationCornerRadius(32)
+    }
+
+    private var screenshotServersBody: some View {
+        GeometryReader { proxy in
+            ZStack(alignment: .top) {
+                AppBackground()
+
+                VStack(spacing: 18) {
+                    PageHeader(
+                        title: "Servers",
+                        subtitle: "Monitor · SSH · Files",
+                        actionSymbol: "plus"
+                    ) {
+                        isAddingServer = true
+                    }
+
+                    if let server = appState.serverProfiles.first {
+                        ServerCardView(
+                            server: server,
+                            metrics: appState.metric(for: server),
+                            isRefreshing: false
+                        )
+                    }
+                }
+                .padding(.horizontal, SysPulseDesign.pagePadding)
+                .padding(.top, max(proxy.safeAreaInsets.top + 8, 62))
+            }
+            .ignoresSafeArea(.container, edges: .top)
         }
-        .sheet(item: $editingServer) { server in
-            AddServerView(editingServer: server)
-                .presentationDetents([.large])
-                .presentationCornerRadius(32)
-        }
+        .ignoresSafeArea(.container, edges: .top)
     }
 }
 
@@ -177,7 +217,10 @@ struct ServerCardView: View {
                     }
                 }
 
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 76), spacing: 10)], spacing: 10) {
+                LazyVGrid(
+                    columns: Array(repeating: GridItem(.flexible(minimum: 0), spacing: 10), count: 4),
+                    spacing: 10
+                ) {
                     CompactMetric(title: "CPU", value: metrics.cpuUsage, color: .cyan)
                     CompactMetric(title: "RAM", value: metrics.ramUsage, color: .green)
                     CompactMetric(title: "Disk", value: metrics.diskUsage, color: metrics.diskUsage > 80 ? .orange : .blue)
@@ -264,6 +307,8 @@ struct CompactMetric: View {
             Text(title)
                 .font(.caption2)
                 .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.72)
             Text("\(Int(value))%")
                 .font(.subheadline.weight(.bold))
                 .monospacedDigit()
@@ -291,6 +336,8 @@ struct HealthScoreView: View {
             Text("Health")
                 .font(.caption2)
                 .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.72)
             HStack(spacing: 5) {
                 Image(systemName: "heart.text.square")
                 Text("\(score)")
@@ -300,6 +347,8 @@ struct HealthScoreView: View {
             Text(rating.titleKey)
                 .font(.caption2.weight(.semibold))
                 .foregroundStyle(rating.color)
+                .lineLimit(1)
+                .minimumScaleFactor(0.72)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }

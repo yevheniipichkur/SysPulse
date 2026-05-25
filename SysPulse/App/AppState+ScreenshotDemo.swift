@@ -29,16 +29,16 @@ extension AppState {
 
         let api = ServerProfile(
             id: UUID(uuidString: "11111111-1111-1111-1111-111111111111")!,
-            name: "Production API",
-            host: "api.sys.example",
-            username: "deploy",
+            name: "Raspberry",
+            host: "192.168.1.16",
+            username: "admin",
             authenticationType: .privateKey,
             credentialIdentifier: "screenshot-api",
-            tags: ["docker", "nginx"],
-            groupName: "Cloud",
+            tags: ["home", "docker"],
+            groupName: "Home Lab",
             icon: "cloud",
             accentHex: "#33C2EA",
-            serverType: .dockerHost,
+            serverType: .vps,
             status: .online
         )
         let db = ServerProfile(
@@ -76,22 +76,22 @@ extension AppState {
         metricsByServer = [
             api.id: screenshotMetrics(
                 serverID: api.id,
-                cpu: 37,
-                ram: 58,
+                cpu: 6,
+                ram: 67,
                 swap: 4,
-                disk: 64,
+                disk: 12,
                 networkIn: 128,
                 networkOut: 42,
-                temperature: 62,
-                uptime: "18d 6h",
-                osName: "Ubuntu 24.04 LTS",
-                kernel: "6.8.0-52-generic",
-                loadAverage: "0.42 0.51 0.47",
-                ipAddresses: ["10.0.2.24", "172.18.0.1"],
-                healthScore: 91,
+                temperature: 52,
+                uptime: "1w 2d",
+                osName: "Debian GNU/Linux 12 (bookworm)",
+                kernel: "6.1.0-21-arm64",
+                loadAverage: "0.16 0.14 0.12",
+                ipAddresses: ["192.168.1.16"],
+                healthScore: 79,
                 failedServices: 0,
-                dockerRunning: 12,
-                dockerTotal: 14
+                dockerRunning: 16,
+                dockerTotal: 17
             ),
             db.id: screenshotMetrics(
                 serverID: db.id,
