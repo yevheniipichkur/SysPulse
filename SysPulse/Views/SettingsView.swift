@@ -8,6 +8,8 @@ struct SettingsView: View {
     @State private var backendMonitoringToken = ""
     @State private var encryptedExportURL: URL?
     @State private var isImportingEncryptedProfiles = false
+    @State private var isAdvancedDataExpanded = false
+    @State private var isRemoteMonitoringExpanded = false
     private let buildInfo = GitBuildInfoService()
 
     var body: some View {
@@ -74,23 +76,29 @@ struct SettingsView: View {
                         settingsSection("Data", symbol: "externaldrive") {
                             Toggle("iCloud sync", isOn: iCloudSyncBinding)
                             ICloudEntitlementStatusRow(diagnostic: iCloudEntitlementDiagnostic)
-                            SecureField("Sharing passphrase", text: $sharingPassphrase)
-                                .textInputAutocapitalization(.never)
-                                .autocorrectionDisabled()
-                            Text("Encrypted sharing exports metadata only. Passwords and private keys stay in Keychain.")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                            Button("Prepare encrypted export") {
-                                encryptedExportURL = appState.makeEncryptedProfileExport(passphrase: sharingPassphrase)
-                            }
-                            if let encryptedExportURL {
-                                ShareLink(item: encryptedExportURL) {
-                                    Label("Share encrypted export", systemImage: "square.and.arrow.up")
+
+                            DisclosureGroup("Encrypted sharing", isExpanded: $isAdvancedDataExpanded) {
+                                VStack(alignment: .leading, spacing: 12) {
+                                    SecureField("Sharing passphrase", text: $sharingPassphrase)
+                                        .textInputAutocapitalization(.never)
+                                        .autocorrectionDisabled()
+                                    Text("Encrypted sharing exports metadata only. Passwords and private keys stay in Keychain.")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                    Button("Prepare encrypted export") {
+                                        encryptedExportURL = appState.makeEncryptedProfileExport(passphrase: sharingPassphrase)
+                                    }
+                                    if let encryptedExportURL {
+                                        ShareLink(item: encryptedExportURL) {
+                                            Label("Share encrypted export", systemImage: "square.and.arrow.up")
+                                        }
+                                    }
+                                    Button("Import encrypted profiles") {
+                                        isImportingEncryptedProfiles = true
+                                    }
                                 }
                             }
-                            Button("Import encrypted profiles") {
-                                isImportingEncryptedProfiles = true
-                            }
+
                             Button("Clear terminal history", role: .destructive) {
                                 appState.terminalSessions.forEach { $0.transcript = "" }
                             }
@@ -124,18 +132,32 @@ struct SettingsView: View {
 
                         settingsSection("Remote Monitoring", symbol: "antenna.radiowaves.left.and.right") {
                             Toggle("Backend monitoring", isOn: $appState.settings.backendMonitoringEnabled)
-                            TextField("Backend endpoint URL", text: $appState.settings.backendMonitoringEndpoint)
-                                .keyboardType(.URL)
-                                .textInputAutocapitalization(.never)
-                                .autocorrectionDisabled()
-                            SecureField("Bearer token (optional)", text: $backendMonitoringToken)
-                                .textInputAutocapitalization(.never)
-                                .autocorrectionDisabled()
-                            Text("Sends metrics snapshots after refresh. Passwords and private keys are never included.")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                            Button("Save backend token") {
-                                appState.saveBackendMonitoringTokenFromSettings(backendMonitoringToken)
+                            SettingsRow(title: "Endpoint") {
+                                if appState.settings.backendMonitoringEndpoint.isEmpty {
+                                    Text("Not configured")
+                                        .foregroundStyle(.secondary)
+                                } else {
+                                    Text("Configured")
+                                        .foregroundStyle(.green)
+                                }
+                            }
+
+                            DisclosureGroup("Connection details", isExpanded: $isRemoteMonitoringExpanded) {
+                                VStack(alignment: .leading, spacing: 12) {
+                                    TextField("Backend endpoint URL", text: $appState.settings.backendMonitoringEndpoint)
+                                        .keyboardType(.URL)
+                                        .textInputAutocapitalization(.never)
+                                        .autocorrectionDisabled()
+                                    SecureField("Bearer token (optional)", text: $backendMonitoringToken)
+                                        .textInputAutocapitalization(.never)
+                                        .autocorrectionDisabled()
+                                    Text("Sends metrics snapshots after refresh. Passwords and private keys are never included.")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                    Button("Save backend token") {
+                                        appState.saveBackendMonitoringTokenFromSettings(backendMonitoringToken)
+                                    }
+                                }
                             }
                         }
                         .listItemEntrance(index: 6, disabled: appState.shouldReduceMotion)

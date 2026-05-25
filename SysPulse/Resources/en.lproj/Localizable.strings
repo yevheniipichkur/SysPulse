@@ -303,6 +303,8 @@
 "Select or add a server to open SSH terminal." = "Select or add a server to open SSH terminal.";
 "Saved SSH profiles run commands directly on your Linux machine." = "Saved SSH profiles run commands directly on your Linux machine.";
 "No saved servers" = "No saved servers";
+"Add your first SSH profile to start monitoring, terminal sessions and SFTP." = "Add your first SSH profile to start monitoring, terminal sessions and SFTP.";
+"Open Servers" = "Open Servers";
 "New session" = "New session";
 "Close session" = "Close session";
 "Ask AI to generate a command" = "Ask AI to generate a command";
@@ -580,6 +582,7 @@
 "%d items" = "%d items";
 "Opening folder..." = "Opening folder...";
 "Loading contents..." = "Loading contents...";
+"Remote Path" = "Remote Path";
 "Download ready" = "Download ready";
 "Empty directory" = "Empty directory";
 "This directory has no files." = "This directory has no files.";
@@ -605,4 +608,13 @@
 "Files" = "Files";
 "Resource Trends" = "Resource Trends";
 "Temperature" = "Temperature";
+"Encrypted sharing" = "Encrypted sharing";
+"Endpoint" = "Endpoint";
+"Not configured" = "Not configured";
+"Configured" = "Configured";
+"Connection details" = "Connection details";
+"SSH, SFTP, alerts and widgets in one secure workspace." = "SSH, SFTP, alerts and widgets in one secure workspace.";
+"All" = "All";
+"Widgets" = "Widgets";
+"Secure" = "Secure";
 "SFTP upload is limited to %d MB." = "SFTP upload is limited to %d MB.";

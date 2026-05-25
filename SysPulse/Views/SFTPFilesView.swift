@@ -40,11 +40,16 @@ struct SFTPFilesView: View {
                 if let server {
                     filesSurface(server: server)
                 } else {
-                    EmptyStateView(
+                    ActionEmptyStateView(
                         title: "No server selected",
                         message: "Choose a server from the Servers tab to browse its files.",
-                        symbol: "folder"
-                    )
+                        symbol: "folder",
+                        actionTitle: "Open Servers",
+                        actionSymbol: "server.rack"
+                    ) {
+                        appState.selectedTab = .servers
+                    }
+                    .padding(.horizontal, SysPulseDesign.pagePadding)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
             }
@@ -217,42 +222,74 @@ struct SFTPFilesView: View {
     }
 
     private func pathCard(server: ServerProfile) -> some View {
-        GlassCard(cornerRadius: 20, padding: 12) {
-            HStack(spacing: 12) {
-                Image(systemName: currentPath == "/" ? "externaldrive.connected.to.line.below" : "folder")
-                    .font(.headline)
-                    .foregroundStyle(.cyan)
-                    .frame(width: 34, height: 34)
-                    .background(.cyan.opacity(0.12), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        GlassCard(cornerRadius: 22, padding: 13) {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(spacing: 12) {
+                    Image(systemName: currentPath == "/" ? "externaldrive.connected.to.line.below" : "folder")
+                        .font(.headline)
+                        .foregroundStyle(.cyan)
+                        .frame(width: 36, height: 36)
+                        .background(.cyan.opacity(0.12), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
 
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(currentPath.isEmpty ? "." : currentPath)
-                        .font(.subheadline.monospaced())
-                        .lineLimit(1)
-                    Text(isLoading ? appState.localized("Loading contents...") : appState.localized("%d items", allItems.count))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("Remote Path")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                        Text(isLoading ? appState.localized("Loading contents...") : appState.localized("%d items", allItems.count))
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Spacer()
+
+                    Button {
+                        navigate(to: ".", server: server)
+                    } label: {
+                        navigationButtonIcon(symbol: "house", path: ".")
+                    }
+                    .buttonStyle(PressableGlassButtonStyle(cornerRadius: 13, verticalPadding: 0, horizontalPadding: 0))
+                    .disabled(currentPath == "." || currentPath == "~")
+                    .accessibilityLabel("Go to Home")
+
+                    Button {
+                        navigate(to: parentPath, server: server)
+                    } label: {
+                        navigationButtonIcon(symbol: "arrow.uturn.left", path: parentPath)
+                    }
+                    .buttonStyle(PressableGlassButtonStyle(cornerRadius: 13, verticalPadding: 0, horizontalPadding: 0))
+                    .disabled(currentPath == "." || currentPath == "/")
+                    .accessibilityLabel("Go Up")
                 }
 
-                Spacer()
+                ScrollView(.horizontal) {
+                    HStack(spacing: 7) {
+                        ForEach(Array(addressParts.enumerated()), id: \.offset) { index, part in
+                            if index > 0 {
+                                Image(systemName: "chevron.right")
+                                    .font(.caption2.weight(.semibold))
+                                    .foregroundStyle(.secondary)
+                            }
 
-                Button {
-                    navigate(to: ".", server: server)
-                } label: {
-                    navigationButtonIcon(symbol: "house", path: ".")
+                            Button {
+                                navigate(to: addressTarget(for: index), server: server)
+                            } label: {
+                                Text(part)
+                                    .font(.caption.monospaced().weight(.semibold))
+                                    .foregroundStyle(index == addressParts.count - 1 ? .primary : .cyan)
+                                    .padding(.horizontal, 9)
+                                    .frame(height: 28)
+                                    .background(
+                                        (index == addressParts.count - 1 ? Color.cyan.opacity(0.12) : Color.white.opacity(0.05)),
+                                        in: Capsule()
+                                    )
+                            }
+                            .buttonStyle(.plain)
+                            .disabled(index == addressParts.count - 1)
+                        }
+                    }
+                    .padding(.vertical, 1)
                 }
-                .buttonStyle(PressableGlassButtonStyle(cornerRadius: 13, verticalPadding: 0, horizontalPadding: 0))
-                .disabled(currentPath == "." || currentPath == "~")
-                .accessibilityLabel("Go to Home")
-
-                Button {
-                    navigate(to: parentPath, server: server)
-                } label: {
-                    navigationButtonIcon(symbol: "arrow.uturn.left", path: parentPath)
-                }
-                .buttonStyle(PressableGlassButtonStyle(cornerRadius: 13, verticalPadding: 0, horizontalPadding: 0))
-                .disabled(currentPath == "." || currentPath == "/")
-                .accessibilityLabel("Go Up")
+                .scrollIndicators(.hidden)
             }
         }
     }
@@ -588,6 +625,32 @@ struct SFTPFilesView: View {
         guard let slashIndex = normalized.lastIndex(of: "/") else { return "." }
         if slashIndex == normalized.startIndex { return "/" }
         return String(normalized[..<slashIndex])
+    }
+
+    private var addressParts: [String] {
+        let trimmed = currentPath.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty || trimmed == "." || trimmed == "~" {
+            return ["~"]
+        }
+        let components = trimmed.components(separatedBy: "/").filter { !$0.isEmpty }
+        if trimmed.hasPrefix("/") {
+            return ["/"] + components
+        }
+        return components.isEmpty ? ["~"] : components
+    }
+
+    private func addressTarget(for index: Int) -> String {
+        let trimmed = currentPath.trimmingCharacters(in: .whitespacesAndNewlines)
+        let parts = addressParts
+        guard parts.indices.contains(index) else { return currentPath }
+        if parts[index] == "~" { return "." }
+        if parts[index] == "/" { return "/" }
+        if trimmed.hasPrefix("/") {
+            let components = parts.filter { $0 != "/" }
+            let target = "/" + components.prefix(index).joined(separator: "/")
+            return target == "/" ? "/" : target
+        }
+        return parts.prefix(index + 1).joined(separator: "/")
     }
 
     private func navigate(to path: String, server: ServerProfile) {

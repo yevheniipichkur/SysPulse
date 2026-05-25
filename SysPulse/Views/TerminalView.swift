@@ -296,6 +296,7 @@ struct TerminalView: View {
     private var bottomConsole: some View {
         VStack(spacing: 8) {
             connectionBar
+            terminalSessionStrip
             if keyboardActive { historySuggestions }
             keyboardAccessory
         }
@@ -411,6 +412,36 @@ struct TerminalView: View {
                     .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
             }
             .buttonStyle(.plain)
+        }
+    }
+
+    private var terminalSessionStrip: some View {
+        Group {
+            if !appState.terminalSessions.isEmpty {
+                ScrollView(.horizontal) {
+                    HStack(spacing: 8) {
+                        ForEach(appState.terminalSessions) { session in
+                            TerminalSessionPill(
+                                title: session.title,
+                                isActive: session.id == activeSessionID,
+                                state: sessionConnectionStates[session.id] ?? (ptySessions[session.id] == nil ? .disconnected : .connected),
+                                close: {
+                                    closeSession(session.id)
+                                }
+                            ) {
+                                updateWithMotion {
+                                    selectedSessionID = session.id
+                                }
+                                keyboardActive = true
+                                focusActiveTerminal()
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 2)
+                }
+                .scrollIndicators(.hidden)
+                .transition(.opacity.combined(with: .move(edge: .bottom)))
+            }
         }
     }
 
@@ -786,6 +817,10 @@ struct TerminalView: View {
 
     private func closeCurrentSession() {
         guard let id = selectedSessionID else { return }
+        closeSession(id)
+    }
+
+    private func closeSession(_ id: UUID) {
         ptySessions[id]?.disconnect()
         ptySessions.removeValue(forKey: id)
         runtimeStates.removeValue(forKey: id)
@@ -793,7 +828,9 @@ struct TerminalView: View {
         terminalBridgeStore.remove(id)
         updateWithMotion {
             appState.terminalSessions.removeAll { $0.id == id }
-            selectedSessionID = appState.terminalSessions.first?.id
+            if selectedSessionID == id {
+                selectedSessionID = appState.terminalSessions.first?.id
+            }
         }
     }
 
@@ -1291,6 +1328,55 @@ private struct TerminalConnectionBadge: View {
         .overlay {
             Capsule()
                 .stroke(state.color.opacity(0.20), lineWidth: 1)
+        }
+    }
+}
+
+private struct TerminalSessionPill: View {
+    var title: String
+    var isActive: Bool
+    var state: TerminalConnectionState
+    var close: () -> Void
+    var action: () -> Void
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Button(action: action) {
+                HStack(spacing: 7) {
+                    Circle()
+                        .fill(state.color)
+                        .frame(width: 7, height: 7)
+                    Text(title)
+                        .font(.caption.weight(.bold))
+                        .lineLimit(1)
+                }
+                .foregroundStyle(isActive ? .primary : .secondary)
+            }
+            .buttonStyle(.plain)
+
+            Button(action: close) {
+                Image(systemName: "xmark")
+                    .font(.caption2.weight(.black))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 18, height: 18)
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.leading, 11)
+        .padding(.trailing, 7)
+        .frame(height: 32)
+        .background(.thinMaterial, in: Capsule())
+        .overlay {
+            Capsule()
+                .stroke(isActive ? SwiftUI.Color.cyan.opacity(0.45) : SwiftUI.Color.white.opacity(0.10), lineWidth: 1)
+        }
+        .overlay(alignment: .bottom) {
+            if isActive {
+                Capsule()
+                    .fill(.cyan)
+                    .frame(width: 28, height: 2)
+                    .offset(y: 1)
+            }
         }
     }
 }

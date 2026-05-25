@@ -303,6 +303,8 @@
 "Select or add a server to open SSH terminal." = "Выберите или добавьте сервер, чтобы открыть SSH-терминал.";
 "Saved SSH profiles run commands directly on your Linux machine." = "Сохранённые SSH-профили запускают команды прямо на вашем Linux-сервере.";
 "No saved servers" = "Нет сохранённых серверов";
+"Add your first SSH profile to start monitoring, terminal sessions and SFTP." = "Добавьте первый SSH-профиль, чтобы запустить мониторинг, терминал и SFTP.";
+"Open Servers" = "Открыть серверы";
 "New session" = "Новая сессия";
 "Close session" = "Закрыть сессию";
 "Ask AI to generate a command" = "Попросить AI создать команду";
@@ -581,6 +583,7 @@
 "%d items" = "Элементов: %d";
 "Opening folder..." = "Открываем папку...";
 "Loading contents..." = "Загружаем содержимое...";
+"Remote Path" = "Удалённый путь";
 "Download ready" = "Файл готов";
 "Empty directory" = "Папка пуста";
 "This directory has no files." = "В этой папке нет файлов.";
@@ -606,3 +609,12 @@
 "Files" = "Файлы";
 "Resource Trends" = "Динамика ресурсов";
 "Temperature" = "Температура";
+"Encrypted sharing" = "Зашифрованный обмен";
+"Endpoint" = "Endpoint";
+"Not configured" = "Не настроено";
+"Configured" = "Настроено";
+"Connection details" = "Детали подключения";
+"SSH, SFTP, alerts and widgets in one secure workspace." = "SSH, SFTP, алерты и виджеты в одном защищённом рабочем пространстве.";
+"All" = "Все";
+"Widgets" = "Виджеты";
+"Secure" = "Безопасно";

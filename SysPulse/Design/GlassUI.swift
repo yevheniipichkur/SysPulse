@@ -400,3 +400,36 @@ struct EmptyStateView: View {
         .padding(28)
     }
 }
+
+struct ActionEmptyStateView: View {
+    var title: LocalizedStringKey
+    var message: LocalizedStringKey
+    var symbol: String
+    var actionTitle: LocalizedStringKey
+    var actionSymbol: String
+    var action: () -> Void
+
+    var body: some View {
+        GlassCard(cornerRadius: 28, padding: 0) {
+            VStack(spacing: 16) {
+                EmptyStateView(title: title, message: message, symbol: symbol)
+                    .padding(.bottom, -10)
+
+                Button(action: action) {
+                    Label(actionTitle, systemImage: actionSymbol)
+                        .font(.callout.weight(.bold))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 13)
+                        .foregroundStyle(.white)
+                        .background(
+                            LinearGradient(colors: [.cyan, .blue], startPoint: .topLeading, endPoint: .bottomTrailing),
+                            in: RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        )
+                }
+                .buttonStyle(.plain)
+                .padding(.horizontal, 24)
+                .padding(.bottom, 22)
+            }
+        }
+    }
+}

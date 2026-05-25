@@ -26,6 +26,7 @@ struct PaywallView: View {
             ScrollView {
                 VStack(spacing: 20) {
                     header
+                    proofStrip
                     benefitsCard
                     planCards
                     footer
@@ -58,8 +59,23 @@ struct PaywallView: View {
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
+
+            Text("SSH, SFTP, alerts and widgets in one secure workspace.")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.cyan)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 7)
+                .background(.cyan.opacity(0.12), in: Capsule())
         }
         .padding(.top, 30)
+    }
+
+    private var proofStrip: some View {
+        HStack(spacing: 10) {
+            PaywallProofTile(value: "All", title: "Servers", symbol: "server.rack", tint: .cyan)
+            PaywallProofTile(value: "24/7", title: "Widgets", symbol: "rectangle.stack.badge.play", tint: .purple)
+            PaywallProofTile(value: "SSH", title: "Secure", symbol: "lock.shield", tint: .green)
+        }
     }
 
     private var benefitsCard: some View {
@@ -195,6 +211,34 @@ struct PaywallView: View {
 }
 
 // MARK: - Plan card
+
+private struct PaywallProofTile: View {
+    var value: LocalizedStringKey
+    var title: LocalizedStringKey
+    var symbol: String
+    var tint: Color
+
+    var body: some View {
+        VStack(spacing: 7) {
+            Image(systemName: symbol)
+                .font(.headline.weight(.semibold))
+                .foregroundStyle(tint)
+            Text(value)
+                .font(.title3.weight(.black))
+                .monospacedDigit()
+            Text(title)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 13)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .stroke(tint.opacity(0.18), lineWidth: 1)
+        }
+    }
+}
 
 private struct PlanCard: View {
     var title: String

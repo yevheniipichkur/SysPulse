@@ -44,6 +44,7 @@
 - [x] Terminal polish v2 with reconnect, transcript search and command history menu.
 - [x] SFTP v2 selection mode with bulk delete and clearer file manager controls.
 - [x] Server detail redesign with quick actions, health summary and resource trends.
+- [x] Full app-wide interface polish for empty states, server cards, terminal sessions, SFTP navigation, Settings and Paywall.
 
 ## Future
 

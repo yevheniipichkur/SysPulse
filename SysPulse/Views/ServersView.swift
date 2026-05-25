@@ -23,45 +23,58 @@ struct ServersView: View {
                         FreePlanBanner()
                     }
 
-                    ForEach(Array(appState.serverProfiles.enumerated()), id: \.element.id) { index, server in
-                        ServerCardView(
-                            server: server,
-                            metrics: appState.metric(for: server),
-                            isRefreshing: appState.isRefreshingMetrics(for: server)
-                        )
-                            .listItemEntrance(index: index, disabled: appState.shouldReduceMotion)
-                            .onTapGesture {
-                                appState.select(server, tab: .monitor)
-                            }
-                            .contextMenu {
-                                Button {
-                                    appState.select(server, tab: .terminal)
-                                } label: {
-                                    Label("Open Terminal", systemImage: "terminal")
-                                }
-                                Button {
+                    if appState.serverProfiles.isEmpty {
+                        ActionEmptyStateView(
+                            title: "No saved servers",
+                            message: "Add your first SSH profile to start monitoring, terminal sessions and SFTP.",
+                            symbol: "server.rack",
+                            actionTitle: "Add Server",
+                            actionSymbol: "plus"
+                        ) {
+                            isAddingServer = true
+                        }
+                        .listItemEntrance(index: 0, disabled: appState.shouldReduceMotion)
+                    } else {
+                        ForEach(Array(appState.serverProfiles.enumerated()), id: \.element.id) { index, server in
+                            ServerCardView(
+                                server: server,
+                                metrics: appState.metric(for: server),
+                                isRefreshing: appState.isRefreshingMetrics(for: server)
+                            )
+                                .listItemEntrance(index: index, disabled: appState.shouldReduceMotion)
+                                .onTapGesture {
                                     appState.select(server, tab: .monitor)
-                                } label: {
-                                    Label("Open Monitor", systemImage: "waveform.path.ecg")
                                 }
-                                Button {
-                                    editingServer = server
-                                } label: {
-                                    Label("Edit Server", systemImage: "pencil")
+                                .contextMenu {
+                                    Button {
+                                        appState.select(server, tab: .terminal)
+                                    } label: {
+                                        Label("Open Terminal", systemImage: "terminal")
+                                    }
+                                    Button {
+                                        appState.select(server, tab: .monitor)
+                                    } label: {
+                                        Label("Open Monitor", systemImage: "waveform.path.ecg")
+                                    }
+                                    Button {
+                                        editingServer = server
+                                    } label: {
+                                        Label("Edit Server", systemImage: "pencil")
+                                    }
+                                    Button {
+                                        appState.selectedServer = server
+                                        appState.selectedTab = .sftp
+                                    } label: {
+                                        Label("Browse Files", systemImage: "folder")
+                                    }
+                                    Divider()
+                                    Button(role: .destructive) {
+                                        appState.deleteServer(server)
+                                    } label: {
+                                        Label("Delete Server", systemImage: "trash")
+                                    }
                                 }
-                                Button {
-                                    appState.selectedServer = server
-                                    appState.selectedTab = .sftp
-                                } label: {
-                                    Label("Browse Files", systemImage: "folder")
-                                }
-                                Divider()
-                                Button(role: .destructive) {
-                                    appState.deleteServer(server)
-                                } label: {
-                                    Label("Delete Server", systemImage: "trash")
-                                }
-                            }
+                        }
                     }
                 }
                 .padding(.horizontal, SysPulseDesign.pagePadding)
@@ -118,6 +131,7 @@ private struct FreePlanBanner: View {
 }
 
 struct ServerCardView: View {
+    @EnvironmentObject private var appState: AppState
     var server: ServerProfile
     var metrics: ServerMetrics
     var isRefreshing = false
@@ -159,11 +173,9 @@ struct ServerCardView: View {
                     Spacer()
                     VStack(alignment: .trailing, spacing: 7) {
                         StatusPill(status: server.status)
-                        if isRefreshing {
-                            ProgressView()
-                                .controlSize(.small)
-                                .transition(.opacity.combined(with: .scale(scale: 0.82)))
-                        }
+                        Text(metrics.timestamp, style: .relative)
+                            .font(.caption2.monospacedDigit())
+                            .foregroundStyle(.secondary)
                     }
                 }
 
@@ -190,10 +202,57 @@ struct ServerCardView: View {
                     .foregroundStyle(.secondary)
                 }
                 .scrollIndicators(.hidden)
+
+                HStack(spacing: 8) {
+                    ServerQuickActionButton(title: "Terminal", symbol: "terminal", tint: .green) {
+                        appState.select(server, tab: .terminal)
+                    }
+                    ServerQuickActionButton(title: "Files", symbol: "folder", tint: .blue) {
+                        appState.select(server, tab: .sftp)
+                    }
+                    ServerQuickActionButton(title: "Refresh", symbol: "arrow.clockwise", tint: .cyan, isLoading: isRefreshing) {
+                        appState.refreshMetrics(for: server)
+                    }
+                }
             }
         }
         .scaleEffect(isRefreshing ? 0.995 : 1)
         .animation(.spring(response: 0.24, dampingFraction: 0.86), value: isRefreshing)
+    }
+}
+
+private struct ServerQuickActionButton: View {
+    var title: LocalizedStringKey
+    var symbol: String
+    var tint: Color
+    var isLoading = false
+    var action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 6) {
+                if isLoading {
+                    ProgressView()
+                        .controlSize(.small)
+                } else {
+                    Image(systemName: symbol)
+                        .font(.caption.weight(.bold))
+                }
+                Text(title)
+                    .font(.caption.weight(.bold))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+            }
+            .foregroundStyle(tint)
+            .frame(maxWidth: .infinity)
+            .frame(height: 34)
+            .background(tint.opacity(0.10), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .stroke(tint.opacity(0.18), lineWidth: 1)
+            }
+        }
+        .buttonStyle(.plain)
     }
 }
 

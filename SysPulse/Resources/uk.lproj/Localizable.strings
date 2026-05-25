@@ -606,3 +606,15 @@
 "Files" = "Файли";
 "Resource Trends" = "Динаміка ресурсів";
 "Temperature" = "Температура";
+"Add your first SSH profile to start monitoring, terminal sessions and SFTP." = "Додайте перший SSH-профіль, щоб увімкнути моніторинг, термінал і SFTP.";
+"Open Servers" = "Відкрити сервери";
+"Remote Path" = "Віддалений шлях";
+"Encrypted sharing" = "Зашифрований обмін";
+"Endpoint" = "Endpoint";
+"Not configured" = "Не налаштовано";
+"Configured" = "Налаштовано";
+"Connection details" = "Деталі підключення";
+"SSH, SFTP, alerts and widgets in one secure workspace." = "SSH, SFTP, алерти й віджети в одному захищеному робочому просторі.";
+"All" = "Усі";
+"Widgets" = "Віджети";
+"Secure" = "Безпечно";
