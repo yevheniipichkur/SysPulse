@@ -275,7 +275,7 @@ struct SFTPFilesView: View {
                             } label: {
                                 Text(crumb.title)
                                     .font(.caption.monospaced().weight(.semibold))
-                                    .foregroundStyle(crumb.isLast ? .primary : .cyan)
+                                    .foregroundStyle(crumb.isLast ? Color.primary : Color.cyan)
                                     .padding(.horizontal, 9)
                                     .frame(height: 28)
                                     .background(
