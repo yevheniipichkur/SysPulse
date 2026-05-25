@@ -41,6 +41,9 @@
 - [x] Enable App Group capability in Apple Developer and provisioning profiles.
 - [x] Parse real Docker/systemd/process/log command output into structured SwiftUI lists.
 - [x] Lightweight app-wide motion polish for tabs, terminal, refresh actions and cards.
+- [x] Terminal polish v2 with reconnect, transcript search and command history menu.
+- [x] SFTP v2 selection mode with bulk delete and clearer file manager controls.
+- [x] Server detail redesign with quick actions, health summary and resource trends.
 
 ## Future
 

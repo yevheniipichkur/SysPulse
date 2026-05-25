@@ -13,6 +13,9 @@ struct TerminalView: View {
     @State private var ptySessions: [UUID: PTYSession] = [:]
     @State private var runtimeStates: [UUID: TerminalRuntimeState] = [:]
     @State private var terminalSurfaceVisible = false
+    @State private var terminalSearchText = ""
+    @State private var isTranscriptSearchPresented = false
+    @State private var sessionConnectionStates: [UUID: TerminalConnectionState] = [:]
     @StateObject private var terminalBridgeStore = TerminalBridgeStore()
 
     private var selectedSession: TerminalSession? {
@@ -38,6 +41,16 @@ struct TerminalView: View {
         return ptySessions[id] != nil
     }
 
+    private var activeConnectionState: TerminalConnectionState {
+        guard let activeSessionID else {
+            return .disconnected
+        }
+        if let state = sessionConnectionStates[activeSessionID] {
+            return state
+        }
+        return isConnected ? .connected : .disconnected
+    }
+
     private var activePTY: PTYSession? {
         let id = selectedSessionID ?? appState.terminalSessions.first?.id
         return id.flatMap { ptySessions[$0] }
@@ -55,6 +68,18 @@ struct TerminalView: View {
         let state = runtimeStates[sessionID] ?? TerminalRuntimeState(server: server)
         let marker = server.username == "root" ? "#" : "$"
         return "\(server.username)@\(state.host):\(state.displayDirectory) \(marker) "
+    }
+
+    private var transcriptSearchMatches: [String] {
+        let query = terminalSearchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty,
+              let transcript = selectedSession?.transcript else { return [] }
+        return transcript
+            .split(whereSeparator: \.isNewline)
+            .map(String.init)
+            .filter { $0.localizedCaseInsensitiveContains(query) }
+            .suffix(12)
+            .map { $0 }
     }
 
     var body: some View {
@@ -107,6 +132,13 @@ struct TerminalView: View {
         return VStack(spacing: 0) {
             topChrome(palette: palette)
 
+            if isTranscriptSearchPresented {
+                transcriptSearchPanel(palette: palette)
+                    .padding(.horizontal, 10)
+                    .padding(.top, 6)
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+
             if selectedSession == nil {
                 VStack(spacing: 16) {
                     Image(systemName: "terminal")
@@ -157,13 +189,12 @@ struct TerminalView: View {
             LinearGradient(colors: palette.background, startPoint: .topLeading, endPoint: .bottomTrailing)
                 .ignoresSafeArea()
         )
+        .animation(SysPulseMotion.softSpring(disabled: appState.shouldReduceMotion), value: isTranscriptSearchPresented)
     }
 
     private func topChrome(palette: TerminalThemePalette) -> some View {
         HStack(spacing: 10) {
-            Circle()
-                .fill(isConnected ? SwiftUI.Color.green : SwiftUI.Color(UIColor.secondaryLabel))
-                .frame(width: 8, height: 8)
+            TerminalConnectionBadge(state: activeConnectionState)
 
             Text(sessionServer == nil ? "SysPulse SSH" : activePrompt.trimmingCharacters(in: .whitespaces))
                 .font(.caption.monospaced())
@@ -171,6 +202,31 @@ struct TerminalView: View {
                 .lineLimit(1)
 
             Spacer()
+
+            Button {
+                reconnectCurrentSession()
+            } label: {
+                Image(systemName: "arrow.clockwise")
+                    .font(.caption.weight(.semibold))
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(palette.foreground.opacity(0.82))
+            .accessibilityLabel("Reconnect")
+
+            Button {
+                updateWithMotion {
+                    isTranscriptSearchPresented.toggle()
+                    if !isTranscriptSearchPresented {
+                        terminalSearchText = ""
+                    }
+                }
+            } label: {
+                Image(systemName: "magnifyingglass")
+                    .font(.caption.weight(.semibold))
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(isTranscriptSearchPresented ? .cyan : palette.foreground.opacity(0.82))
+            .accessibilityLabel("Search transcript")
 
             Button {
                 UIPasteboard.general.string = selectedSession?.transcript ?? ""
@@ -194,6 +250,47 @@ struct TerminalView: View {
         .padding(.top, 10)
         .padding(.bottom, 8)
         .background(.black.opacity(0.08))
+    }
+
+    private func transcriptSearchPanel(palette: TerminalThemePalette) -> some View {
+        GlassCard(cornerRadius: 18, padding: 12) {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(spacing: 9) {
+                    Image(systemName: "magnifyingglass")
+                        .foregroundStyle(.cyan)
+                    TextField("Search transcript", text: $terminalSearchText)
+                        .font(.callout.monospaced())
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                    if !terminalSearchText.isEmpty {
+                        Button {
+                            terminalSearchText = ""
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .foregroundStyle(.secondary)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+
+                if !terminalSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    if transcriptSearchMatches.isEmpty {
+                        Text("No matching lines")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        VStack(alignment: .leading, spacing: 6) {
+                            ForEach(Array(transcriptSearchMatches.enumerated()), id: \.offset) { _, line in
+                                Text(line)
+                                    .font(.caption.monospaced())
+                                    .foregroundStyle(palette.foreground.opacity(0.86))
+                                    .lineLimit(1)
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 
     private var bottomConsole: some View {
@@ -264,6 +361,28 @@ struct TerminalView: View {
                 sendRawToActivePTY(Array(text.utf8), mirrorInput: true)
                 keyboardActive = true
                 focusActiveTerminal()
+            }
+
+            if !commandHistory.isEmpty {
+                Menu {
+                    ForEach(commandHistory.reversed().prefix(12), id: \.self) { command in
+                        Button(command) {
+                            applySuggestion(command)
+                        }
+                    }
+                    Divider()
+                    Button("Clear terminal history", role: .destructive) {
+                        updateWithMotion {
+                            commandHistory.removeAll()
+                        }
+                    }
+                } label: {
+                    Image(systemName: "clock.arrow.circlepath")
+                        .frame(width: 38, height: 38)
+                        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Terminal history")
             }
 
             Menu {
@@ -596,6 +715,7 @@ struct TerminalView: View {
         var state = runtimeStates[sessionID] ?? TerminalRuntimeState(server: server)
         state.host = server.host
         runtimeStates[sessionID] = state
+        sessionConnectionStates[sessionID] = .connecting
         if appState.isScreenshotMode {
             let transcript = appState.screenshotTerminalTranscript(for: server)
             if let index = appState.terminalSessions.firstIndex(where: { $0.id == sessionID }) {
@@ -604,6 +724,7 @@ struct TerminalView: View {
             let bridge = terminalBridgeStore.bridge(for: sessionID)
             bridge.reset()
             bridge.feed(Array(transcript.utf8))
+            sessionConnectionStates[sessionID] = .connected
             return
         }
         let pty = PTYSession()
@@ -617,6 +738,7 @@ struct TerminalView: View {
             processed = processed.replacingOccurrences(of: "\r", with: "\n")
             guard !processed.isEmpty else { return }
 
+            sessionConnectionStates[sessionID] = .connected
             appStateRef.terminalSessions[idx].transcript = applyingBackspaces(
                 processed,
                 to: appStateRef.terminalSessions[idx].transcript
@@ -627,6 +749,7 @@ struct TerminalView: View {
             bridge?.feed(bytes)
         }
         pty.onDisconnect = { [appStateRef] error in
+            sessionConnectionStates[sessionID] = .disconnected
             guard let idx = appStateRef.terminalSessions.firstIndex(where: { $0.id == sessionID }) else { return }
             if let error {
                 let message = "\n[Disconnected: \(error.localizedDescription)]\n"
@@ -666,6 +789,7 @@ struct TerminalView: View {
         ptySessions[id]?.disconnect()
         ptySessions.removeValue(forKey: id)
         runtimeStates.removeValue(forKey: id)
+        sessionConnectionStates.removeValue(forKey: id)
         terminalBridgeStore.remove(id)
         updateWithMotion {
             appState.terminalSessions.removeAll { $0.id == id }
@@ -678,6 +802,22 @@ struct TerminalView: View {
             appState.select(server, tab: .terminal)
         }
         ensureSession(for: server)
+    }
+
+    private func reconnectCurrentSession() {
+        guard let sessionID = activeSessionID,
+              let server = sessionServer else {
+            return
+        }
+        ptySessions[sessionID]?.disconnect()
+        ptySessions.removeValue(forKey: sessionID)
+        let bridge = terminalBridgeStore.bridge(for: sessionID)
+        bridge.reset()
+        let message = "[Reconnecting...]\n"
+        append(message, to: sessionID)
+        bridge.feed(Array(message.utf8))
+        appState.haptic(.light)
+        connectPTY(sessionID: sessionID, server: server)
     }
 
     private func leaveTerminal(to tab: AppTab) {
@@ -812,6 +952,28 @@ private struct TerminalRuntimeState {
             return "~/" + String(absoluteDirectory.dropFirst(homeDirectory.count + 1))
         }
         return absoluteDirectory
+    }
+}
+
+private enum TerminalConnectionState: Equatable {
+    case connecting
+    case connected
+    case disconnected
+
+    var title: LocalizedStringKey {
+        switch self {
+        case .connecting: "Connecting"
+        case .connected: "Connected"
+        case .disconnected: "Offline"
+        }
+    }
+
+    var color: Color {
+        switch self {
+        case .connecting: .orange
+        case .connected: .green
+        case .disconnected: .secondary
+        }
     }
 }
 
@@ -1109,6 +1271,29 @@ private func applyingBackspaces(_ update: String, to existing: String) -> String
 }
 
 // MARK: - Sub-views
+
+private struct TerminalConnectionBadge: View {
+    var state: TerminalConnectionState
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Circle()
+                .fill(state.color)
+                .frame(width: 8, height: 8)
+                .shadow(color: state.color.opacity(0.65), radius: state == .connected ? 5 : 0)
+            Text(state.title)
+                .font(.caption2.weight(.bold))
+                .lineLimit(1)
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 5)
+        .background(.white.opacity(0.06), in: Capsule())
+        .overlay {
+            Capsule()
+                .stroke(state.color.opacity(0.20), lineWidth: 1)
+        }
+    }
+}
 
 private struct TerminalKeyStyle: ButtonStyle {
     var isActive: Bool = false

@@ -11,6 +11,9 @@ struct SFTPFilesView: View {
     @State private var showingDeleteConfirmation = false
     @State private var pathHistory: [String] = []
     @State private var pendingNavigationPath: String?
+    @State private var isSelectionMode = false
+    @State private var selectedItemIDs: Set<String> = []
+    @State private var showingBulkDeleteConfirmation = false
 
     private var server: ServerProfile? { appState.selectedServer }
     private var currentPath: String { appState.sftpPath(for: server) }
@@ -23,6 +26,10 @@ struct SFTPFilesView: View {
     private var visibleItems: [SFTPRemoteItem] {
         guard !searchText.isEmpty else { return allItems }
         return allItems.filter { $0.name.localizedCaseInsensitiveContains(searchText) }
+    }
+
+    private var selectedItems: [SFTPRemoteItem] {
+        allItems.filter { selectedItemIDs.contains($0.id) }
     }
 
     var body: some View {
@@ -71,6 +78,18 @@ struct SFTPFilesView: View {
             } message: {
                 Text(pendingDeleteItem.map { appState.localized("Delete %@?", $0.name) } ?? "")
             }
+            .alert("Delete selected items?", isPresented: $showingBulkDeleteConfirmation) {
+                Button("Cancel", role: .cancel) {}
+                Button("Delete", role: .destructive) {
+                    if let server {
+                        appState.deleteSFTPItems(selectedItems, from: server)
+                    }
+                    selectedItemIDs.removeAll()
+                    isSelectionMode = false
+                }
+            } message: {
+                Text(appState.localized("Delete %d selected items?", selectedItemIDs.count))
+            }
         }
         .accessibilityIdentifier(AppTab.sftp.screenAccessibilityIdentifier)
         .onAppear {
@@ -83,11 +102,17 @@ struct SFTPFilesView: View {
             searchText = ""
             downloadedSFTPFileURL = nil
             pendingNavigationPath = nil
+            selectedItemIDs.removeAll()
+            isSelectionMode = false
         }
         .onChange(of: isLoading) { _, isLoading in
             if !isLoading {
                 pendingNavigationPath = nil
             }
+        }
+        .onChange(of: currentPath) { _, _ in
+            selectedItemIDs.removeAll()
+            isSelectionMode = false
         }
     }
 
@@ -104,6 +129,11 @@ struct SFTPFilesView: View {
                 }
 
                 pathCard(server: server)
+
+                if isSelectionMode {
+                    selectionBar
+                        .transition(.opacity.combined(with: .move(edge: .top)))
+                }
 
                 if isLoading && allItems.isEmpty {
                     skeletonList
@@ -341,15 +371,47 @@ struct SFTPFilesView: View {
         }
     }
 
+    private var selectionBar: some View {
+        GlassCard(cornerRadius: 18, padding: 12) {
+            HStack(spacing: 10) {
+                Label(appState.localized("%d selected", selectedItemIDs.count), systemImage: "checkmark.circle")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(.cyan)
+                Spacer()
+                Button("Select all") {
+                    selectedItemIDs = Set(visibleItems.map(\.id))
+                }
+                .font(.caption.weight(.bold))
+                .buttonStyle(.plain)
+                Button("Delete Selected", role: .destructive) {
+                    showingBulkDeleteConfirmation = true
+                }
+                .font(.caption.weight(.bold))
+                .buttonStyle(.plain)
+                .disabled(selectedItemIDs.isEmpty)
+            }
+        }
+    }
+
     private func fileCard(_ item: SFTPRemoteItem, server: ServerProfile) -> some View {
+        let isSelected = selectedItemIDs.contains(item.id)
         GlassCard(cornerRadius: 20, padding: 0) {
             HStack(spacing: 12) {
                 Button {
-                    if item.isDirectory {
+                    if isSelectionMode {
+                        toggleSelection(item)
+                    } else if item.isDirectory {
                         navigate(to: item.path, server: server)
                     }
                 } label: {
                     HStack(spacing: 12) {
+                        if isSelectionMode {
+                            Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                                .font(.title3.weight(.semibold))
+                                .foregroundStyle(isSelected ? .cyan : .secondary)
+                                .transition(.opacity.combined(with: .scale(scale: 0.88)))
+                        }
+
                         fileIcon(for: item)
 
                         VStack(alignment: .leading, spacing: 4) {
@@ -398,6 +460,7 @@ struct SFTPFilesView: View {
                             }
                             .buttonStyle(PressableGlassButtonStyle(cornerRadius: 12, verticalPadding: 0, horizontalPadding: 0))
                             .accessibilityLabel("Download")
+                            .disabled(isSelectionMode)
                         }
 
                         Button(role: .destructive) {
@@ -409,6 +472,7 @@ struct SFTPFilesView: View {
                         }
                         .buttonStyle(PressableGlassButtonStyle(tint: .red, cornerRadius: 12, verticalPadding: 0, horizontalPadding: 0))
                         .accessibilityLabel("Delete")
+                        .disabled(isSelectionMode)
 
                         if item.isDirectory {
                             if pendingNavigationPath == item.path, isLoading {
@@ -428,6 +492,13 @@ struct SFTPFilesView: View {
                 }
             }
             .padding(13)
+        }
+        .overlay {
+            if isSelected {
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .stroke(.cyan.opacity(0.55), lineWidth: 1.5)
+                    .transition(.opacity)
+            }
         }
         .contextMenu {
             if item.isDirectory {
@@ -521,6 +592,8 @@ struct SFTPFilesView: View {
 
     private func navigate(to path: String, server: ServerProfile) {
         guard path != currentPath else { return }
+        selectedItemIDs.removeAll()
+        isSelectionMode = false
         pathHistory.append(currentPath)
         pendingNavigationPath = path
         searchText = ""
@@ -530,6 +603,8 @@ struct SFTPFilesView: View {
 
     private func navigateBack(server: ServerProfile) {
         guard let previous = pathHistory.popLast() else { return }
+        selectedItemIDs.removeAll()
+        isSelectionMode = false
         pendingNavigationPath = previous
         searchText = ""
         appState.haptic(.light)
@@ -606,6 +681,18 @@ struct SFTPFilesView: View {
 
     private var trailingToolbar: some View {
         HStack(spacing: 16) {
+            if server != nil {
+                Button(isSelectionMode ? "Done" : "Select") {
+                    withOptionalAnimation {
+                        isSelectionMode.toggle()
+                        if !isSelectionMode {
+                            selectedItemIDs.removeAll()
+                        }
+                    }
+                }
+                .font(.subheadline.weight(.semibold))
+            }
+
             Button {
                 isImportingSFTPFile = true
             } label: {
@@ -645,6 +732,25 @@ struct SFTPFilesView: View {
 
     private func formatSize(_ bytes: Int64) -> String {
         ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)
+    }
+
+    private func toggleSelection(_ item: SFTPRemoteItem) {
+        withOptionalAnimation {
+            if selectedItemIDs.contains(item.id) {
+                selectedItemIDs.remove(item.id)
+            } else {
+                selectedItemIDs.insert(item.id)
+            }
+        }
+        appState.haptic(.light)
+    }
+
+    private func withOptionalAnimation(_ updates: () -> Void) {
+        if appState.shouldReduceMotion {
+            updates()
+        } else {
+            withAnimation(.spring(response: 0.24, dampingFraction: 0.86), updates)
+        }
     }
 }
 

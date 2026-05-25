@@ -25,8 +25,10 @@ struct ServerDetailView: View {
                         VStack(spacing: 16) {
                             detailHeader(server: server)
                                 .listItemEntrance(index: 0, disabled: appState.shouldReduceMotion)
-                            detailTabs
+                            monitorQuickActions(server: server)
                                 .listItemEntrance(index: 1, disabled: appState.shouldReduceMotion)
+                            detailTabs
+                                .listItemEntrance(index: 2, disabled: appState.shouldReduceMotion)
 
                             Group {
                                 switch selectedTab {
@@ -176,6 +178,28 @@ struct ServerDetailView: View {
         }
     }
 
+    private func monitorQuickActions(server: ServerProfile) -> some View {
+        ScrollView(.horizontal) {
+            HStack(spacing: 10) {
+                MonitorActionChip(title: "Terminal", symbol: "terminal", tint: .green) {
+                    appState.select(server, tab: .terminal)
+                }
+                MonitorActionChip(title: "Files", symbol: "folder", tint: .blue) {
+                    appState.select(server, tab: .sftp)
+                }
+                MonitorActionChip(title: "Refresh", symbol: "arrow.clockwise", tint: .cyan) {
+                    appState.refreshMetrics(for: server)
+                }
+                MonitorActionChip(title: "Diagnostics", symbol: "stethoscope", tint: .purple) {
+                    selectedTab = .actions
+                    appState.refreshPackageStatuses(for: server)
+                }
+            }
+            .padding(.vertical, 2)
+        }
+        .scrollIndicators(.hidden)
+    }
+
     private var detailTabs: some View {
         ScrollView(.horizontal) {
             HStack(spacing: 8) {
@@ -217,6 +241,10 @@ struct ServerDetailView: View {
 
     private func overview(server: ServerProfile, metrics: ServerMetrics) -> some View {
         VStack(spacing: 14) {
+            healthOverview(server: server, metrics: metrics)
+
+            resourceTrendCard(metrics: metrics)
+
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
                 MetricTile(title: "CPU", value: "\(Int(metrics.cpuUsage))%", symbol: "cpu", color: .cyan, progress: metrics.cpuUsage)
                 MetricTile(title: "RAM", value: "\(Int(metrics.ramUsage))%", symbol: "memorychip", color: .green, progress: metrics.ramUsage)
@@ -257,6 +285,84 @@ struct ServerDetailView: View {
                     DetailRow(title: "IP addresses", value: metrics.ipAddresses.joined(separator: ", "))
                 }
             }
+        }
+    }
+
+    private func healthOverview(server: ServerProfile, metrics: ServerMetrics) -> some View {
+        GlassCard(cornerRadius: 24, padding: 15) {
+            VStack(alignment: .leading, spacing: 14) {
+                HStack(alignment: .top, spacing: 14) {
+                    ZStack {
+                        Circle()
+                            .stroke(server.status.color.opacity(0.18), lineWidth: 8)
+                        Circle()
+                            .trim(from: 0, to: CGFloat(min(max(metrics.healthScore, 0), 100)) / 100)
+                            .stroke(server.status.color, style: StrokeStyle(lineWidth: 8, lineCap: .round))
+                            .rotationEffect(.degrees(-90))
+                        Text("\(metrics.healthScore)")
+                            .font(.title3.weight(.black))
+                            .monospacedDigit()
+                    }
+                    .frame(width: 72, height: 72)
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack(spacing: 8) {
+                            StatusDot(title: server.status.title, color: server.status.color)
+                            Text(metrics.timestamp, style: .relative)
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.secondary)
+                        }
+                        Text(metrics.osName)
+                            .font(.headline)
+                            .lineLimit(1)
+                        Text("\(metrics.uptime) · load \(metrics.loadAverage)")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+
+                    Spacer(minLength: 0)
+                }
+
+                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
+                    MonitorSummaryTile(title: "Docker", value: "\(metrics.dockerRunning)/\(metrics.dockerTotal)", symbol: "shippingbox", tint: .blue)
+                    MonitorSummaryTile(title: "Services", value: "\(metrics.failedServices)", symbol: "exclamationmark.triangle", tint: metrics.failedServices > 0 ? .orange : .green)
+                    MonitorSummaryTile(title: "Network", value: "\(Int(metrics.networkInMB + metrics.networkOutMB)) MB", symbol: "network", tint: .purple)
+                    MonitorSummaryTile(title: "Temperature", value: metrics.temperatureCelsius.map { "\(Int($0))°C" } ?? "N/A", symbol: "thermometer.medium", tint: .red)
+                }
+            }
+        }
+    }
+
+    private func resourceTrendCard(metrics: ServerMetrics) -> some View {
+        GlassCard(cornerRadius: 24, padding: 15) {
+            VStack(alignment: .leading, spacing: 14) {
+                Label("Resource Trends", systemImage: "chart.xyaxis.line")
+                    .font(.headline)
+
+                VStack(spacing: 12) {
+                    trendRow(title: "CPU", value: metrics.cpuUsage, values: metrics.cpuHistory, color: .cyan)
+                    trendRow(title: "RAM", value: metrics.ramUsage, values: metrics.ramHistory, color: .green)
+                    trendRow(title: "Disk", value: metrics.diskUsage, values: metrics.diskHistory, color: metrics.diskUsage > 80 ? .orange : .blue)
+                }
+            }
+        }
+    }
+
+    private func trendRow(title: LocalizedStringKey, value: Double, values: [Double], color: Color) -> some View {
+        HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                Text(percent(value))
+                    .font(.headline.monospacedDigit())
+                    .foregroundStyle(color)
+            }
+            .frame(width: 58, alignment: .leading)
+
+            Sparkline(values: values.isEmpty ? [value, value] : values, color: color)
+                .frame(height: 34)
         }
     }
 
@@ -854,6 +960,63 @@ private struct StatusDot: View {
         .padding(.horizontal, 9)
         .padding(.vertical, 6)
         .background(color.opacity(0.12), in: Capsule())
+    }
+}
+
+private struct MonitorActionChip: View {
+    var title: LocalizedStringKey
+    var symbol: String
+    var tint: Color
+    var action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 8) {
+                Image(systemName: symbol)
+                    .font(.subheadline.weight(.bold))
+                Text(title)
+                    .font(.caption.weight(.bold))
+            }
+            .foregroundStyle(tint)
+            .padding(.horizontal, 13)
+            .frame(height: 38)
+            .background(.thinMaterial, in: Capsule())
+            .overlay {
+                Capsule()
+                    .stroke(tint.opacity(0.24), lineWidth: 1)
+            }
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+private struct MonitorSummaryTile: View {
+    var title: LocalizedStringKey
+    var value: String
+    var symbol: String
+    var tint: Color
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: symbol)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(tint)
+                .frame(width: 30, height: 30)
+                .background(tint.opacity(0.12), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(value)
+                    .font(.subheadline.weight(.bold))
+                    .monospacedDigit()
+                Text(title)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(10)
+        .background(.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
     }
 }
 

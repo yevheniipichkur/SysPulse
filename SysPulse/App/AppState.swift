@@ -879,6 +879,27 @@ final class AppState: ObservableObject {
         }
     }
 
+    func deleteSFTPItems(_ items: [SFTPRemoteItem], from server: ServerProfile) {
+        guard !items.isEmpty else { return }
+        lastCommandOutput = localized("Deleting %d SFTP items...", items.count)
+        Task {
+            do {
+                for item in items {
+                    try await sftpService.delete(item, server: server, via: sshClient)
+                }
+                await MainActor.run {
+                    lastCommandOutput = localized("Deleted %d SFTP items.", items.count)
+                    refreshSFTPDirectory(for: server)
+                }
+            } catch {
+                await MainActor.run {
+                    lastCommandOutput = error.localizedDescription
+                    refreshSFTPDirectory(for: server)
+                }
+            }
+        }
+    }
+
     func requestAlertNotifications() async {
         let granted = await notificationService.requestPermission()
         areNotificationsAuthorized = granted
