@@ -17,7 +17,7 @@ struct SFTPFilesView: View {
     private var allItems: [SFTPRemoteItem] { appState.sftpItems(for: server) }
     private var isLoading: Bool { appState.isSFTPLoading(for: server) }
     private var activeAnimation: Animation? {
-        appState.areUITestAnimationsDisabled ? nil : .spring(response: 0.34, dampingFraction: 0.86)
+        SysPulseMotion.softSpring(disabled: appState.shouldReduceMotion)
     }
 
     private var visibleItems: [SFTPRemoteItem] {
@@ -114,8 +114,9 @@ struct SFTPFilesView: View {
                         .transition(.opacity.combined(with: .scale(scale: 0.98)))
                 } else {
                     LazyVStack(spacing: 10) {
-                        ForEach(visibleItems) { item in
+                        ForEach(Array(visibleItems.enumerated()), id: \.element.id) { index, item in
                             fileCard(item, server: server)
+                                .listItemEntrance(index: index, disabled: appState.shouldReduceMotion)
                                 .transition(.opacity.combined(with: .move(edge: .bottom)))
                         }
                     }
@@ -175,14 +176,7 @@ struct SFTPFilesView: View {
                     Button {
                         appState.refreshSFTPDirectory(for: server)
                     } label: {
-                        ZStack {
-                            if isLoading {
-                                ProgressView()
-                                    .controlSize(.small)
-                            } else {
-                                Image(systemName: "arrow.clockwise")
-                            }
-                        }
+                        RefreshGlyph(isRefreshing: isLoading, disabled: appState.shouldReduceMotion)
                         .frame(width: 34, height: 34)
                     }
                     .buttonStyle(PressableGlassButtonStyle(cornerRadius: 14, verticalPadding: 0, horizontalPadding: 0))
@@ -286,7 +280,7 @@ struct SFTPFilesView: View {
                     width: 42,
                     height: 42,
                     cornerRadius: 14,
-                    isAnimated: !appState.areUITestAnimationsDisabled && !appState.settings.reduceAnimations
+                    isAnimated: !appState.shouldReduceMotion
                 )
 
                 VStack(alignment: .leading, spacing: 8) {
@@ -294,13 +288,13 @@ struct SFTPFilesView: View {
                         width: CGFloat([132, 176, 118, 154, 204, 142, 188, 126][index % 8]),
                         height: 13,
                         cornerRadius: 6,
-                        isAnimated: !appState.areUITestAnimationsDisabled && !appState.settings.reduceAnimations
+                        isAnimated: !appState.shouldReduceMotion
                     )
                     SFTPShimmerBlock(
                         width: CGFloat([76, 96, 68, 112, 84, 126, 92, 72][index % 8]),
                         height: 9,
                         cornerRadius: 5,
-                        isAnimated: !appState.areUITestAnimationsDisabled && !appState.settings.reduceAnimations
+                        isAnimated: !appState.shouldReduceMotion
                     )
                 }
 
@@ -310,7 +304,7 @@ struct SFTPFilesView: View {
                     width: 20,
                     height: 20,
                     cornerRadius: 7,
-                    isAnimated: !appState.areUITestAnimationsDisabled && !appState.settings.reduceAnimations
+                    isAnimated: !appState.shouldReduceMotion
                 )
             }
             .padding(13)

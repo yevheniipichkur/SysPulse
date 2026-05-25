@@ -12,6 +12,7 @@ struct TerminalView: View {
     @State private var altModifierActive: Bool = false
     @State private var ptySessions: [UUID: PTYSession] = [:]
     @State private var runtimeStates: [UUID: TerminalRuntimeState] = [:]
+    @State private var terminalSurfaceVisible = false
     @StateObject private var terminalBridgeStore = TerminalBridgeStore()
 
     private var selectedSession: TerminalSession? {
@@ -63,15 +64,21 @@ struct TerminalView: View {
                     .ignoresSafeArea()
 
                 terminalCanvas
+                    .opacity(appState.shouldReduceMotion || terminalSurfaceVisible ? 1 : 0.001)
+                    .scaleEffect(appState.shouldReduceMotion || terminalSurfaceVisible ? 1 : 0.985, anchor: .bottom)
+                    .offset(y: appState.shouldReduceMotion || terminalSurfaceVisible ? 0 : 14)
+                    .blur(radius: appState.shouldReduceMotion || terminalSurfaceVisible ? 0 : 4)
+                    .animation(SysPulseMotion.softSpring(disabled: appState.shouldReduceMotion), value: terminalSurfaceVisible)
             }
             .safeAreaInset(edge: .bottom, spacing: 0) {
                 bottomConsole
             }
         }
         .onAppear {
+            setTerminalSurfaceVisible(true)
             ensureSessionForSelectedServer()
             Task { @MainActor in
-                try? await Task.sleep(for: .seconds(appState.areUITestAnimationsDisabled ? 0.05 : 0.5))
+                try? await Task.sleep(for: .seconds(appState.shouldReduceMotion ? 0.05 : 0.5))
                 keyboardActive = true
                 focusActiveTerminal()
             }
@@ -80,9 +87,13 @@ struct TerminalView: View {
             ensureSessionForSelectedServer()
         }
         .onChange(of: appState.selectedTab) { _, newTab in
-            guard newTab == .terminal else { return }
+            guard newTab == .terminal else {
+                setTerminalSurfaceVisible(false)
+                return
+            }
+            setTerminalSurfaceVisible(true)
             Task { @MainActor in
-                try? await Task.sleep(for: .seconds(appState.areUITestAnimationsDisabled ? 0.05 : 0.35))
+                try? await Task.sleep(for: .seconds(appState.shouldReduceMotion ? 0.05 : 0.35))
                 keyboardActive = true
                 focusActiveTerminal()
             }
@@ -200,23 +211,22 @@ struct TerminalView: View {
                 .fill(.white.opacity(0.08))
                 .frame(height: 1)
         }
-        .animation(appState.areUITestAnimationsDisabled ? nil : .spring(response: 0.24, dampingFraction: 0.88), value: currentInput)
+        .animation(SysPulseMotion.quickSpring(disabled: appState.shouldReduceMotion), value: currentInput)
     }
 
     private var connectionBar: some View {
         HStack(spacing: 8) {
             TerminalIconButton(systemName: "chevron.left") {
-                appState.selectedTab = .servers
+                leaveTerminal(to: .servers)
             }
 
             Menu {
                 if appState.serverProfiles.isEmpty {
-                    Button("Add Server") { appState.selectedTab = .servers }
+                    Button("Add Server") { leaveTerminal(to: .servers) }
                 } else {
                     ForEach(appState.serverProfiles) { server in
                         Button("\(server.name) · \(server.host)") {
-                            appState.select(server, tab: .terminal)
-                            ensureSession(for: server)
+                            selectTerminalServer(server)
                         }
                     }
                 }
@@ -245,7 +255,7 @@ struct TerminalView: View {
                 if let server = appState.selectedServer {
                     createSession(for: server)
                 } else {
-                    appState.selectedTab = .servers
+                    leaveTerminal(to: .servers)
                 }
             }
 
@@ -266,7 +276,9 @@ struct TerminalView: View {
                 } else {
                     ForEach(appState.terminalSessions) { session in
                         Button(session.title) {
-                            selectedSessionID = session.id
+                            updateWithMotion {
+                                selectedSessionID = session.id
+                            }
                         }
                     }
                     Divider()
@@ -550,7 +562,9 @@ struct TerminalView: View {
 
     private func ensureSession(for server: ServerProfile) {
         if let existing = appState.terminalSessions.first(where: { $0.serverID == server.id }) {
-            selectedSessionID = existing.id
+            updateWithMotion {
+                selectedSessionID = existing.id
+            }
             if runtimeStates[existing.id] == nil {
                 runtimeStates[existing.id] = TerminalRuntimeState(server: server)
             }
@@ -568,9 +582,11 @@ struct TerminalView: View {
             title: server.name,
             transcript: welcomeTranscript(for: server)
         )
-        appState.terminalSessions.append(session)
-        runtimeStates[session.id] = TerminalRuntimeState(server: server)
-        selectedSessionID = session.id
+        updateWithMotion {
+            appState.terminalSessions.append(session)
+            runtimeStates[session.id] = TerminalRuntimeState(server: server)
+            selectedSessionID = session.id
+        }
         appState.haptic(.light)
         keyboardActive = true
         connectPTY(sessionID: session.id, server: server)
@@ -639,7 +655,9 @@ struct TerminalView: View {
     private func clearTranscript() {
         guard let id = selectedSessionID,
               let index = appState.terminalSessions.firstIndex(where: { $0.id == id }) else { return }
-        appState.terminalSessions[index].transcript = ""
+        updateWithMotion {
+            appState.terminalSessions[index].transcript = ""
+        }
         terminalBridgeStore.bridge(for: id).reset()
     }
 
@@ -649,8 +667,46 @@ struct TerminalView: View {
         ptySessions.removeValue(forKey: id)
         runtimeStates.removeValue(forKey: id)
         terminalBridgeStore.remove(id)
-        appState.terminalSessions.removeAll { $0.id == id }
-        selectedSessionID = appState.terminalSessions.first?.id
+        updateWithMotion {
+            appState.terminalSessions.removeAll { $0.id == id }
+            selectedSessionID = appState.terminalSessions.first?.id
+        }
+    }
+
+    private func selectTerminalServer(_ server: ServerProfile) {
+        updateWithMotion {
+            appState.select(server, tab: .terminal)
+        }
+        ensureSession(for: server)
+    }
+
+    private func leaveTerminal(to tab: AppTab) {
+        guard !appState.shouldReduceMotion else {
+            appState.selectedTab = tab
+            return
+        }
+        withAnimation(.easeOut(duration: 0.14)) {
+            terminalSurfaceVisible = false
+            keyboardActive = false
+        }
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(0.11))
+            appState.selectedTab = tab
+        }
+    }
+
+    private func setTerminalSurfaceVisible(_ isVisible: Bool) {
+        updateWithMotion {
+            terminalSurfaceVisible = isVisible
+        }
+    }
+
+    private func updateWithMotion(_ updates: () -> Void) {
+        if appState.shouldReduceMotion {
+            updates()
+        } else {
+            withAnimation(.spring(response: 0.28, dampingFraction: 0.88), updates)
+        }
     }
 
     private func mirrorTerminalInput(_ bytes: [UInt8]) {

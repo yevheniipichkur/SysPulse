@@ -30,6 +30,7 @@ struct SettingsView: View {
                                 }
                             }
                         }
+                        .listItemEntrance(index: 0, disabled: appState.shouldReduceMotion)
 
                         settingsSection("Security", symbol: "lock.shield") {
                             Toggle("Face ID lock", isOn: biometricLockBinding)
@@ -37,6 +38,7 @@ struct SettingsView: View {
                             Toggle("Hide sensitive data", isOn: $appState.settings.hideSensitiveData)
                             Toggle("Clear clipboard warning", isOn: $appState.settings.clipboardWarning)
                         }
+                        .listItemEntrance(index: 1, disabled: appState.shouldReduceMotion)
 
                         settingsSection("Appearance", symbol: "paintpalette") {
                             Picker("Mode", selection: $appState.settings.appearanceMode) {
@@ -58,6 +60,7 @@ struct SettingsView: View {
                             }
                             Toggle("Reduce animations", isOn: $appState.settings.reduceAnimations)
                         }
+                        .listItemEntrance(index: 2, disabled: appState.shouldReduceMotion)
 
                         settingsSection("Language", symbol: "globe") {
                             Picker("Language", selection: $appState.settings.language) {
@@ -66,6 +69,7 @@ struct SettingsView: View {
                                 }
                             }
                         }
+                        .listItemEntrance(index: 3, disabled: appState.shouldReduceMotion)
 
                         settingsSection("Data", symbol: "externaldrive") {
                             Toggle("iCloud sync", isOn: iCloudSyncBinding)
@@ -94,6 +98,7 @@ struct SettingsView: View {
                                 appState.lastCommandOutput = appState.localized("Cache cleared.")
                             }
                         }
+                        .listItemEntrance(index: 4, disabled: appState.shouldReduceMotion)
 
                         settingsSection("Alerts", symbol: "bell.badge") {
                             Text("Metric alerts are checked after manual refreshes and auto-refresh.")
@@ -115,6 +120,7 @@ struct SettingsView: View {
                                 AlertRuleToggleRow(rule: rule)
                             }
                         }
+                        .listItemEntrance(index: 5, disabled: appState.shouldReduceMotion)
 
                         settingsSection("Remote Monitoring", symbol: "antenna.radiowaves.left.and.right") {
                             Toggle("Backend monitoring", isOn: $appState.settings.backendMonitoringEnabled)
@@ -132,6 +138,7 @@ struct SettingsView: View {
                                 appState.saveBackendMonitoringTokenFromSettings(backendMonitoringToken)
                             }
                         }
+                        .listItemEntrance(index: 6, disabled: appState.shouldReduceMotion)
 
                         settingsSection("About", symbol: "info.circle") {
                             Button {
@@ -150,6 +157,7 @@ struct SettingsView: View {
                             Link("Terms", destination: URL(string: "https://example.com/syspulse/terms")!)
                             Link("Contact support", destination: URL(string: "mailto:support@example.com")!)
                         }
+                        .listItemEntrance(index: 7, disabled: appState.shouldReduceMotion)
                     }
                     .padding(.horizontal, SysPulseDesign.pagePadding)
                     .padding(.top, 8)

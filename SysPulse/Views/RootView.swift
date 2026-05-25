@@ -53,7 +53,7 @@ struct RootView: View {
             }
         }
         .transaction { transaction in
-            guard appState.areUITestAnimationsDisabled else { return }
+            guard appState.shouldReduceMotion else { return }
             transaction.animation = nil
             transaction.disablesAnimations = true
         }
@@ -120,18 +120,23 @@ struct MainShellView: View {
     var body: some View {
         TabView(selection: $appState.selectedTab) {
             ServersView()
+                .tabScreenMotion(tab: .servers, selectedTab: appState.selectedTab, disabled: appState.shouldReduceMotion)
                 .tabItem { tabLabel(for: .servers) }
                 .tag(AppTab.servers)
             ServerDetailView()
+                .tabScreenMotion(tab: .monitor, selectedTab: appState.selectedTab, disabled: appState.shouldReduceMotion)
                 .tabItem { tabLabel(for: .monitor) }
                 .tag(AppTab.monitor)
             TerminalView()
+                .tabScreenMotion(tab: .terminal, selectedTab: appState.selectedTab, disabled: appState.shouldReduceMotion)
                 .tabItem { tabLabel(for: .terminal) }
                 .tag(AppTab.terminal)
             SFTPFilesView()
+                .tabScreenMotion(tab: .sftp, selectedTab: appState.selectedTab, disabled: appState.shouldReduceMotion)
                 .tabItem { tabLabel(for: .sftp) }
                 .tag(AppTab.sftp)
             SettingsView()
+                .tabScreenMotion(tab: .settings, selectedTab: appState.selectedTab, disabled: appState.shouldReduceMotion)
                 .tabItem { tabLabel(for: .settings) }
                 .tag(AppTab.settings)
         }

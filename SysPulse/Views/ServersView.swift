@@ -23,12 +23,13 @@ struct ServersView: View {
                         FreePlanBanner()
                     }
 
-                    ForEach(appState.serverProfiles) { server in
+                    ForEach(Array(appState.serverProfiles.enumerated()), id: \.element.id) { index, server in
                         ServerCardView(
                             server: server,
                             metrics: appState.metric(for: server),
                             isRefreshing: appState.isRefreshingMetrics(for: server)
                         )
+                            .listItemEntrance(index: index, disabled: appState.shouldReduceMotion)
                             .onTapGesture {
                                 appState.select(server, tab: .monitor)
                             }
@@ -295,6 +296,7 @@ struct AddServerView: View {
                             icon: icon,
                             accent: accent
                         )
+                        .listItemEntrance(index: 0, disabled: appState.shouldReduceMotion)
 
                         ServerFormSection(title: "Connection", symbol: "network") {
                             ServerFormTextField(
@@ -329,6 +331,7 @@ struct AddServerView: View {
                                 autocapitalization: .never
                             )
                         }
+                        .listItemEntrance(index: 1, disabled: appState.shouldReduceMotion)
 
                         ServerFormSection(title: "Security", symbol: "lock.shield") {
                             ServerPickerRow(title: "Authentication", symbol: authType.symbol) {
@@ -341,6 +344,7 @@ struct AddServerView: View {
                             ServerFormDivider()
                             credentialInput
                         }
+                        .listItemEntrance(index: 2, disabled: appState.shouldReduceMotion)
 
                         ServerFormSection(title: "Profile", symbol: "slider.horizontal.3") {
                             ServerPickerRow(title: "Type", symbol: serverType.symbol) {
@@ -375,9 +379,11 @@ struct AddServerView: View {
                             ServerFormDivider()
                             ServerAccentPicker(selection: $accentHex)
                         }
+                        .listItemEntrance(index: 3, disabled: appState.shouldReduceMotion)
 
                         if !statusMessage.isEmpty {
                             ServerStatusMessage(message: statusMessage)
+                                .transition(.opacity.combined(with: .move(edge: .bottom)))
                         }
 
                         ViewThatFits(in: .horizontal) {
@@ -393,6 +399,10 @@ struct AddServerView: View {
                         }
                     }
                     .padding(20)
+                    .animation(SysPulseMotion.softSpring(disabled: appState.shouldReduceMotion), value: authType)
+                    .animation(SysPulseMotion.softSpring(disabled: appState.shouldReduceMotion), value: serverType)
+                    .animation(SysPulseMotion.softSpring(disabled: appState.shouldReduceMotion), value: accentHex)
+                    .animation(SysPulseMotion.softSpring(disabled: appState.shouldReduceMotion), value: statusMessage.isEmpty)
                 }
                 .scrollIndicators(.hidden)
             }

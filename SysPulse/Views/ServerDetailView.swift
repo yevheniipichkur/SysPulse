@@ -24,7 +24,9 @@ struct ServerDetailView: View {
                     ScrollView {
                         VStack(spacing: 16) {
                             detailHeader(server: server)
+                                .listItemEntrance(index: 0, disabled: appState.shouldReduceMotion)
                             detailTabs
+                                .listItemEntrance(index: 1, disabled: appState.shouldReduceMotion)
 
                             Group {
                                 switch selectedTab {
@@ -46,13 +48,18 @@ struct ServerDetailView: View {
                                     actions(server: server)
                                 }
                             }
+                            .id(selectedTab)
+                            .transition(.opacity.combined(with: .move(edge: .trailing)))
 
                             if !appState.lastCommandOutput.isEmpty {
                                 remoteOutputCard
+                                    .transition(.opacity.combined(with: .move(edge: .bottom)))
                             }
                         }
                         .padding(.horizontal, SysPulseDesign.pagePadding)
                         .padding(.top, 8)
+                        .animation(SysPulseMotion.softSpring(disabled: appState.shouldReduceMotion), value: selectedTab)
+                        .animation(SysPulseMotion.softSpring(disabled: appState.shouldReduceMotion), value: appState.lastCommandOutput.isEmpty)
                     }
                     .scrollIndicators(.hidden)
                 } else {
@@ -139,14 +146,10 @@ struct ServerDetailView: View {
                         Button {
                             appState.refreshMetrics(for: server)
                         } label: {
-                            ZStack {
-                                if appState.isRefreshingMetrics(for: server) {
-                                    ProgressView()
-                                        .controlSize(.small)
-                                } else {
-                                    Image(systemName: "arrow.clockwise")
-                                }
-                            }
+                            RefreshGlyph(
+                                isRefreshing: appState.isRefreshingMetrics(for: server),
+                                disabled: appState.shouldReduceMotion
+                            )
                             .font(.headline.weight(.semibold))
                             .frame(width: 34, height: 34)
                         }
@@ -178,7 +181,7 @@ struct ServerDetailView: View {
             HStack(spacing: 8) {
                 ForEach(DetailTab.allCases) { tab in
                     Button {
-                        if appState.areUITestAnimationsDisabled {
+                        if appState.shouldReduceMotion {
                             selectedTab = tab
                         } else {
                             withAnimation(.spring(response: 0.28, dampingFraction: 0.86)) {

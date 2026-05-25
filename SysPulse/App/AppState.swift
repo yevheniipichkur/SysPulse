@@ -158,6 +158,10 @@ final class AppState: ObservableObject {
         settings.requiresBiometrics && hasSeenOnboarding && (isPrivacyShieldVisible || !isSecurityUnlocked)
     }
 
+    var shouldReduceMotion: Bool {
+        settings.reduceAnimations || areUITestAnimationsDisabled
+    }
+
     func localized(_ key: String, _ arguments: CVarArg...) -> String {
         L10n.string(key, language: settings.language, arguments: arguments)
     }
@@ -1049,7 +1053,7 @@ final class AppState: ObservableObject {
     }
 
     func haptic(_ style: UIImpactFeedbackGenerator.FeedbackStyle) {
-        guard !settings.reduceAnimations else { return }
+        guard !shouldReduceMotion else { return }
         UIImpactFeedbackGenerator(style: style).impactOccurred()
     }
 }

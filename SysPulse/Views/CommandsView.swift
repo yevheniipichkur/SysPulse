@@ -41,6 +41,7 @@ struct CommandsView: View {
                             CommandCard(command: command, isLocked: isLocked(command, index: index)) {
                                 run(command, index: index)
                             }
+                            .listItemEntrance(index: index, disabled: appState.shouldReduceMotion)
                         }
 
                         if !appState.lastCommandOutput.isEmpty {
@@ -54,10 +55,13 @@ struct CommandsView: View {
                                         .foregroundStyle(.secondary)
                                 }
                             }
+                            .transition(.opacity.combined(with: .move(edge: .bottom)))
                         }
                     }
                     .padding(.horizontal, SysPulseDesign.pagePadding)
                     .padding(.top, 8)
+                    .animation(SysPulseMotion.softSpring(disabled: appState.shouldReduceMotion), value: filteredCommands.count)
+                    .animation(SysPulseMotion.softSpring(disabled: appState.shouldReduceMotion), value: appState.lastCommandOutput.isEmpty)
                 }
                 .scrollIndicators(.hidden)
             }

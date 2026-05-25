@@ -1,3 +1,4 @@
+import Foundation
 import SwiftUI
 
 enum SysPulseDesign {
@@ -8,6 +9,73 @@ enum SysPulseDesign {
     static let accent = Color(red: 0.20, green: 0.76, blue: 0.92)
     static let ink = Color(red: 0.04, green: 0.06, blue: 0.09)
     static let darkPanel = Color(red: 0.06, green: 0.08, blue: 0.12)
+}
+
+enum SysPulseMotion {
+    static func softSpring(disabled: Bool) -> Animation? {
+        disabled ? nil : .spring(response: 0.32, dampingFraction: 0.88)
+    }
+
+    static func quickSpring(disabled: Bool) -> Animation? {
+        disabled ? nil : .spring(response: 0.20, dampingFraction: 0.82)
+    }
+
+    static func fade(disabled: Bool) -> Animation? {
+        disabled ? nil : .easeOut(duration: 0.18)
+    }
+}
+
+extension View {
+    func tabScreenMotion(tab: AppTab, selectedTab: AppTab, disabled: Bool) -> some View {
+        modifier(TabScreenMotionModifier(isSelected: tab == selectedTab, disabled: disabled))
+    }
+
+    func listItemEntrance(index: Int, disabled: Bool) -> some View {
+        modifier(ListItemEntranceModifier(index: index, disabled: disabled))
+    }
+}
+
+private struct TabScreenMotionModifier: ViewModifier {
+    var isSelected: Bool
+    var disabled: Bool
+
+    func body(content: Content) -> some View {
+        content
+            .opacity(disabled || isSelected ? 1 : 0.94)
+            .scaleEffect(disabled || isSelected ? 1 : 0.985)
+            .offset(y: disabled || isSelected ? 0 : 10)
+            .animation(SysPulseMotion.softSpring(disabled: disabled), value: isSelected)
+    }
+}
+
+private struct ListItemEntranceModifier: ViewModifier {
+    var index: Int
+    var disabled: Bool
+    @State private var isVisible = false
+
+    func body(content: Content) -> some View {
+        content
+            .opacity(disabled || isVisible ? 1 : 0)
+            .scaleEffect(disabled || isVisible ? 1 : 0.985)
+            .offset(y: disabled || isVisible ? 0 : 12)
+            .onAppear {
+                guard !disabled else {
+                    isVisible = true
+                    return
+                }
+                let delay = min(Double(index) * 0.025, 0.18)
+                DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+                    withAnimation(.spring(response: 0.30, dampingFraction: 0.88)) {
+                        isVisible = true
+                    }
+                }
+            }
+            .onChange(of: disabled) { _, newValue in
+                if newValue {
+                    isVisible = true
+                }
+            }
+    }
 }
 
 extension Color {
@@ -286,6 +354,26 @@ struct PressableGlassButtonStyle: ButtonStyle {
             )
             .scaleEffect(configuration.isPressed ? 0.96 : 1)
             .animation(.spring(response: 0.18, dampingFraction: 0.78), value: configuration.isPressed)
+    }
+}
+
+struct RefreshGlyph: View {
+    var isRefreshing: Bool
+    var disabled: Bool
+
+    var body: some View {
+        ZStack {
+            Image(systemName: "arrow.clockwise")
+                .opacity(isRefreshing ? 0 : 1)
+                .scaleEffect(isRefreshing ? 0.72 : 1)
+                .rotationEffect(.degrees(isRefreshing ? 160 : 0))
+
+            ProgressView()
+                .controlSize(.small)
+                .opacity(isRefreshing ? 1 : 0)
+                .scaleEffect(isRefreshing ? 1 : 0.72)
+        }
+        .animation(SysPulseMotion.quickSpring(disabled: disabled), value: isRefreshing)
     }
 }
 
