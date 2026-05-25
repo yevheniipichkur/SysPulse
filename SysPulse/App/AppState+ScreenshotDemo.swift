@@ -167,6 +167,18 @@ extension AppState {
                 LogEntry(timestamp: "10:31:44", source: "systemd", message: "Started Daily apt download activities", severity: .safe)
             ]
         ]
+        sftpPathByServer = [
+            api.id: "/var/www/sys"
+        ]
+        sftpItemsByServer = [
+            api.id: [
+                SFTPRemoteItem(name: "releases", path: "/var/www/sys/releases", kind: .directory, size: 0, modifiedAt: "Today 10:18", permissions: "drwxr-xr-x"),
+                SFTPRemoteItem(name: "shared", path: "/var/www/sys/shared", kind: .directory, size: 0, modifiedAt: "Today 09:42", permissions: "drwxr-xr-x"),
+                SFTPRemoteItem(name: ".env.production", path: "/var/www/sys/.env.production", kind: .file, size: 4_096, modifiedAt: "Yesterday 22:11", permissions: "-rw-------"),
+                SFTPRemoteItem(name: "deploy.log", path: "/var/www/sys/deploy.log", kind: .file, size: 128_400, modifiedAt: "Today 10:38", permissions: "-rw-r--r--"),
+                SFTPRemoteItem(name: "current", path: "/var/www/sys/current", kind: .symlink, size: 0, modifiedAt: "Today 10:20", permissions: "lrwxrwxrwx")
+            ]
+        ]
         terminalSessions = [
             TerminalSession(
                 serverID: api.id,

@@ -9,7 +9,7 @@
 - Open the app.
 - Choose **Start SysPulse**.
 - Add a reviewer-owned Linux server profile, or use the visible UI flows without saving credentials.
-- Open Monitor, Terminal, Commands, Settings and Paywall.
+- Open Monitor, Terminal, Files, Settings and Paywall.
 - Hidden QA menu: tap app version 7 times in Settings.
 - App Store screenshots can be regenerated from GitHub Actions with **iOS Screenshots**.
 
@@ -20,18 +20,18 @@
 - Dangerous commands require confirmation.
 - Passwords and private keys are designed to be stored only in iOS Keychain.
 
-## Privacy Policy placeholder
+## Privacy Policy
 
-Privacy Policy URL placeholder:
+Privacy Policy URL:
 
 ```text
-https://example.com/syspulse/privacy
+https://github.com/yevheniipichkur/SysPulse/blob/main/PRIVACY.md
 ```
 
-## Terms placeholder
+## Terms
 
-Terms URL placeholder:
+Terms URL:
 
 ```text
-https://example.com/syspulse/terms
+https://github.com/yevheniipichkur/SysPulse/blob/main/TERMS.md
 ```

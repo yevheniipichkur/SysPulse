@@ -618,3 +618,15 @@
 "All" = "Wszystkie";
 "Widgets" = "Widżety";
 "Secure" = "Bezpiecznie";
+"Plans unavailable" = "Plany niedostępne";
+"Check your connection and try again. Purchases are handled securely by App Store." = "Sprawdź połączenie i spróbuj ponownie. Zakupy są bezpiecznie obsługiwane przez App Store.";
+"Retry loading products" = "Ponów wczytywanie produktów";
+"No StoreKit products were returned." = "StoreKit nie zwrócił produktów.";
+"Restoring purchases..." = "Przywracanie zakupów...";
+"View plans" = "Zobacz plany";
+"Manage Apple subscription" = "Zarządzaj subskrypcją Apple";
+"Pro active" = "Pro aktywne";
+"Plan" = "Plan";
+"Lifetime access" = "Dostęp dożywotni";
+"Expires" = "Wygasa";
+"Skip for now" = "Pomiń teraz";

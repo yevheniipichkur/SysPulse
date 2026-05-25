@@ -618,3 +618,15 @@
 "All" = "Усі";
 "Widgets" = "Віджети";
 "Secure" = "Безпечно";
+"Plans unavailable" = "Плани недоступні";
+"Check your connection and try again. Purchases are handled securely by App Store." = "Перевірте підключення й спробуйте ще раз. Покупки безпечно обробляються через App Store.";
+"Retry loading products" = "Повторити завантаження продуктів";
+"No StoreKit products were returned." = "StoreKit не повернув продукти.";
+"Restoring purchases..." = "Відновлюємо покупки...";
+"View plans" = "Переглянути плани";
+"Manage Apple subscription" = "Керувати підпискою Apple";
+"Pro active" = "Pro активний";
+"Plan" = "План";
+"Lifetime access" = "Довічний доступ";
+"Expires" = "Завершується";
+"Skip for now" = "Пропустити зараз";

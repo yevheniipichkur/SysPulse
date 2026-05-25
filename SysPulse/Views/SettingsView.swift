@@ -10,6 +10,8 @@ struct SettingsView: View {
     @State private var isImportingEncryptedProfiles = false
     @State private var isAdvancedDataExpanded = false
     @State private var isRemoteMonitoringExpanded = false
+    @State private var isRestoringPurchases = false
+    @State private var storeKitSettingsMessage: String?
     private let buildInfo = GitBuildInfoService()
 
     var body: some View {
@@ -22,15 +24,26 @@ struct SettingsView: View {
                         PageHeader(title: "Settings", subtitle: "Security, appearance and Pro controls.", actionSymbol: nil, action: nil)
 
                         settingsSection("Account", symbol: "person.crop.circle") {
-                            SettingsRow(title: "Pro status") {
-                                Text(appState.isProUnlocked ? LocalizedStringKey("Active") : LocalizedStringKey("Free"))
-                            }
-                            Button("Manage subscription") { appState.isPaywallPresented = true }
-                            Button("Restore purchases") {
-                                Task {
-                                    try? await appState.restorePurchases()
+                            SubscriptionStatusCard(
+                                subscription: appState.subscription,
+                                isProUnlocked: appState.isProUnlocked,
+                                message: storeKitSettingsMessage
+                            )
+                            Button("View plans") { appState.isPaywallPresented = true }
+                            Link("Manage Apple subscription", destination: URL(string: "https://apps.apple.com/account/subscriptions")!)
+                            Button {
+                                restorePurchasesFromSettings()
+                            } label: {
+                                if isRestoringPurchases {
+                                    HStack(spacing: 8) {
+                                        ProgressView()
+                                        Text("Restoring purchases...")
+                                    }
+                                } else {
+                                    Text("Restore purchases")
                                 }
                             }
+                            .disabled(isRestoringPurchases)
                         }
                         .listItemEntrance(index: 0, disabled: appState.shouldReduceMotion)
 
@@ -175,9 +188,9 @@ struct SettingsView: View {
                                 }
                             }
                             .buttonStyle(.plain)
-                            Link("Privacy", destination: URL(string: "https://example.com/syspulse/privacy")!)
-                            Link("Terms", destination: URL(string: "https://example.com/syspulse/terms")!)
-                            Link("Contact support", destination: URL(string: "mailto:support@example.com")!)
+                            Link("Privacy", destination: URL(string: "https://github.com/yevheniipichkur/SysPulse/blob/main/PRIVACY.md")!)
+                            Link("Terms", destination: URL(string: "https://github.com/yevheniipichkur/SysPulse/blob/main/TERMS.md")!)
+                            Link("Contact support", destination: URL(string: "https://github.com/yevheniipichkur/SysPulse/issues")!)
                         }
                         .listItemEntrance(index: 7, disabled: appState.shouldReduceMotion)
                     }
@@ -197,6 +210,7 @@ struct SettingsView: View {
         .onAppear {
             backendMonitoringToken = appState.backendMonitoringTokenForSettings()
         }
+        .accessibilityIdentifier(AppTab.settings.screenAccessibilityIdentifier)
     }
 
     private var biometricLockBinding: Binding<Bool> {
@@ -253,6 +267,20 @@ struct SettingsView: View {
         }
     }
 
+    private func restorePurchasesFromSettings() {
+        guard !isRestoringPurchases else { return }
+        isRestoringPurchases = true
+        Task {
+            defer { isRestoringPurchases = false }
+            do {
+                try await appState.restorePurchases()
+                storeKitSettingsMessage = appState.subscription.lastStoreKitMessage
+            } catch {
+                storeKitSettingsMessage = appState.localized("Restore failed: %@", error.localizedDescription)
+            }
+        }
+    }
+
     private func importEncryptedProfiles(_ result: Result<[URL], Error>) {
         do {
             guard let url = try result.get().first else { return }
@@ -265,6 +293,67 @@ struct SettingsView: View {
             appState.importEncryptedProfiles(from: url, passphrase: sharingPassphrase)
         } catch {
             appState.lastCommandOutput = error.localizedDescription
+        }
+    }
+}
+
+private struct SubscriptionStatusCard: View {
+    var subscription: SubscriptionState
+    var isProUnlocked: Bool
+    var message: String?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 12) {
+                Image(systemName: isProUnlocked ? "checkmark.seal.fill" : "sparkles")
+                    .font(.title3)
+                    .foregroundStyle(isProUnlocked ? .green : .cyan)
+                    .frame(width: 38, height: 38)
+                    .background((isProUnlocked ? Color.green : Color.cyan).opacity(0.12), in: RoundedRectangle(cornerRadius: 13, style: .continuous))
+
+                VStack(alignment: .leading, spacing: 3) {
+                    if isProUnlocked {
+                        Text("Pro active")
+                            .font(.headline)
+                    } else {
+                        Text("Free plan")
+                            .font(.headline)
+                    }
+                    Text(LocalizedStringKey(subscription.plan.rawValue))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                Spacer()
+            }
+
+            if isProUnlocked, subscription.plan == .lifetime {
+                SettingsRow(title: "Plan") {
+                    Text("Lifetime access")
+                }
+            } else if let expiresAt = subscription.expiresAt {
+                SettingsRow(title: "Expires") {
+                    Text(expiresAt, style: .date)
+                }
+            }
+
+            if let message, !message.isEmpty {
+                Text(message)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            } else if !subscription.lastStoreKitMessage.isEmpty {
+                Text(subscription.lastStoreKitMessage)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(12)
+        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke((isProUnlocked ? Color.green : Color.cyan).opacity(0.18), lineWidth: 1)
         }
     }
 }

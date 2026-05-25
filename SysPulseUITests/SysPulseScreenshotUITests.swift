@@ -39,6 +39,9 @@ final class SysPulseScreenshotUITests: XCTestCase {
 
         openTab(.sftp, in: app)
         try capture("04-files", app: app)
+
+        openTab(.settings, in: app)
+        try capture("05-settings", app: app)
     }
 
     private func openTab(_ tab: ScreenshotTab, in app: XCUIApplication) {
@@ -88,6 +91,7 @@ private enum ScreenshotTab {
     case monitor
     case terminal
     case sftp
+    case settings
 
     static let visibleTabCount = 5
 
@@ -101,6 +105,8 @@ private enum ScreenshotTab {
             2
         case .sftp:
             3
+        case .settings:
+            4
         }
     }
 
@@ -114,6 +120,8 @@ private enum ScreenshotTab {
             "tab_terminal"
         case .sftp:
             "tab_sftp"
+        case .settings:
+            "tab_settings"
         }
     }
 
@@ -127,6 +135,8 @@ private enum ScreenshotTab {
             "screen_terminal"
         case .sftp:
             "screen_sftp"
+        case .settings:
+            "screen_settings"
         }
     }
 }

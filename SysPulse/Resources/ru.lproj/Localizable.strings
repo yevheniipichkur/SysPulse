@@ -618,3 +618,15 @@
 "All" = "Все";
 "Widgets" = "Виджеты";
 "Secure" = "Безопасно";
+"Plans unavailable" = "Планы недоступны";
+"Check your connection and try again. Purchases are handled securely by App Store." = "Проверьте подключение и попробуйте снова. Покупки безопасно обрабатываются через App Store.";
+"Retry loading products" = "Повторить загрузку продуктов";
+"No StoreKit products were returned." = "StoreKit не вернул продукты.";
+"Restoring purchases..." = "Восстанавливаем покупки...";
+"View plans" = "Посмотреть планы";
+"Manage Apple subscription" = "Управлять подпиской Apple";
+"Pro active" = "Pro активен";
+"Plan" = "План";
+"Lifetime access" = "Пожизненный доступ";
+"Expires" = "Истекает";
+"Skip for now" = "Пропустить сейчас";

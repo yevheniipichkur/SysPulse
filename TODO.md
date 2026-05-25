@@ -45,6 +45,7 @@
 - [x] SFTP v2 selection mode with bulk delete and clearer file manager controls.
 - [x] Server detail redesign with quick actions, health summary and resource trends.
 - [x] Full app-wide interface polish for empty states, server cards, terminal sessions, SFTP navigation, Settings and Paywall.
+- [x] App Store/TestFlight polish for StoreKit empty states, restore feedback, onboarding, screenshots and policy links.
 
 ## Future
 

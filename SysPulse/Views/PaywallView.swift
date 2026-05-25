@@ -9,6 +9,7 @@ struct PaywallView: View {
     @State private var isRestoring = false
     @State private var errorMessage: String?
     @State private var showError = false
+    @State private var purchaseStatusMessage: String?
 
     private let benefits: [(String, String)] = [
         ("Unlimited servers",                   "server.rack"),
@@ -105,7 +106,7 @@ struct PaywallView: View {
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 24)
             } else if storeKit.products.isEmpty {
-                fallbackPlanCards
+                productUnavailableCard
             } else {
                 ForEach(storeKit.products, id: \.id) { product in
                     PlanCard(
@@ -122,39 +123,59 @@ struct PaywallView: View {
         }
     }
 
-    private var fallbackPlanCards: some View {
-        Group {
-            PlanCard(
-                title: appState.localized("Pro Monthly"),
-                price: "$3.99 / month",
-                subtitle: appState.localized("Flexible monitoring for all servers."),
-                isBestValue: false,
-                isLoading: false
-            ) {}
-            PlanCard(
-                title: appState.localized("Pro Yearly"),
-                price: "$29.99 / year",
-                subtitle: appState.localized("Best Value - save 37%."),
-                isBestValue: true,
-                isLoading: false
-            ) {}
-            PlanCard(
-                title: appState.localized("Lifetime Pro"),
-                price: "$79.99 one-time",
-                subtitle: appState.localized("All future features included."),
-                isBestValue: false,
-                isLoading: false
-            ) {}
+    private var productUnavailableCard: some View {
+        GlassCard(cornerRadius: 22, padding: 16) {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(spacing: 12) {
+                    Image(systemName: "icloud.slash")
+                        .font(.title3)
+                        .foregroundStyle(.orange)
+                        .frame(width: 38, height: 38)
+                        .background(.orange.opacity(0.12), in: RoundedRectangle(cornerRadius: 13, style: .continuous))
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Plans unavailable")
+                            .font(.headline)
+                        Text("Check your connection and try again. Purchases are handled securely by App Store.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                Button {
+                    purchaseStatusMessage = nil
+                    Task {
+                        await storeKit.loadProducts()
+                        if storeKit.products.isEmpty {
+                            purchaseStatusMessage = storeKit.statusMessage.isEmpty
+                                ? appState.localized("No StoreKit products were returned.")
+                                : storeKit.statusMessage
+                        }
+                    }
+                } label: {
+                    Label("Retry loading products", systemImage: "arrow.clockwise")
+                        .font(.callout.weight(.bold))
+                }
+                .buttonStyle(PressableGlassButtonStyle(tint: .orange))
+            }
         }
     }
 
     private var footer: some View {
         VStack(spacing: 16) {
+            if let statusMessage {
+                StoreKitStatusBanner(message: statusMessage, isPositive: appState.isProUnlocked)
+            }
+
             Button {
                 restore()
             } label: {
                 if isRestoring {
-                    ProgressView()
+                    HStack(spacing: 8) {
+                        ProgressView()
+                        Text("Restoring purchases...")
+                            .font(.callout.weight(.semibold))
+                    }
                 } else {
                     Text("Restore purchases")
                         .font(.callout.weight(.semibold))
@@ -168,6 +189,16 @@ struct PaywallView: View {
                 .multilineTextAlignment(.center)
                 .padding(.bottom, 24)
         }
+    }
+
+    private var statusMessage: String? {
+        if let purchaseStatusMessage {
+            return purchaseStatusMessage
+        }
+        if storeKit.products.isEmpty && !storeKit.statusMessage.isEmpty {
+            return storeKit.statusMessage
+        }
+        return nil
     }
 
     // MARK: - Actions
@@ -195,6 +226,7 @@ struct PaywallView: View {
             defer { isRestoring = false }
             do {
                 try await appState.restorePurchases()
+                purchaseStatusMessage = appState.subscription.lastStoreKitMessage
                 if appState.subscription.isPro { dismiss() }
             } catch {
                 errorMessage = error.localizedDescription
@@ -237,6 +269,24 @@ private struct PaywallProofTile: View {
             RoundedRectangle(cornerRadius: 18, style: .continuous)
                 .stroke(tint.opacity(0.18), lineWidth: 1)
         }
+    }
+}
+
+private struct StoreKitStatusBanner: View {
+    var message: String
+    var isPositive: Bool
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: isPositive ? "checkmark.seal.fill" : "info.circle.fill")
+                .foregroundStyle(isPositive ? .green : .cyan)
+            Text(message)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(12)
+        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
     }
 }
 

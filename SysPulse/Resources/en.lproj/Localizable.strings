@@ -617,4 +617,16 @@
 "All" = "All";
 "Widgets" = "Widgets";
 "Secure" = "Secure";
+"Plans unavailable" = "Plans unavailable";
+"Check your connection and try again. Purchases are handled securely by App Store." = "Check your connection and try again. Purchases are handled securely by App Store.";
+"Retry loading products" = "Retry loading products";
+"No StoreKit products were returned." = "No StoreKit products were returned.";
+"Restoring purchases..." = "Restoring purchases...";
+"View plans" = "View plans";
+"Manage Apple subscription" = "Manage Apple subscription";
+"Pro active" = "Pro active";
+"Plan" = "Plan";
+"Lifetime access" = "Lifetime access";
+"Expires" = "Expires";
+"Skip for now" = "Skip for now";
 "SFTP upload is limited to %d MB." = "SFTP upload is limited to %d MB.";

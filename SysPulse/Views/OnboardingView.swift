@@ -92,11 +92,19 @@ struct OnboardingView: View {
                     Button {
                         appState.completeOnboarding()
                     } label: {
-                        Label("Add your first server", systemImage: "server.rack")
-                            .font(.callout.weight(.semibold))
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 13)
-                            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        if page == pages.count - 1 {
+                            Label("Add your first server", systemImage: "server.rack")
+                                .font(.callout.weight(.semibold))
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 13)
+                                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        } else {
+                            Label("Skip for now", systemImage: "forward.end")
+                                .font(.callout.weight(.semibold))
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 13)
+                                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        }
                     }
                     .buttonStyle(.plain)
                 }
@@ -105,6 +113,7 @@ struct OnboardingView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
+        .accessibilityIdentifier("screen_onboarding")
     }
 }
 
