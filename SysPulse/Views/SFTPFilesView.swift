@@ -263,31 +263,28 @@ struct SFTPFilesView: View {
 
                 ScrollView(.horizontal) {
                     HStack(spacing: 7) {
-                        ForEach(Array(addressParts.enumerated()), id: \.offset) { pair in
-                            let index = pair.offset
-                            let part = pair.element
-
-                            if index > 0 {
+                        ForEach(addressCrumbs) { crumb in
+                            if crumb.id > 0 {
                                 Image(systemName: "chevron.right")
                                     .font(.caption2.weight(.semibold))
                                     .foregroundStyle(.secondary)
                             }
 
                             Button {
-                                navigate(to: addressTarget(for: index), server: server)
+                                navigate(to: crumb.target, server: server)
                             } label: {
-                                Text(part)
+                                Text(crumb.title)
                                     .font(.caption.monospaced().weight(.semibold))
-                                    .foregroundStyle(index == addressParts.count - 1 ? .primary : .cyan)
+                                    .foregroundStyle(crumb.isLast ? .primary : .cyan)
                                     .padding(.horizontal, 9)
                                     .frame(height: 28)
                                     .background(
-                                        (index == addressParts.count - 1 ? Color.cyan.opacity(0.12) : Color.white.opacity(0.05)),
+                                        (crumb.isLast ? Color.cyan.opacity(0.12) : Color.white.opacity(0.05)),
                                         in: Capsule()
                                     )
                             }
                             .buttonStyle(.plain)
-                            .disabled(index == addressParts.count - 1)
+                            .disabled(crumb.isLast)
                         }
                     }
                     .padding(.vertical, 1)
@@ -656,6 +653,18 @@ struct SFTPFilesView: View {
         return parts.prefix(index + 1).joined(separator: "/")
     }
 
+    private var addressCrumbs: [SFTPAddressCrumb] {
+        let parts = addressParts
+        return parts.indices.map { index in
+            SFTPAddressCrumb(
+                id: index,
+                title: parts[index],
+                target: addressTarget(for: index),
+                isLast: index == parts.count - 1
+            )
+        }
+    }
+
     private func navigate(to path: String, server: ServerProfile) {
         guard path != currentPath else { return }
         selectedItemIDs.removeAll()
@@ -818,6 +827,13 @@ struct SFTPFilesView: View {
             withAnimation(.spring(response: 0.24, dampingFraction: 0.86), updates)
         }
     }
+}
+
+private struct SFTPAddressCrumb: Identifiable {
+    let id: Int
+    let title: String
+    let target: String
+    let isLast: Bool
 }
 
 private struct SFTPShimmerBlock: View {
