@@ -223,13 +223,13 @@ private struct ICloudEntitlementStatusRow: View {
 
     private var statusColor: Color {
         if diagnostic.isReady { return .green }
-        if diagnostic.canAttemptSync { return .cyan }
+        if diagnostic.verificationSource == .unavailable { return .cyan }
         return .orange
     }
 
     private var statusSymbol: String {
         if diagnostic.isReady { return "checkmark.seal.fill" }
-        if diagnostic.canAttemptSync { return "info.circle.fill" }
+        if diagnostic.verificationSource == .unavailable { return "info.circle.fill" }
         return "exclamationmark.triangle.fill"
     }
 
