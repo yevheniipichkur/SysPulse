@@ -106,9 +106,8 @@ struct SFTPFilesView: View {
                 pathCard(server: server)
 
                 if isLoading && allItems.isEmpty {
-                    loadingCard
-                        .frame(maxWidth: .infinity, minHeight: 280)
-                        .transition(.opacity.combined(with: .scale(scale: 0.98)))
+                    skeletonList
+                        .transition(.opacity.combined(with: .move(edge: .bottom)))
                 } else if visibleItems.isEmpty {
                     emptyCard
                         .frame(maxWidth: .infinity, minHeight: 320)
@@ -206,7 +205,7 @@ struct SFTPFilesView: View {
                     Text(currentPath.isEmpty ? "." : currentPath)
                         .font(.subheadline.monospaced())
                         .lineLimit(1)
-                    Text(isLoading ? appState.localized("Opening folder...") : appState.localized("%d items", allItems.count))
+                    Text(isLoading ? appState.localized("Loading contents...") : appState.localized("%d items", allItems.count))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -271,23 +270,52 @@ struct SFTPFilesView: View {
         }
     }
 
-    private var loadingCard: some View {
-        GlassCard(cornerRadius: 28, padding: 24) {
-            VStack(spacing: 16) {
-                ProgressView()
-                    .controlSize(.large)
-                VStack(spacing: 6) {
-                    Text("Opening folder...")
-                        .font(.headline)
-                    Text(currentPath)
-                        .font(.caption.monospaced())
-                        .foregroundStyle(.secondary)
-                        .lineLimit(2)
-                        .multilineTextAlignment(.center)
-                }
+    private var skeletonList: some View {
+        LazyVStack(spacing: 10) {
+            ForEach(0..<8, id: \.self) { index in
+                skeletonFileRow(index: index)
             }
-            .frame(maxWidth: .infinity)
         }
+        .padding(.top, 2)
+    }
+
+    private func skeletonFileRow(index: Int) -> some View {
+        GlassCard(cornerRadius: 18, padding: 0) {
+            HStack(spacing: 12) {
+                SFTPShimmerBlock(
+                    width: 42,
+                    height: 42,
+                    cornerRadius: 14,
+                    isAnimated: !appState.areUITestAnimationsDisabled && !appState.settings.reduceAnimations
+                )
+
+                VStack(alignment: .leading, spacing: 8) {
+                    SFTPShimmerBlock(
+                        width: CGFloat([132, 176, 118, 154, 204, 142, 188, 126][index % 8]),
+                        height: 13,
+                        cornerRadius: 6,
+                        isAnimated: !appState.areUITestAnimationsDisabled && !appState.settings.reduceAnimations
+                    )
+                    SFTPShimmerBlock(
+                        width: CGFloat([76, 96, 68, 112, 84, 126, 92, 72][index % 8]),
+                        height: 9,
+                        cornerRadius: 5,
+                        isAnimated: !appState.areUITestAnimationsDisabled && !appState.settings.reduceAnimations
+                    )
+                }
+
+                Spacer(minLength: 0)
+
+                SFTPShimmerBlock(
+                    width: 20,
+                    height: 20,
+                    cornerRadius: 7,
+                    isAnimated: !appState.areUITestAnimationsDisabled && !appState.settings.reduceAnimations
+                )
+            }
+            .padding(13)
+        }
+        .allowsHitTesting(false)
     }
 
     private var loadingBanner: some View {
@@ -623,5 +651,43 @@ struct SFTPFilesView: View {
 
     private func formatSize(_ bytes: Int64) -> String {
         ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)
+    }
+}
+
+private struct SFTPShimmerBlock: View {
+    var width: CGFloat
+    var height: CGFloat
+    var cornerRadius: CGFloat
+    var isAnimated: Bool
+
+    var body: some View {
+        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+            .fill(Color.primary.opacity(0.07))
+            .frame(width: width, height: height)
+            .overlay {
+                if isAnimated {
+                    TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { context in
+                        GeometryReader { proxy in
+                            let phase = context.date.timeIntervalSinceReferenceDate
+                                .truncatingRemainder(dividingBy: 1.25) / 1.25
+                            let shimmerWidth = max(proxy.size.width * 0.68, 24)
+                            let travel = proxy.size.width + shimmerWidth * 2
+
+                            LinearGradient(
+                                colors: [.clear, .white.opacity(0.22), .clear],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                            .frame(width: shimmerWidth)
+                            .offset(x: -shimmerWidth + CGFloat(phase) * travel)
+                        }
+                    }
+                    .mask(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+                }
+            }
+            .overlay {
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .stroke(.white.opacity(0.07), lineWidth: 1)
+            }
     }
 }

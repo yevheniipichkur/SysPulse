@@ -568,6 +568,7 @@
 "Delete %@?" = "Delete %@?";
 "%d items" = "%d items";
 "Opening folder..." = "Opening folder...";
+"Loading contents..." = "Loading contents...";
 "Download ready" = "Download ready";
 "Empty directory" = "Empty directory";
 "This directory has no files." = "This directory has no files.";

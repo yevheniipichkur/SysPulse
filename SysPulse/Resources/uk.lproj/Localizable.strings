@@ -569,6 +569,7 @@
 "Delete %@?" = "Видалити %@?";
 "%d items" = "Елементів: %d";
 "Opening folder..." = "Відкриваємо папку...";
+"Loading contents..." = "Завантажуємо вміст...";
 "Download ready" = "Файл готовий";
 "Empty directory" = "Папка порожня";
 "This directory has no files." = "У цій папці немає файлів.";

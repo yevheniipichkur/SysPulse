@@ -78,6 +78,7 @@ final class AppState: ObservableObject {
     private var profileCloudSyncTask: Task<Void, Never>?
     private var protectedBackgroundDate: Date?
     private var alertLastFiredAt: [String: Date] = [:]
+    private var sftpLoadTokensByServer: [UUID: UUID] = [:]
     private let alertCooldown: TimeInterval = 15 * 60
 
     init() {
@@ -391,6 +392,7 @@ final class AppState: ObservableObject {
         sftpItemsByServer.removeValue(forKey: serverID)
         sftpPathByServer.removeValue(forKey: serverID)
         sftpLoadingServerIDs.remove(serverID)
+        sftpLoadTokensByServer.removeValue(forKey: serverID)
         metricRefreshingServerIDs.remove(serverID)
         terminalSessions.removeAll { $0.serverID == serverID }
         if let credentialIdentifier {
@@ -680,6 +682,7 @@ final class AppState: ObservableObject {
         sftpItemsByServer = [:]
         sftpPathByServer = [:]
         sftpLoadingServerIDs = []
+        sftpLoadTokensByServer = [:]
         metricRefreshingServerIDs = []
         publishWidgetSnapshots()
         uploadProfilesToICloudIfEnabled()
@@ -737,18 +740,28 @@ final class AppState: ObservableObject {
 
         let targetPath = path ?? sftpPath(for: targetServer)
         lastCommandOutput = localized("Loading SFTP directory %@...", targetPath)
+        if path != nil {
+            sftpPathByServer[targetServer.id] = targetPath
+            sftpItemsByServer[targetServer.id] = []
+        }
+        let loadToken = UUID()
+        sftpLoadTokensByServer[targetServer.id] = loadToken
         sftpLoadingServerIDs.insert(targetServer.id)
         Task {
             do {
                 let listing = try await sftpService.listDirectory(at: targetPath, server: targetServer, via: sshClient)
                 await MainActor.run {
+                    guard sftpLoadTokensByServer[targetServer.id] == loadToken else { return }
                     sftpPathByServer[targetServer.id] = listing.path
                     sftpItemsByServer[targetServer.id] = listing.items
+                    sftpLoadTokensByServer.removeValue(forKey: targetServer.id)
                     sftpLoadingServerIDs.remove(targetServer.id)
                     lastCommandOutput = localized("Loaded %d SFTP items from %@.", listing.items.count, listing.path)
                 }
             } catch {
                 await MainActor.run {
+                    guard sftpLoadTokensByServer[targetServer.id] == loadToken else { return }
+                    sftpLoadTokensByServer.removeValue(forKey: targetServer.id)
                     sftpLoadingServerIDs.remove(targetServer.id)
                     lastCommandOutput = error.localizedDescription
                 }

@@ -569,6 +569,7 @@
 "Delete %@?" = "Usunąć %@?";
 "%d items" = "Elementy: %d";
 "Opening folder..." = "Otwieranie folderu...";
+"Loading contents..." = "Wczytywanie zawartości...";
 "Download ready" = "Plik gotowy";
 "Empty directory" = "Folder jest pusty";
 "This directory has no files." = "Ten folder nie zawiera plików.";
