@@ -14,24 +14,41 @@ final class SysPulseScreenshotUITests: XCTestCase {
         try FileManager.default.createDirectory(at: screenshotDirectory, withIntermediateDirectories: true)
     }
 
-    func testCaptureAppStoreScreenshots() throws {
-        for tab in ScreenshotTab.captureOrder {
-            let app = launchApp(on: tab)
-            guard app.tabBars.firstMatch.waitForExistence(timeout: 12) else {
-                try? capture("00-\(tab.rawValue)-missing-tabbar", app: app)
-                XCTFail("Main tab bar did not appear for \(tab.rawValue).")
-                app.terminate()
-                return
-            }
-            guard waitForScreen(tab, in: app) else {
-                try? capture("00-\(tab.rawValue)-missing-screen", app: app)
-                XCTFail("\(tab.screenIdentifier) did not appear for \(tab.rawValue).")
-                app.terminate()
-                return
-            }
-            try capture(tab.filename, app: app)
-            app.terminate()
+    func testCapture01ServersScreenshot() throws {
+        try capture(tab: .servers)
+    }
+
+    func testCapture02MonitorScreenshot() throws {
+        try capture(tab: .monitor)
+    }
+
+    func testCapture03TerminalScreenshot() throws {
+        try capture(tab: .terminal)
+    }
+
+    func testCapture04FilesScreenshot() throws {
+        try capture(tab: .sftp)
+    }
+
+    func testCapture05SettingsScreenshot() throws {
+        try capture(tab: .settings)
+    }
+
+    private func capture(tab: ScreenshotTab) throws {
+        let app = launchApp(on: tab)
+        defer { app.terminate() }
+
+        guard app.tabBars.firstMatch.waitForExistence(timeout: 12) else {
+            try? capture("00-\(tab.rawValue)-missing-tabbar", app: app)
+            XCTFail("Main tab bar did not appear for \(tab.rawValue).")
+            return
         }
+        guard waitForScreen(tab, in: app) else {
+            try? capture("00-\(tab.rawValue)-missing-screen", app: app)
+            XCTFail("\(tab.screenIdentifier) did not appear for \(tab.rawValue).")
+            return
+        }
+        try capture(tab.filename, app: app)
     }
 
     private func launchApp(on tab: ScreenshotTab) -> XCUIApplication {
@@ -77,8 +94,6 @@ private enum ScreenshotTab: String {
     case terminal
     case sftp
     case settings
-
-    static let captureOrder: [ScreenshotTab] = [.servers, .monitor, .terminal, .sftp, .settings]
 
     var screenIdentifier: String {
         switch self {
