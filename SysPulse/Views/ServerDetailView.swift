@@ -16,64 +16,61 @@ struct ServerDetailView: View {
     private let logsService = LogsService()
 
     var body: some View {
-        NavigationStack {
-            ZStack {
-                AppBackground()
+        ZStack {
+            AppBackground()
 
-                if let server = appState.selectedServer {
-                    ScrollView {
-                        VStack(spacing: 16) {
-                            detailHeader(server: server)
-                                .listItemEntrance(index: 0, disabled: appState.shouldReduceMotion)
-                            monitorQuickActions(server: server)
-                                .listItemEntrance(index: 1, disabled: appState.shouldReduceMotion)
-                            detailTabs
-                                .listItemEntrance(index: 2, disabled: appState.shouldReduceMotion)
+            if let server = appState.selectedServer {
+                ScrollView {
+                    VStack(spacing: 16) {
+                        detailHeader(server: server)
+                            .listItemEntrance(index: 0, disabled: appState.shouldReduceMotion)
+                        monitorQuickActions(server: server)
+                            .listItemEntrance(index: 1, disabled: appState.shouldReduceMotion)
+                        detailTabs
+                            .listItemEntrance(index: 2, disabled: appState.shouldReduceMotion)
 
-                            Group {
-                                switch selectedTab {
-                                case .overview:
-                                    overview(server: server, metrics: appState.metric(for: server))
-                                case .processes:
-                                    processes(server: server)
-                                case .disks:
-                                    disks(server: server)
-                                case .docker:
-                                    docker(server: server)
-                                case .services:
-                                    services(server: server)
-                                case .logs:
-                                    logs(server: server)
-                                case .commands:
-                                    inlineCommands(server: server)
-                                case .actions:
-                                    actions(server: server)
-                                }
-                            }
-                            .id(selectedTab)
-                            .transition(.opacity.combined(with: .move(edge: .trailing)))
-
-                            if !appState.lastCommandOutput.isEmpty {
-                                remoteOutputCard
-                                    .transition(.opacity.combined(with: .move(edge: .bottom)))
+                        Group {
+                            switch selectedTab {
+                            case .overview:
+                                overview(server: server, metrics: appState.metric(for: server))
+                            case .processes:
+                                processes(server: server)
+                            case .disks:
+                                disks(server: server)
+                            case .docker:
+                                docker(server: server)
+                            case .services:
+                                services(server: server)
+                            case .logs:
+                                logs(server: server)
+                            case .commands:
+                                inlineCommands(server: server)
+                            case .actions:
+                                actions(server: server)
                             }
                         }
-                        .padding(.horizontal, SysPulseDesign.pagePadding)
-                        .padding(.top, 8)
-                        .animation(SysPulseMotion.softSpring(disabled: appState.shouldReduceMotion), value: selectedTab)
-                        .animation(SysPulseMotion.softSpring(disabled: appState.shouldReduceMotion), value: appState.lastCommandOutput.isEmpty)
+                        .id(selectedTab)
+                        .transition(.opacity.combined(with: .move(edge: .trailing)))
+
+                        if !appState.lastCommandOutput.isEmpty {
+                            remoteOutputCard
+                                .transition(.opacity.combined(with: .move(edge: .bottom)))
+                        }
                     }
-                    .scrollIndicators(.hidden)
-                } else {
-                    EmptyStateView(
-                        title: "No server selected",
-                        message: "Choose a server to open monitoring details.",
-                        symbol: "server.rack"
-                    )
+                    .padding(.horizontal, SysPulseDesign.pagePadding)
+                    .padding(.top, 8)
+                    .animation(SysPulseMotion.softSpring(disabled: appState.shouldReduceMotion), value: selectedTab)
+                    .animation(SysPulseMotion.softSpring(disabled: appState.shouldReduceMotion), value: appState.lastCommandOutput.isEmpty)
                 }
+                .scrollIndicators(.hidden)
+            } else {
+                EmptyStateView(
+                    title: "No server selected",
+                    message: "Choose a server to open monitoring details.",
+                    symbol: "server.rack"
+                )
             }
         }
-        .mainScreenNavigationChrome()
         .accessibilityIdentifier(AppTab.monitor.screenAccessibilityIdentifier)
         .sheet(isPresented: $showingMissingTools) {
             MissingToolsView()

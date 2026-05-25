@@ -7,82 +7,79 @@ struct ServersView: View {
     @State private var editingServer: ServerProfile?
 
     var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(spacing: 18) {
-                    PageHeader(
-                        title: "Servers",
-                        subtitle: "Monitor · SSH · Files",
+        ScrollView {
+            VStack(spacing: 18) {
+                PageHeader(
+                    title: "Servers",
+                    subtitle: "Monitor · SSH · Files",
+                    actionSymbol: "plus"
+                ) {
+                    isAddingServer = true
+                }
+                .padding(.top, 8)
+
+                if !appState.isProUnlocked {
+                    FreePlanBanner()
+                }
+
+                if appState.serverProfiles.isEmpty {
+                    ActionEmptyStateView(
+                        title: "No saved servers",
+                        message: "Add your first SSH profile to start monitoring, terminal sessions and SFTP.",
+                        symbol: "server.rack",
+                        actionTitle: "Add Server",
                         actionSymbol: "plus"
                     ) {
                         isAddingServer = true
                     }
-                    .padding(.top, 8)
-
-                    if !appState.isProUnlocked {
-                        FreePlanBanner()
-                    }
-
-                    if appState.serverProfiles.isEmpty {
-                        ActionEmptyStateView(
-                            title: "No saved servers",
-                            message: "Add your first SSH profile to start monitoring, terminal sessions and SFTP.",
-                            symbol: "server.rack",
-                            actionTitle: "Add Server",
-                            actionSymbol: "plus"
-                        ) {
-                            isAddingServer = true
-                        }
-                        .listItemEntrance(index: 0, disabled: appState.shouldReduceMotion)
-                    } else {
-                        ForEach(Array(appState.serverProfiles.enumerated()), id: \.element.id) { index, server in
-                            ServerCardView(
-                                server: server,
-                                metrics: appState.metric(for: server),
-                                isRefreshing: appState.isRefreshingMetrics(for: server)
-                            )
-                                .listItemEntrance(index: index, disabled: appState.shouldReduceMotion)
-                                .onTapGesture {
+                    .listItemEntrance(index: 0, disabled: appState.shouldReduceMotion)
+                } else {
+                    ForEach(Array(appState.serverProfiles.enumerated()), id: \.element.id) { index, server in
+                        ServerCardView(
+                            server: server,
+                            metrics: appState.metric(for: server),
+                            isRefreshing: appState.isRefreshingMetrics(for: server)
+                        )
+                            .listItemEntrance(index: index, disabled: appState.shouldReduceMotion)
+                            .onTapGesture {
+                                appState.select(server, tab: .monitor)
+                            }
+                            .contextMenu {
+                                Button {
+                                    appState.select(server, tab: .terminal)
+                                } label: {
+                                    Label("Open Terminal", systemImage: "terminal")
+                                }
+                                Button {
                                     appState.select(server, tab: .monitor)
+                                } label: {
+                                    Label("Open Monitor", systemImage: "waveform.path.ecg")
                                 }
-                                .contextMenu {
-                                    Button {
-                                        appState.select(server, tab: .terminal)
-                                    } label: {
-                                        Label("Open Terminal", systemImage: "terminal")
-                                    }
-                                    Button {
-                                        appState.select(server, tab: .monitor)
-                                    } label: {
-                                        Label("Open Monitor", systemImage: "waveform.path.ecg")
-                                    }
-                                    Button {
-                                        editingServer = server
-                                    } label: {
-                                        Label("Edit Server", systemImage: "pencil")
-                                    }
-                                    Button {
-                                        appState.selectedServer = server
-                                        appState.selectedTab = .sftp
-                                    } label: {
-                                        Label("Browse Files", systemImage: "folder")
-                                    }
-                                    Divider()
-                                    Button(role: .destructive) {
-                                        appState.deleteServer(server)
-                                    } label: {
-                                        Label("Delete Server", systemImage: "trash")
-                                    }
+                                Button {
+                                    editingServer = server
+                                } label: {
+                                    Label("Edit Server", systemImage: "pencil")
                                 }
+                                Button {
+                                    appState.selectedServer = server
+                                    appState.selectedTab = .sftp
+                                } label: {
+                                    Label("Browse Files", systemImage: "folder")
+                                }
+                                Divider()
+                                Button(role: .destructive) {
+                                    appState.deleteServer(server)
+                                } label: {
+                                    Label("Delete Server", systemImage: "trash")
+                                }
+                            }
                         }
-                    }
                 }
-                .padding(.horizontal, SysPulseDesign.pagePadding)
-                .padding(.top, 8)
             }
-            .scrollIndicators(.hidden)
+            .padding(.horizontal, SysPulseDesign.pagePadding)
+            .padding(.top, 8)
         }
-        .mainScreenNavigationChrome()
+        .scrollIndicators(.hidden)
         .accessibilityIdentifier(AppTab.servers.screenAccessibilityIdentifier)
         .sheet(isPresented: $isAddingServer) {
             AddServerView()

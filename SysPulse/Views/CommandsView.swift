@@ -17,56 +17,53 @@ struct CommandsView: View {
     }
 
     var body: some View {
-        NavigationStack {
-            ZStack {
-                AppBackground()
+        ZStack {
+            AppBackground()
 
-                ScrollView {
-                    VStack(spacing: 16) {
-                        PageHeader(
-                            title: "Commands",
-                            subtitle: "Safe snippets for routine Linux checks.",
-                            actionSymbol: "folder.badge.plus"
-                        ) {
-                            appState.isPaywallPresented = true
-                        }
-
-                        TextField("Search commands", text: $searchText)
-                            .textInputAutocapitalization(.never)
-                            .padding(.horizontal, 14)
-                            .padding(.vertical, 12)
-                            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-
-                        ForEach(Array(filteredCommands.enumerated()), id: \.element.id) { index, command in
-                            CommandCard(command: command, isLocked: isLocked(command, index: index)) {
-                                run(command, index: index)
-                            }
-                            .listItemEntrance(index: index, disabled: appState.shouldReduceMotion)
-                        }
-
-                        if !appState.lastCommandOutput.isEmpty {
-                            GlassCard {
-                                VStack(alignment: .leading, spacing: 10) {
-                                    Label("Last Output", systemImage: "terminal")
-                                        .font(.headline)
-                                    Text(appState.lastCommandOutput)
-                                        .font(.caption.monospaced())
-                                        .frame(maxWidth: .infinity, alignment: .leading)
-                                        .foregroundStyle(.secondary)
-                                }
-                            }
-                            .transition(.opacity.combined(with: .move(edge: .bottom)))
-                        }
+            ScrollView {
+                VStack(spacing: 16) {
+                    PageHeader(
+                        title: "Commands",
+                        subtitle: "Safe snippets for routine Linux checks.",
+                        actionSymbol: "folder.badge.plus"
+                    ) {
+                        appState.isPaywallPresented = true
                     }
-                    .padding(.horizontal, SysPulseDesign.pagePadding)
-                    .padding(.top, 8)
-                    .animation(SysPulseMotion.softSpring(disabled: appState.shouldReduceMotion), value: filteredCommands.count)
-                    .animation(SysPulseMotion.softSpring(disabled: appState.shouldReduceMotion), value: appState.lastCommandOutput.isEmpty)
+
+                    TextField("Search commands", text: $searchText)
+                        .textInputAutocapitalization(.never)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 12)
+                        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+
+                    ForEach(Array(filteredCommands.enumerated()), id: \.element.id) { index, command in
+                        CommandCard(command: command, isLocked: isLocked(command, index: index)) {
+                            run(command, index: index)
+                        }
+                        .listItemEntrance(index: index, disabled: appState.shouldReduceMotion)
+                    }
+
+                    if !appState.lastCommandOutput.isEmpty {
+                        GlassCard {
+                            VStack(alignment: .leading, spacing: 10) {
+                                Label("Last Output", systemImage: "terminal")
+                                    .font(.headline)
+                                Text(appState.lastCommandOutput)
+                                    .font(.caption.monospaced())
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        .transition(.opacity.combined(with: .move(edge: .bottom)))
+                    }
                 }
-                .scrollIndicators(.hidden)
+                .padding(.horizontal, SysPulseDesign.pagePadding)
+                .padding(.top, 8)
+                .animation(SysPulseMotion.softSpring(disabled: appState.shouldReduceMotion), value: filteredCommands.count)
+                .animation(SysPulseMotion.softSpring(disabled: appState.shouldReduceMotion), value: appState.lastCommandOutput.isEmpty)
             }
+            .scrollIndicators(.hidden)
         }
-        .mainScreenNavigationChrome()
         .accessibilityIdentifier("screen_commands")
         .alert("Run dangerous command?", isPresented: $showingConfirmation) {
             Button("Cancel", role: .cancel) {}

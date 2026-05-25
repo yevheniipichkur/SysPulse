@@ -15,13 +15,12 @@ struct SettingsView: View {
     private let buildInfo = GitBuildInfoService()
 
     var body: some View {
-        NavigationStack {
-            ZStack {
-                AppBackground()
+        ZStack {
+            AppBackground()
 
-                ScrollView {
-                    VStack(spacing: 16) {
-                        PageHeader(title: "Settings", subtitle: "Security, appearance and Pro controls.", actionSymbol: nil, action: nil)
+            ScrollView {
+                VStack(spacing: 16) {
+                    PageHeader(title: "Settings", subtitle: "Security, appearance and Pro controls.", actionSymbol: nil, action: nil)
 
                         settingsSection("Account", symbol: "person.crop.circle") {
                             SubscriptionStatusCard(
@@ -193,14 +192,12 @@ struct SettingsView: View {
                             Link("Contact support", destination: URL(string: "https://github.com/yevheniipichkur/SysPulse/issues")!)
                         }
                         .listItemEntrance(index: 7, disabled: appState.shouldReduceMotion)
-                    }
-                    .padding(.horizontal, SysPulseDesign.pagePadding)
-                    .padding(.top, 8)
                 }
-                .scrollIndicators(.hidden)
+                .padding(.horizontal, SysPulseDesign.pagePadding)
+                .padding(.top, 8)
             }
+            .scrollIndicators(.hidden)
         }
-        .mainScreenNavigationChrome()
         .fileImporter(
             isPresented: $isImportingEncryptedProfiles,
             allowedContentTypes: [.data],

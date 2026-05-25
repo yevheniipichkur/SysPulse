@@ -83,23 +83,20 @@ struct TerminalView: View {
     }
 
     var body: some View {
-        NavigationStack {
-            ZStack {
-                AppBackground()
-                    .ignoresSafeArea()
+        ZStack {
+            AppBackground()
+                .ignoresSafeArea()
 
-                terminalCanvas
-                    .opacity(appState.shouldReduceMotion || terminalSurfaceVisible ? 1 : 0.001)
-                    .scaleEffect(appState.shouldReduceMotion || terminalSurfaceVisible ? 1 : 0.985, anchor: .bottom)
-                    .offset(y: appState.shouldReduceMotion || terminalSurfaceVisible ? 0 : 14)
-                    .blur(radius: appState.shouldReduceMotion || terminalSurfaceVisible ? 0 : 4)
-                    .animation(SysPulseMotion.softSpring(disabled: appState.shouldReduceMotion), value: terminalSurfaceVisible)
-            }
-            .safeAreaInset(edge: .bottom, spacing: 0) {
-                bottomConsole
-            }
+            terminalCanvas
+                .opacity(appState.shouldReduceMotion || terminalSurfaceVisible ? 1 : 0.001)
+                .scaleEffect(appState.shouldReduceMotion || terminalSurfaceVisible ? 1 : 0.985, anchor: .bottom)
+                .offset(y: appState.shouldReduceMotion || terminalSurfaceVisible ? 0 : 14)
+                .blur(radius: appState.shouldReduceMotion || terminalSurfaceVisible ? 0 : 4)
+                .animation(SysPulseMotion.softSpring(disabled: appState.shouldReduceMotion), value: terminalSurfaceVisible)
         }
-        .mainScreenNavigationChrome()
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            bottomConsole
+        }
         .onAppear {
             setTerminalSurfaceVisible(true)
             ensureSessionForSelectedServer()
