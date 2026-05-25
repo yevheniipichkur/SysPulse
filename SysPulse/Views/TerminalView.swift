@@ -968,7 +968,7 @@ private enum TerminalConnectionState: Equatable {
         }
     }
 
-    var color: Color {
+    var color: SwiftUI.Color {
         switch self {
         case .connecting: .orange
         case .connected: .green

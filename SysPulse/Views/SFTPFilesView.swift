@@ -395,7 +395,7 @@ struct SFTPFilesView: View {
 
     private func fileCard(_ item: SFTPRemoteItem, server: ServerProfile) -> some View {
         let isSelected = selectedItemIDs.contains(item.id)
-        GlassCard(cornerRadius: 20, padding: 0) {
+        return GlassCard(cornerRadius: 20, padding: 0) {
             HStack(spacing: 12) {
                 Button {
                     if isSelectionMode {
