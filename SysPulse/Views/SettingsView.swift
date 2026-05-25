@@ -171,7 +171,7 @@ struct SettingsView: View {
                 return
             }
 
-            if isEnabled, !iCloudEntitlementDiagnostic.isReady {
+            if isEnabled, !iCloudEntitlementDiagnostic.canAttemptSync {
                 appState.settings.iCloudSyncEnabled = false
                 appState.lastCommandOutput = appState.localized(iCloudEntitlementDiagnostic.messageKey)
                 return
@@ -221,11 +221,23 @@ struct SettingsView: View {
 private struct ICloudEntitlementStatusRow: View {
     var diagnostic: CloudKitEntitlementDiagnostic
 
+    private var statusColor: Color {
+        if diagnostic.isReady { return .green }
+        if diagnostic.canAttemptSync { return .cyan }
+        return .orange
+    }
+
+    private var statusSymbol: String {
+        if diagnostic.isReady { return "checkmark.seal.fill" }
+        if diagnostic.canAttemptSync { return "info.circle.fill" }
+        return "exclamationmark.triangle.fill"
+    }
+
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
-            Image(systemName: diagnostic.isReady ? "checkmark.seal.fill" : "exclamationmark.triangle.fill")
+            Image(systemName: statusSymbol)
                 .font(.headline)
-                .foregroundStyle(diagnostic.isReady ? .green : .orange)
+                .foregroundStyle(statusColor)
                 .frame(width: 24)
 
             VStack(alignment: .leading, spacing: 4) {
@@ -235,7 +247,7 @@ private struct ICloudEntitlementStatusRow: View {
                     .font(.caption2)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
-                if !diagnostic.isReady {
+                if !diagnostic.canAttemptSync {
                     Text(diagnostic.containerIdentifier)
                         .font(.caption2.monospaced())
                         .foregroundStyle(.secondary.opacity(0.82))
@@ -249,7 +261,7 @@ private struct ICloudEntitlementStatusRow: View {
         .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .stroke((diagnostic.isReady ? Color.green : Color.orange).opacity(0.22), lineWidth: 1)
+                .stroke(statusColor.opacity(0.22), lineWidth: 1)
         }
     }
 }

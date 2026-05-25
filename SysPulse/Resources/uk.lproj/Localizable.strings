@@ -400,6 +400,9 @@
 "iCloud container is missing from the provisioning profile." = "У provisioning profile немає iCloud container.";
 "CloudKit service is missing from the provisioning profile." = "У provisioning profile немає сервісу CloudKit.";
 "iCloud sync is not available in this build." = "Синхронізація iCloud недоступна в цій збірці.";
+"CloudKit entitlement could not be verified at runtime. Sync will try CloudKit." = "CloudKit entitlement не вдалося перевірити під час роботи. Синхронізація спробує CloudKit.";
+"iCloud container is missing from signed entitlements." = "У signed entitlements немає iCloud container.";
+"CloudKit service is missing from signed entitlements." = "У signed entitlements немає сервісу CloudKit.";
 
 "Restore purchases will sync through StoreKit 2." = "Покупки буде відновлено через StoreKit 2.";
 "Export profiles placeholder." = "Експорт профілів поки заглушка.";

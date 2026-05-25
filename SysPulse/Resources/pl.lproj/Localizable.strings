@@ -400,6 +400,9 @@
 "iCloud container is missing from the provisioning profile." = "W profilu provisioning brakuje kontenera iCloud.";
 "CloudKit service is missing from the provisioning profile." = "W profilu provisioning brakuje usługi CloudKit.";
 "iCloud sync is not available in this build." = "Synchronizacja iCloud nie jest dostępna w tej kompilacji.";
+"CloudKit entitlement could not be verified at runtime. Sync will try CloudKit." = "Nie udało się zweryfikować uprawnienia CloudKit w runtime. Synchronizacja spróbuje użyć CloudKit.";
+"iCloud container is missing from signed entitlements." = "W podpisanych entitlements brakuje kontenera iCloud.";
+"CloudKit service is missing from signed entitlements." = "W podpisanych entitlements brakuje usługi CloudKit.";
 
 "Restore purchases will sync through StoreKit 2." = "Zakupy zostaną przywrócone przez StoreKit 2.";
 "Export profiles placeholder." = "Eksport profili jest jeszcze placeholderem.";

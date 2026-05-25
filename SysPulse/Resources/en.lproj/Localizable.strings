@@ -400,6 +400,9 @@
 "iCloud container is missing from the provisioning profile." = "iCloud container is missing from the provisioning profile.";
 "CloudKit service is missing from the provisioning profile." = "CloudKit service is missing from the provisioning profile.";
 "iCloud sync is not available in this build." = "iCloud sync is not available in this build.";
+"CloudKit entitlement could not be verified at runtime. Sync will try CloudKit." = "CloudKit entitlement could not be verified at runtime. Sync will try CloudKit.";
+"iCloud container is missing from signed entitlements." = "iCloud container is missing from signed entitlements.";
+"CloudKit service is missing from signed entitlements." = "CloudKit service is missing from signed entitlements.";
 
 "Restore purchases will sync through StoreKit 2." = "Restore purchases will sync through StoreKit 2.";
 "Export profiles placeholder." = "Export profiles placeholder.";
