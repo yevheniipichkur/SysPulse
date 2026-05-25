@@ -60,6 +60,7 @@ final class AppState: ObservableObject {
     private let alertEvaluationService = AlertRuleEvaluationService()
     private let encryptedProfileSharingService = EncryptedProfileSharingService()
     private let sftpService = SFTPFileTransferService()
+    private let backendMonitoringService = BackendMonitoringService()
     private let metricsCollector = MetricsCollector()
     private let processService = ProcessService()
     private let diskService = DiskService()
@@ -80,6 +81,7 @@ final class AppState: ObservableObject {
     private var alertLastFiredAt: [String: Date] = [:]
     private var sftpLoadTokensByServer: [UUID: UUID] = [:]
     private let alertCooldown: TimeInterval = 15 * 60
+    private static let backendMonitoringTokenAccount = "backend-monitoring-token"
 
     init() {
         let arguments = ProcessInfo.processInfo.arguments
@@ -452,6 +454,7 @@ final class AppState: ObservableObject {
                     lastCommandOutput = localized("Metrics refreshed for %@.", server.name)
                     updateLiveActivity(message: localized("Metrics refreshed"))
                     evaluateAlertRules(for: server, metrics: metrics)
+                    sendBackendMonitoringSnapshotIfEnabled(server: server, metrics: metrics)
                 }
             } catch {
                 await MainActor.run {
@@ -460,6 +463,44 @@ final class AppState: ObservableObject {
                         selectedServer?.status = .warning
                     }
                     lastCommandOutput = localized("Metrics refresh failed for %@: %@", server.name, error.localizedDescription)
+                }
+            }
+        }
+    }
+
+    func backendMonitoringTokenForSettings() -> String {
+        (try? KeychainService.shared.readSecret(account: Self.backendMonitoringTokenAccount)) ?? ""
+    }
+
+    func saveBackendMonitoringTokenFromSettings(_ token: String) {
+        do {
+            let trimmedToken = token.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmedToken.isEmpty {
+                try KeychainService.shared.deleteSecret(account: Self.backendMonitoringTokenAccount)
+                lastCommandOutput = localized("Backend monitoring token cleared.")
+            } else {
+                try KeychainService.shared.saveSecret(trimmedToken, account: Self.backendMonitoringTokenAccount)
+                lastCommandOutput = localized("Backend monitoring token saved.")
+            }
+        } catch {
+            lastCommandOutput = error.localizedDescription
+        }
+    }
+
+    private func sendBackendMonitoringSnapshotIfEnabled(server: ServerProfile, metrics: ServerMetrics) {
+        guard settings.backendMonitoringEnabled else { return }
+        let endpoint = settings.backendMonitoringEndpoint.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !endpoint.isEmpty else { return }
+        let token = try? KeychainService.shared.readSecret(account: Self.backendMonitoringTokenAccount)
+        let payload = BackendMonitoringPayload(server: server, metrics: metrics)
+        let service = backendMonitoringService
+
+        Task { [weak self] in
+            do {
+                try await service.sendSnapshot(endpoint: endpoint, token: token, payload: payload)
+            } catch {
+                await MainActor.run {
+                    self?.lastCommandOutput = self?.localized("Backend monitoring failed: %@", error.localizedDescription) ?? error.localizedDescription
                 }
             }
         }

@@ -5,6 +5,7 @@ struct SettingsView: View {
     @EnvironmentObject private var appState: AppState
     @State private var versionTapCount = 0
     @State private var sharingPassphrase = ""
+    @State private var backendMonitoringToken = ""
     @State private var encryptedExportURL: URL?
     @State private var isImportingEncryptedProfiles = false
     private let buildInfo = GitBuildInfoService()
@@ -115,6 +116,23 @@ struct SettingsView: View {
                             }
                         }
 
+                        settingsSection("Remote Monitoring", symbol: "antenna.radiowaves.left.and.right") {
+                            Toggle("Backend monitoring", isOn: $appState.settings.backendMonitoringEnabled)
+                            TextField("Backend endpoint URL", text: $appState.settings.backendMonitoringEndpoint)
+                                .keyboardType(.URL)
+                                .textInputAutocapitalization(.never)
+                                .autocorrectionDisabled()
+                            SecureField("Bearer token (optional)", text: $backendMonitoringToken)
+                                .textInputAutocapitalization(.never)
+                                .autocorrectionDisabled()
+                            Text("Sends metrics snapshots after refresh. Passwords and private keys are never included.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            Button("Save backend token") {
+                                appState.saveBackendMonitoringTokenFromSettings(backendMonitoringToken)
+                            }
+                        }
+
                         settingsSection("About", symbol: "info.circle") {
                             Button {
                                 versionTapCount += 1
@@ -145,6 +163,9 @@ struct SettingsView: View {
             allowsMultipleSelection: false
         ) { result in
             importEncryptedProfiles(result)
+        }
+        .onAppear {
+            backendMonitoringToken = appState.backendMonitoringTokenForSettings()
         }
     }
 

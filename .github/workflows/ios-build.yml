@@ -11,6 +11,11 @@ on:
         required: false
         default: false
         type: boolean
+      validate_with_altool:
+        description: Run separate altool validation before upload
+        required: false
+        default: false
+        type: boolean
 
 concurrency:
   group: ios-build-${{ github.ref }}
@@ -34,6 +39,7 @@ env:
   APPSTORE_CONNECT_API_ISSUER_ID: ${{ secrets.APPSTORE_CONNECT_API_ISSUER_ID }}
   APPSTORE_CONNECT_API_KEY_BASE64: ${{ secrets.APPSTORE_CONNECT_API_KEY_BASE64 }}
   RUN_TESTS: ${{ github.event_name == 'workflow_dispatch' && inputs.run_tests == true }}
+  RUN_ALTOOL_VALIDATE: ${{ github.event_name == 'workflow_dispatch' && inputs.validate_with_altool == true }}
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
@@ -72,8 +78,6 @@ jobs:
           echo ""
           echo "=== Available SDKs ==="
           xcodebuild -showsdks
-          echo ""
-          xcrun simctl list runtimes
 
       - name: Install XcodeGen
         run: |
@@ -130,6 +134,7 @@ jobs:
             ${{ runner.os }}-spm-
 
       - name: Resolve simulator destination
+        if: ${{ env.APPLE_TEAM_ID == '' || env.APPLE_CERTIFICATE_BASE64 == '' || env.RUN_TESTS == 'true' }}
         run: |
           SIMULATOR_DESTINATION=$(xcrun simctl list devices available | awk -F '[()]' '/iPhone/ {print "id="$2; exit}')
           if [ -z "$SIMULATOR_DESTINATION" ]; then
@@ -737,6 +742,12 @@ jobs:
             exit 1
           fi
 
+          if [ "$RUN_ALTOOL_VALIDATE" != "true" ]; then
+            echo "=== All pre-upload checks passed. Skipping separate altool validation for faster push builds. ==="
+            echo "Run this workflow manually with validate_with_altool=true when you need the extra App Store Connect validation pass."
+            exit 0
+          fi
+
           echo "=== All pre-upload checks passed. Running xcrun altool --validate-app ==="
           if [ -n "${APPSTORE_CONNECT_API_KEY_ID:-}" ] && [ -n "${APPSTORE_CONNECT_API_ISSUER_ID:-}" ] && [ -n "${ASC_KEY_PATH:-}" ]; then
             set +e
@@ -767,16 +778,6 @@ jobs:
             echo "altool --validate-app skipped (ASC key not configured)."
           fi
           echo "Validation complete."
-
-      - name: Upload build artifacts
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: syspulse-ios-build
-          path: |
-            build/
-            SysPulse.xcodeproj/
-          if-no-files-found: warn
 
       - name: Upload to TestFlight
         if: ${{ env.APPSTORE_CONNECT_API_KEY_ID != '' && env.APPSTORE_CONNECT_API_ISSUER_ID != '' && env.APPSTORE_CONNECT_API_KEY_BASE64 != '' }}
@@ -824,3 +825,17 @@ jobs:
             exit 1
           fi
           echo "TestFlight upload command completed without altool validation errors."
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: syspulse-ios-build
+          path: |
+            build/logs/
+            build/export/*.ipa
+            ExportOptions.plist
+            SysPulse.xcodeproj/project.pbxproj
+          if-no-files-found: warn
+          retention-days: 5
+          compression-level: 0

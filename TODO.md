@@ -43,7 +43,7 @@
 
 ## Future
 
-- [ ] Optional backend for push monitoring.
+- [x] Optional backend webhook client for push monitoring snapshots.
 - [ ] Team accounts.
 - [ ] Web dashboard.
 - [x] Encrypted profile sharing.

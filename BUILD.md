@@ -99,8 +99,9 @@ Screenshots workflow: `.github/workflows/ios-screenshots.yml`. Run **iOS Screens
 9. Create signed archive при наличии signing secrets.
 10. Patch archive `CFBundleVersion` номером GitHub Actions run.
 11. Export IPA при наличии signing secrets.
-12. Upload artifacts.
+12. Быстрая pre-upload проверка IPA локальными скриптами.
 13. Upload to TestFlight при наличии App Store Connect secrets.
+14. Upload компактного artifact с логами и IPA.
 
 ## Signing secrets
 
@@ -116,7 +117,7 @@ Screenshots workflow: `.github/workflows/ios-screenshots.yml`. Run **iOS Screens
 - `APPSTORE_CONNECT_API_ISSUER_ID`
 - `APPSTORE_CONNECT_API_KEY_BASE64`
 
-Если secrets отсутствуют, workflow всё равно выполняет unsigned compile check. Тесты по умолчанию отключены для ускорения TestFlight-сборок; включите `run_tests` при ручном запуске workflow.
+Если secrets отсутствуют, workflow всё равно выполняет unsigned compile check. Тесты по умолчанию отключены для ускорения TestFlight-сборок; включите `run_tests` при ручном запуске workflow. Отдельная `altool --validate-app` проверка тоже выключена по умолчанию и включается вручную через `validate_with_altool=true`.
 
 ## Генерация IPA
 

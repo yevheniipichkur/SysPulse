@@ -48,9 +48,10 @@ Push в `main` автоматически запускает workflow **iOS Buil
 4. Нажмите **Run workflow**.
 5. Выберите branch `main`.
 6. Включите `run_tests`, только если хотите отдельно прогнать XCTest перед упаковкой.
-7. Нажмите зелёную кнопку **Run workflow**.
+7. Включите `validate_with_altool`, только если нужен отдельный App Store Connect validation pass перед upload.
+8. Нажмите зелёную кнопку **Run workflow**.
 
-Для быстрых TestFlight-сборок оставляйте `run_tests` выключенным. Workflow всё равно соберёт signed archive, экспортирует IPA и перед upload проверит bundle version, icon metadata и widget extension.
+Для быстрых TestFlight-сборок оставляйте `run_tests` и `validate_with_altool` выключенными. Workflow всё равно соберёт signed archive, экспортирует IPA и перед upload проверит bundle version, icon metadata и widget extension.
 
 ## Где скачать artifact
 
@@ -59,7 +60,7 @@ Push в `main` автоматически запускает workflow **iOS Buil
 3. Внизу страницы найдите **Artifacts**.
 4. Скачайте `syspulse-ios-build`.
 
-Без signing secrets artifact содержит generated project и build/archive outputs, если они были созданы.
+Artifact содержит логи сборки и exported IPA, если он был создан. Большой archive и SwiftPM cache не загружаются, чтобы TestFlight-пуш проходил быстрее.
 
 ## Какие secrets добавить
 

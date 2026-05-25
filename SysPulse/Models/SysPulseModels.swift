@@ -622,7 +622,46 @@ struct AppSettings: Codable, Hashable {
     var reduceAnimations: Bool = false
     var language: AppLanguage = .system
     var iCloudSyncEnabled: Bool = false
+    var backendMonitoringEnabled: Bool = false
+    var backendMonitoringEndpoint: String = ""
     var forceProOverride: Bool = false
+
+    init() {}
+
+    enum CodingKeys: String, CodingKey {
+        case requiresBiometrics
+        case autoLockMinutes
+        case hideSensitiveData
+        case clipboardWarning
+        case appearanceMode
+        case accentHex
+        case terminalTheme
+        case terminalFontSize
+        case reduceAnimations
+        case language
+        case iCloudSyncEnabled
+        case backendMonitoringEnabled
+        case backendMonitoringEndpoint
+        case forceProOverride
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        requiresBiometrics = try container.decodeIfPresent(Bool.self, forKey: .requiresBiometrics) ?? true
+        autoLockMinutes = try container.decodeIfPresent(Int.self, forKey: .autoLockMinutes) ?? 5
+        hideSensitiveData = try container.decodeIfPresent(Bool.self, forKey: .hideSensitiveData) ?? false
+        clipboardWarning = try container.decodeIfPresent(Bool.self, forKey: .clipboardWarning) ?? true
+        appearanceMode = try container.decodeIfPresent(AppearanceMode.self, forKey: .appearanceMode) ?? .system
+        accentHex = try container.decodeIfPresent(String.self, forKey: .accentHex) ?? "#33C2EA"
+        terminalTheme = try container.decodeIfPresent(TerminalTheme.self, forKey: .terminalTheme) ?? .liquidDark
+        terminalFontSize = try container.decodeIfPresent(Double.self, forKey: .terminalFontSize) ?? 14
+        reduceAnimations = try container.decodeIfPresent(Bool.self, forKey: .reduceAnimations) ?? false
+        language = try container.decodeIfPresent(AppLanguage.self, forKey: .language) ?? .system
+        iCloudSyncEnabled = try container.decodeIfPresent(Bool.self, forKey: .iCloudSyncEnabled) ?? false
+        backendMonitoringEnabled = try container.decodeIfPresent(Bool.self, forKey: .backendMonitoringEnabled) ?? false
+        backendMonitoringEndpoint = try container.decodeIfPresent(String.self, forKey: .backendMonitoringEndpoint) ?? ""
+        forceProOverride = try container.decodeIfPresent(Bool.self, forKey: .forceProOverride) ?? false
+    }
 }
 
 struct SubscriptionState: Codable, Hashable {

@@ -498,6 +498,17 @@
 "Allowed" = "Allowed";
 "Not allowed" = "Not allowed";
 "Enable notifications" = "Enable notifications";
+"Remote Monitoring" = "Remote Monitoring";
+"Backend monitoring" = "Backend monitoring";
+"Backend endpoint URL" = "Backend endpoint URL";
+"Bearer token (optional)" = "Bearer token (optional)";
+"Sends metrics snapshots after refresh. Passwords and private keys are never included." = "Sends metrics snapshots after refresh. Passwords and private keys are never included.";
+"Save backend token" = "Save backend token";
+"Backend monitoring token saved." = "Backend monitoring token saved.";
+"Backend monitoring token cleared." = "Backend monitoring token cleared.";
+"Backend monitoring endpoint is not a valid URL." = "Backend monitoring endpoint is not a valid URL.";
+"Backend monitoring returned HTTP %@." = "Backend monitoring returned HTTP %@.";
+"Backend monitoring failed: %@" = "Backend monitoring failed: %@";
 "CPU usage" = "CPU usage";
 "RAM usage" = "RAM usage";
 "Disk usage" = "Disk usage";

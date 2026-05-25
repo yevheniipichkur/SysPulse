@@ -498,6 +498,17 @@
 "Allowed" = "Дозволено";
 "Not allowed" = "Не дозволено";
 "Enable notifications" = "Увімкнути сповіщення";
+"Remote Monitoring" = "Віддалений моніторинг";
+"Backend monitoring" = "Backend-моніторинг";
+"Backend endpoint URL" = "URL backend endpoint";
+"Bearer token (optional)" = "Bearer token (необов'язково)";
+"Sends metrics snapshots after refresh. Passwords and private keys are never included." = "Надсилає знімки метрик після оновлення. Паролі та приватні ключі ніколи не включаються.";
+"Save backend token" = "Зберегти backend token";
+"Backend monitoring token saved." = "Backend token збережено.";
+"Backend monitoring token cleared." = "Backend token очищено.";
+"Backend monitoring endpoint is not a valid URL." = "Backend endpoint не є коректним URL.";
+"Backend monitoring returned HTTP %@." = "Backend monitoring повернув HTTP %@.";
+"Backend monitoring failed: %@" = "Backend monitoring не вдався: %@";
 "CPU usage" = "Використання CPU";
 "RAM usage" = "Використання RAM";
 "Disk usage" = "Використання диска";

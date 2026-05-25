@@ -104,7 +104,7 @@ xcodebuild build -project SysPulse.xcodeproj -scheme SysPulse -destination "gene
 2. Перейдите в **Actions**.
 3. Выберите **iOS Build**.
 4. Нажмите **Run workflow**.
-5. Оставьте `run_tests` выключенным для быстрой TestFlight-сборки или включите для XCTest.
+5. Оставьте `run_tests` и `validate_with_altool` выключенными для быстрой TestFlight-сборки или включите их для дополнительной проверки.
 6. Дождитесь сборки.
 7. Скачайте artifact или проверьте TestFlight, если настроены signing secrets.
 
@@ -135,7 +135,7 @@ Next:
 
 Future:
 
-- Optional backend for push monitoring.
+- Optional backend webhook client for push monitoring snapshots.
 - Team accounts.
 - Web dashboard.
 - Encrypted profile sharing.
