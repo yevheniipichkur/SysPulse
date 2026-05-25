@@ -17,8 +17,18 @@ final class SysPulseScreenshotUITests: XCTestCase {
     func testCaptureAppStoreScreenshots() throws {
         for tab in ScreenshotTab.captureOrder {
             let app = launchApp(on: tab)
-            XCTAssertTrue(app.tabBars.firstMatch.waitForExistence(timeout: 12), "Main tab bar did not appear for \(tab.rawValue).")
-            XCTAssertTrue(waitForScreen(tab, in: app), "\(tab.screenIdentifier) did not appear for \(tab.rawValue).")
+            guard app.tabBars.firstMatch.waitForExistence(timeout: 12) else {
+                try? capture("00-\(tab.rawValue)-missing-tabbar", app: app)
+                XCTFail("Main tab bar did not appear for \(tab.rawValue).")
+                app.terminate()
+                return
+            }
+            guard waitForScreen(tab, in: app) else {
+                try? capture("00-\(tab.rawValue)-missing-screen", app: app)
+                XCTFail("\(tab.screenIdentifier) did not appear for \(tab.rawValue).")
+                app.terminate()
+                return
+            }
             try capture(tab.filename, app: app)
             app.terminate()
         }

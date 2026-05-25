@@ -69,6 +69,7 @@ jobs:
           set +e
           set -o pipefail
           mkdir -p build/screenshots build/logs build/SourcePackages
+          rm -rf build/logs/SysPulseScreenshots.xcresult
           xcrun simctl boot "${SIMULATOR_DESTINATION#id=}" || true
           xcrun simctl bootstatus "${SIMULATOR_DESTINATION#id=}" -b
           SYSPULSE_SCREENSHOT_DIR="$PWD/build/screenshots" xcodebuild test \
@@ -77,6 +78,7 @@ jobs:
             -configuration Debug \
             -destination "$SIMULATOR_DESTINATION" \
             -clonedSourcePackagesDirPath build/SourcePackages \
+            -resultBundlePath build/logs/SysPulseScreenshots.xcresult \
             -skipPackagePluginValidation \
             -skipMacroValidation \
             CODE_SIGNING_ALLOWED=NO \
@@ -89,6 +91,22 @@ jobs:
             grep -E "error:|XCTAssert|failed|Failure|Timed out|waitFor|Unable to|Exception|Test Case|Issue recorded" build/logs/screenshots.log | tail -n 220 || true
             echo "::endgroup::"
           fi
+
+          png_count=$(find build/screenshots -name "*.png" -type f | wc -l | tr -d " ")
+          if [ "$png_count" -eq 0 ]; then
+            echo "::warning::No screenshot PNG files were written by the UI test. Capturing simulator fallback."
+            xcrun simctl io "${SIMULATOR_DESTINATION#id=}" screenshot build/screenshots/00-fallback-simulator.png || true
+          fi
+
+          echo "::group::Screenshot output files"
+          find build/screenshots build/logs -maxdepth 2 -type f -print || true
+          echo "::endgroup::"
+
+          png_count=$(find build/screenshots -name "*.png" -type f | wc -l | tr -d " ")
+          if [ "$status" -eq 0 ] && [ "$png_count" -lt 5 ]; then
+            echo "::error::Expected 5 App Store screenshots, found $png_count."
+            status=65
+          fi
           exit "$status"
 
       - name: Upload screenshots
@@ -97,6 +115,7 @@ jobs:
         with:
           name: syspulse-app-store-screenshots
           path: |
-            build/screenshots/*.png
+            build/screenshots/**
             build/logs/screenshots.log
+            build/logs/SysPulseScreenshots.xcresult
           if-no-files-found: warn
