@@ -73,6 +73,7 @@ struct ServerDetailView: View {
                 }
             }
         }
+        .mainScreenNavigationChrome()
         .accessibilityIdentifier(AppTab.monitor.screenAccessibilityIdentifier)
         .sheet(isPresented: $showingMissingTools) {
             MissingToolsView()

@@ -118,27 +118,32 @@ struct MainShellView: View {
     @EnvironmentObject private var appState: AppState
 
     var body: some View {
-        TabView(selection: $appState.selectedTab) {
-            ServersView()
-                .tabScreenMotion(tab: .servers, selectedTab: appState.selectedTab, disabled: appState.shouldReduceMotion)
-                .tabItem { tabLabel(for: .servers) }
-                .tag(AppTab.servers)
-            ServerDetailView()
-                .tabScreenMotion(tab: .monitor, selectedTab: appState.selectedTab, disabled: appState.shouldReduceMotion)
-                .tabItem { tabLabel(for: .monitor) }
-                .tag(AppTab.monitor)
-            TerminalView()
-                .tabScreenMotion(tab: .terminal, selectedTab: appState.selectedTab, disabled: appState.shouldReduceMotion)
-                .tabItem { tabLabel(for: .terminal) }
-                .tag(AppTab.terminal)
-            SFTPFilesView()
-                .tabScreenMotion(tab: .sftp, selectedTab: appState.selectedTab, disabled: appState.shouldReduceMotion)
-                .tabItem { tabLabel(for: .sftp) }
-                .tag(AppTab.sftp)
-            SettingsView()
-                .tabScreenMotion(tab: .settings, selectedTab: appState.selectedTab, disabled: appState.shouldReduceMotion)
-                .tabItem { tabLabel(for: .settings) }
-                .tag(AppTab.settings)
+        ZStack {
+            AppBackground()
+
+            TabView(selection: $appState.selectedTab) {
+                ServersView()
+                    .tabScreenMotion(tab: .servers, selectedTab: appState.selectedTab, disabled: appState.shouldReduceMotion)
+                    .tabItem { tabLabel(for: .servers) }
+                    .tag(AppTab.servers)
+                ServerDetailView()
+                    .tabScreenMotion(tab: .monitor, selectedTab: appState.selectedTab, disabled: appState.shouldReduceMotion)
+                    .tabItem { tabLabel(for: .monitor) }
+                    .tag(AppTab.monitor)
+                TerminalView()
+                    .tabScreenMotion(tab: .terminal, selectedTab: appState.selectedTab, disabled: appState.shouldReduceMotion)
+                    .tabItem { tabLabel(for: .terminal) }
+                    .tag(AppTab.terminal)
+                SFTPFilesView()
+                    .tabScreenMotion(tab: .sftp, selectedTab: appState.selectedTab, disabled: appState.shouldReduceMotion)
+                    .tabItem { tabLabel(for: .sftp) }
+                    .tag(AppTab.sftp)
+                SettingsView()
+                    .tabScreenMotion(tab: .settings, selectedTab: appState.selectedTab, disabled: appState.shouldReduceMotion)
+                    .tabItem { tabLabel(for: .settings) }
+                    .tag(AppTab.settings)
+            }
+            .tint(SysPulseDesign.accent)
         }
         .background(TabBarAccessibilityConfigurator())
         .onChange(of: appState.selectedTab) {
@@ -185,6 +190,7 @@ private struct TabBarAccessibilityConfigurator: UIViewControllerRepresentable {
 
         private func apply() {
             guard let tabBarController = findTabBarController() else { return }
+            applyAppearance(to: tabBarController.tabBar)
             let tabs = AppTab.allCases
             for (index, item) in (tabBarController.tabBar.items ?? []).enumerated() where tabs.indices.contains(index) {
                 let tab = tabs[index]
@@ -193,6 +199,34 @@ private struct TabBarAccessibilityConfigurator: UIViewControllerRepresentable {
                 item.accessibilityLabel = title
                 item.accessibilityIdentifier = tab.tabAccessibilityIdentifier
             }
+        }
+
+        private func applyAppearance(to tabBar: UITabBar) {
+            let appearance = UITabBarAppearance()
+            appearance.configureWithTransparentBackground()
+            appearance.backgroundEffect = UIBlurEffect(style: .systemUltraThinMaterialDark)
+            appearance.backgroundColor = UIColor(red: 0.03, green: 0.04, blue: 0.06, alpha: 0.72)
+
+            let selectedColor = UIColor(red: 0.20, green: 0.76, blue: 0.92, alpha: 1)
+            let normalColor = UIColor.white.withAlphaComponent(0.58)
+            styleTabItemAppearance(appearance.stackedLayoutAppearance, selectedColor: selectedColor, normalColor: normalColor)
+            styleTabItemAppearance(appearance.inlineLayoutAppearance, selectedColor: selectedColor, normalColor: normalColor)
+            styleTabItemAppearance(appearance.compactInlineLayoutAppearance, selectedColor: selectedColor, normalColor: normalColor)
+
+            tabBar.standardAppearance = appearance
+            tabBar.scrollEdgeAppearance = appearance
+            tabBar.isTranslucent = true
+        }
+
+        private func styleTabItemAppearance(
+            _ itemAppearance: UITabBarItemAppearance,
+            selectedColor: UIColor,
+            normalColor: UIColor
+        ) {
+            itemAppearance.normal.iconColor = normalColor
+            itemAppearance.normal.titleTextAttributes = [.foregroundColor: normalColor]
+            itemAppearance.selected.iconColor = selectedColor
+            itemAppearance.selected.titleTextAttributes = [.foregroundColor: selectedColor]
         }
 
         private func findTabBarController() -> UITabBarController? {

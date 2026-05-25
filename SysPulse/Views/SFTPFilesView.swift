@@ -96,6 +96,7 @@ struct SFTPFilesView: View {
                 Text(appState.localized("Delete %d selected items?", selectedItemIDs.count))
             }
         }
+        .translucentNavigationChrome()
         .accessibilityIdentifier(AppTab.sftp.screenAccessibilityIdentifier)
         .onAppear {
             if let server, allItems.isEmpty, !isLoading {

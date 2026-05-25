@@ -82,6 +82,7 @@ struct ServersView: View {
             }
             .scrollIndicators(.hidden)
         }
+        .mainScreenNavigationChrome()
         .accessibilityIdentifier(AppTab.servers.screenAccessibilityIdentifier)
         .sheet(isPresented: $isAddingServer) {
             AddServerView()

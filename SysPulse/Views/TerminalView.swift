@@ -99,6 +99,7 @@ struct TerminalView: View {
                 bottomConsole
             }
         }
+        .mainScreenNavigationChrome()
         .onAppear {
             setTerminalSurfaceVisible(true)
             ensureSessionForSelectedServer()

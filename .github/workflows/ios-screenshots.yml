@@ -73,6 +73,13 @@ jobs:
           rm -rf build/logs/SysPulseScreenshots.xcresult
           xcrun simctl boot "${SIMULATOR_DESTINATION#id=}" || true
           xcrun simctl bootstatus "${SIMULATOR_DESTINATION#id=}" -b
+          xcrun simctl ui "${SIMULATOR_DESTINATION#id=}" appearance dark || true
+          xcrun simctl status_bar "${SIMULATOR_DESTINATION#id=}" override \
+            --time "9:41" \
+            --batteryState charged \
+            --batteryLevel 100 \
+            --wifiBars 3 \
+            --cellularBars 4 || true
           SYSPULSE_SCREENSHOT_DIR="$PWD/build/screenshots" xcodebuild test \
             -project "$PROJECT" \
             -scheme "$SCREENSHOT_SCHEME" \
@@ -107,7 +114,7 @@ jobs:
               DISABLE_ANIMATIONS \
               -AppleLanguages "(en)" \
               -AppleLocale "en_US" >/dev/null || return 1
-            sleep 4
+            sleep 6
             xcrun simctl io "$simulator_id" screenshot "build/screenshots/$name.png" >/dev/null || return 1
           }
 

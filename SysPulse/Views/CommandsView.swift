@@ -66,6 +66,7 @@ struct CommandsView: View {
                 .scrollIndicators(.hidden)
             }
         }
+        .mainScreenNavigationChrome()
         .accessibilityIdentifier("screen_commands")
         .alert("Run dangerous command?", isPresented: $showingConfirmation) {
             Button("Cancel", role: .cancel) {}

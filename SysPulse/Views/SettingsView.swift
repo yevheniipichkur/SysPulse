@@ -200,6 +200,7 @@ struct SettingsView: View {
                 .scrollIndicators(.hidden)
             }
         }
+        .mainScreenNavigationChrome()
         .fileImporter(
             isPresented: $isImportingEncryptedProfiles,
             allowedContentTypes: [.data],

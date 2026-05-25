@@ -33,6 +33,16 @@ extension View {
     func listItemEntrance(index: Int, disabled: Bool) -> some View {
         modifier(ListItemEntranceModifier(index: index, disabled: disabled))
     }
+
+    func mainScreenNavigationChrome() -> some View {
+        toolbar(.hidden, for: .navigationBar)
+            .toolbarBackground(.hidden, for: .navigationBar)
+    }
+
+    func translucentNavigationChrome() -> some View {
+        toolbarBackground(.hidden, for: .navigationBar)
+            .toolbarColorScheme(.dark, for: .navigationBar)
+    }
 }
 
 private struct TabScreenMotionModifier: ViewModifier {
