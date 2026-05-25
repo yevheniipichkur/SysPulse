@@ -263,7 +263,10 @@ struct SFTPFilesView: View {
 
                 ScrollView(.horizontal) {
                     HStack(spacing: 7) {
-                        ForEach(Array(addressParts.enumerated()), id: \.offset) { index, part in
+                        ForEach(Array(addressParts.enumerated()), id: \.offset) { pair in
+                            let index = pair.offset
+                            let part = pair.element
+
                             if index > 0 {
                                 Image(systemName: "chevron.right")
                                     .font(.caption2.weight(.semibold))
