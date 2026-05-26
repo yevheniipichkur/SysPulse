@@ -33,7 +33,23 @@ struct PaywallView: View {
                     footer
                 }
                 .padding(20)
+                .padding(.top, 18)
             }
+        }
+        .overlay(alignment: .topTrailing) {
+            Button {
+                dismiss()
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.headline.weight(.bold))
+                    .foregroundStyle(.primary)
+                    .frame(width: 42, height: 42)
+                    .background(.ultraThinMaterial, in: Circle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Close")
+            .padding(.top, 14)
+            .padding(.trailing, 14)
         }
         .alert("Purchase failed", isPresented: $showError, presenting: errorMessage) { _ in
             Button("OK", role: .cancel) {}

@@ -34,6 +34,21 @@ final class RemoteOutputParserTests: XCTestCase {
         XCTAssertEqual(Int(disks[1].freeGB), 10)
     }
 
+    func testParseDiskUsageOutputColumns() {
+        let output = """
+        /dev/root / 24830279680 35161145344 42%
+        tmpfs /run 123000000 456000000 21%
+        """
+
+        let disks = DiskService().parseDisks(output)
+
+        XCTAssertEqual(disks.count, 2)
+        XCTAssertEqual(disks[0].filesystem, "/dev/root")
+        XCTAssertEqual(disks[0].mountPoint, "/")
+        XCTAssertEqual(Int(disks[0].usagePercent), 42)
+        XCTAssertEqual(disks[1].mountPoint, "/run")
+    }
+
     func testParseDockerInventoryWithStats() {
         let output = """
         __SYSPULSE_CONTAINERS__

@@ -33,11 +33,6 @@ struct RootView: View {
                 .presentationDetents([.large])
                 .presentationCornerRadius(34)
         }
-        .sheet(isPresented: $appState.isDebugMenuPresented) {
-            DebugMenuView()
-                .presentationDetents([.large])
-                .presentationCornerRadius(34)
-        }
         .onAppear {
             appState.configureProfileRepository(modelContext: modelContext)
             Task {

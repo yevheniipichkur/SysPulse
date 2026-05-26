@@ -37,8 +37,8 @@ struct CommandsView: View {
                         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
 
                     ForEach(Array(filteredCommands.enumerated()), id: \.element.id) { index, command in
-                        CommandCard(command: command, isLocked: isLocked(command, index: index)) {
-                            run(command, index: index)
+                        CommandCard(command: command, isLocked: isLocked(command)) {
+                            run(command)
                         }
                         .listItemEntrance(index: index, disabled: appState.shouldReduceMotion)
                     }
@@ -77,12 +77,14 @@ struct CommandsView: View {
         }
     }
 
-    private func isLocked(_ command: QuickCommand, index: Int) -> Bool {
-        !appState.isProUnlocked && (command.isPremium || index >= 3)
+    private func isLocked(_ command: QuickCommand) -> Bool {
+        guard !appState.isProUnlocked else { return false }
+        let catalogIndex = appState.quickCommands.firstIndex { $0.id == command.id } ?? Int.max
+        return command.isPremium || catalogIndex >= 3
     }
 
-    private func run(_ command: QuickCommand, index: Int) {
-        guard !isLocked(command, index: index) else {
+    private func run(_ command: QuickCommand) {
+        guard !isLocked(command) else {
             appState.isPaywallPresented = true
             return
         }

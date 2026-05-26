@@ -30,14 +30,39 @@ struct SysPulseWidgetView: View {
     var entry: SysPulseWidgetEntry
 
     var body: some View {
-        switch family {
-        case .systemSmall:
-            small
-        case .systemMedium:
-            medium
-        default:
-            large
+        if isLocked {
+            locked
+        } else {
+            switch family {
+            case .systemSmall:
+                small
+            case .systemMedium:
+                medium
+            default:
+                large
+            }
         }
+    }
+
+    private var isLocked: Bool {
+        entry.primary.status == "Pro" && entry.primary.name == "Unlock Pro"
+    }
+
+    private var locked: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Image(systemName: "sparkles")
+                .font(.title2.weight(.bold))
+                .foregroundStyle(.cyan)
+            Text("Unlock Pro")
+                .font(.headline)
+                .lineLimit(1)
+            Text("Widgets are included with SysPulse Pro.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(3)
+            Spacer(minLength: 0)
+        }
+        .sysPulseWidgetBackground()
     }
 
     private var small: some View {

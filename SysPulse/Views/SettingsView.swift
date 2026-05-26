@@ -3,7 +3,6 @@ import UniformTypeIdentifiers
 
 struct SettingsView: View {
     @EnvironmentObject private var appState: AppState
-    @State private var versionTapCount = 0
     @State private var sharingPassphrase = ""
     @State private var backendMonitoringToken = ""
     @State private var encryptedExportURL: URL?
@@ -20,7 +19,7 @@ struct SettingsView: View {
 
             ScrollView {
                 VStack(spacing: 16) {
-                    PageHeader(title: "Settings", subtitle: "Security, appearance and Pro controls.", actionSymbol: nil, action: nil)
+                    PageHeader(title: "Settings", subtitle: "Security, appearance and account controls.", actionSymbol: nil, action: nil)
 
                         settingsSection("Account", symbol: "person.crop.circle") {
                             SubscriptionStatusCard(
@@ -60,7 +59,7 @@ struct SettingsView: View {
                                     Text(mode.titleKey).tag(mode)
                                 }
                             }
-                            Picker("Terminal theme", selection: $appState.settings.terminalTheme) {
+                            Picker("Terminal theme", selection: terminalThemeBinding) {
                                 ForEach(TerminalTheme.allCases) { theme in
                                     HStack {
                                         Text(theme.titleKey)
@@ -113,9 +112,6 @@ struct SettingsView: View {
 
                             Button("Clear terminal history", role: .destructive) {
                                 appState.terminalSessions.forEach { $0.transcript = "" }
-                            }
-                            Button("Clear cache", role: .destructive) {
-                                appState.lastCommandOutput = appState.localized("Cache cleared.")
                             }
                         }
                         .listItemEntrance(index: 4, disabled: appState.shouldReduceMotion)
@@ -175,18 +171,9 @@ struct SettingsView: View {
                         .listItemEntrance(index: 6, disabled: appState.shouldReduceMotion)
 
                         settingsSection("About", symbol: "info.circle") {
-                            Button {
-                                versionTapCount += 1
-                                if versionTapCount >= 7 {
-                                    appState.isDebugMenuPresented = true
-                                    versionTapCount = 0
-                                }
-                            } label: {
-                                SettingsRow(title: "Version") {
-                                    Text("\(buildInfo.version) (\(buildInfo.build))")
-                                }
+                            SettingsRow(title: "Version") {
+                                Text("\(buildInfo.version) (\(buildInfo.build))")
                             }
-                            .buttonStyle(.plain)
                             Link("Privacy", destination: URL(string: "https://github.com/yevheniipichkur/SysPulse/blob/main/PRIVACY.md")!)
                             Link("Terms", destination: URL(string: "https://github.com/yevheniipichkur/SysPulse/blob/main/TERMS.md")!)
                             Link("Contact support", destination: URL(string: "https://github.com/yevheniipichkur/SysPulse/issues")!)
@@ -222,6 +209,18 @@ struct SettingsView: View {
             } else {
                 appState.disableBiometricLock()
             }
+        }
+    }
+
+    private var terminalThemeBinding: Binding<TerminalTheme> {
+        Binding {
+            appState.effectiveTerminalTheme
+        } set: { theme in
+            if theme.isPremium && !appState.isProUnlocked {
+                appState.isPaywallPresented = true
+                return
+            }
+            appState.settings.terminalTheme = theme
         }
     }
 
@@ -454,57 +453,5 @@ struct SettingsRow<Value: View>: View {
                 .foregroundStyle(.secondary)
         }
         .font(.callout)
-    }
-}
-
-struct DebugMenuView: View {
-    @Environment(\.dismiss) private var dismiss
-    @EnvironmentObject private var appState: AppState
-
-    var body: some View {
-        NavigationStack {
-            ZStack {
-                AppBackground()
-
-                ScrollView {
-                    VStack(spacing: 16) {
-                        PageHeader(title: "Debug", subtitle: "Local QA controls for real-device testing.", actionSymbol: nil, action: nil)
-
-                        GlassCard {
-                            VStack(alignment: .leading, spacing: 14) {
-                                Toggle("Force Pro locally", isOn: $appState.settings.forceProOverride)
-                                Button("Reset onboarding") { appState.resetOnboarding() }
-                                Button("Simulate offline server") { appState.simulateOfflineServer() }
-                                Button("Simulate high CPU") { appState.simulateHighCPU() }
-                                Button("Simulate disk full") { appState.simulateDiskFull() }
-                                Button("Simulate expired subscription") {
-                                    appState.subscription.isActive = false
-                                    appState.subscription.plan = .free
-                                    appState.subscription.expiresAt = .now.addingTimeInterval(-86_400)
-                                }
-                                Button("Show StoreKit debug state") {
-                                    appState.lastCommandOutput = appState.subscription.lastStoreKitMessage
-                                }
-                                Button("Clear local database", role: .destructive) {
-                                    appState.clearSavedProfiles()
-                                }
-                                Button("Export logs") {
-                                    appState.lastCommandOutput = appState.terminalSessions.map(\.transcript).joined(separator: "\n---\n")
-                                }
-                            }
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                        }
-                    }
-                    .padding(20)
-                }
-            }
-            .navigationTitle("Developer / QA")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("Done") { dismiss() }
-                }
-            }
-        }
     }
 }

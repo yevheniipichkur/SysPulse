@@ -248,9 +248,8 @@
 "Lifetime Pro" = "Lifetime Pro";
 "Unlock all local premium features." = "Откройте все локальные premium-функции.";
 "Restore purchases" = "Восстановить покупки";
-"Mock StoreKit is enabled for development. Configure product IDs in App Store Connect before TestFlight." = "Для разработки включён mock StoreKit. Перед TestFlight настройте product IDs в App Store Connect.";
 
-"Security, appearance and Pro controls." = "Безопасность, внешний вид и управление Pro.";
+"Security, appearance and account controls." = "Безопасность, внешний вид и аккаунт.";
 "Account" = "Аккаунт";
 "Pro status" = "Статус Pro";
 "Manage subscription" = "Управлять подпиской";
@@ -280,23 +279,11 @@
 "Export profiles" = "Экспорт профилей";
 "Import profiles" = "Импорт профилей";
 "Clear terminal history" = "Очистить историю терминала";
-"Clear cache" = "Очистить кэш";
 "About" = "О приложении";
 "Version" = "Версия";
 "Privacy" = "Конфиденциальность";
 "Terms" = "Условия";
 "Contact support" = "Связаться с поддержкой";
-"Debug" = "Отладка";
-"Force Pro locally" = "Принудительно включить Pro";
-"Reset onboarding" = "Сбросить onboarding";
-"Simulate offline server" = "Симулировать офлайн-сервер";
-"Simulate high CPU" = "Симулировать высокий CPU";
-"Simulate disk full" = "Симулировать полный диск";
-"Simulate expired subscription" = "Симулировать истёкшую подписку";
-"Show StoreKit debug state" = "Показать debug StoreKit";
-"Clear local database" = "Очистить локальную базу";
-"Export logs" = "Экспорт логов";
-"Developer / QA" = "Разработчик / QA";
 
 "Start SysPulse" = "Начать работу";
 "Add your first server" = "Добавить первый сервер";
@@ -307,9 +294,7 @@
 "Open Servers" = "Открыть серверы";
 "New session" = "Новая сессия";
 "Close session" = "Закрыть сессию";
-"Ask AI to generate a command" = "Попросить AI создать команду";
 "Paste" = "Вставить";
-"AI" = "AI";
 "SysPulse SSH" = "SysPulse SSH";
 "Commands are executed on the remote Linux server over SSH." = "Команды выполняются на удалённом Linux-сервере через SSH.";
 "No server selected. Add a server profile first." = "Сервер не выбран. Сначала добавьте профиль сервера.";
@@ -404,14 +389,6 @@
 "iCloud sync is not available in this build." = "Синхронизация iCloud недоступна в этой сборке.";
 "CloudKit entitlement could not be verified at runtime. Sync will try CloudKit." = "CloudKit entitlement не удалось проверить во время работы. Синхронизация попробует CloudKit.";
 
-"Restore purchases will sync through StoreKit 2." = "Покупки будут восстановлены через StoreKit 2.";
-"Export profiles placeholder." = "Экспорт профилей пока заглушка.";
-"Import profiles placeholder." = "Импорт профилей пока заглушка.";
-"Cache cleared." = "Кэш очищен.";
-"Restore uses StoreKit 2 when products are configured." = "Восстановление использует StoreKit 2 после настройки продуктов.";
-"Mock StoreKit is ready" = "Mock StoreKit готов";
-"Products loaded: %@" = "Продукты загружены: %@";
-"Using mock StoreKit products for development." = "Для разработки используются mock-продукты StoreKit.";
 "Purchase is pending approval." = "Покупка ожидает подтверждения.";
 "Purchase cancelled." = "Покупка отменена.";
 "Unknown purchase result." = "Неизвестный результат покупки.";
@@ -513,7 +490,6 @@
 "Backend monitoring failed: %@" = "Backend monitoring не удался: %@";
 "CPU usage" = "Использование CPU";
 "RAM usage" = "Использование RAM";
-"Disk usage" = "Использование диска";
 "Health score" = "Оценка состояния";
 "Failed services" = "Сбойные сервисы";
 "High CPU" = "Высокий CPU";

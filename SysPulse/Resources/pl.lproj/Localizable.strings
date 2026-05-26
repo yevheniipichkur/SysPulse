@@ -248,9 +248,8 @@
 "Lifetime Pro" = "Lifetime Pro";
 "Unlock all local premium features." = "Odblokuj wszystkie lokalne funkcje premium.";
 "Restore purchases" = "Przywróć zakupy";
-"Mock StoreKit is enabled for development. Configure product IDs in App Store Connect before TestFlight." = "Mock StoreKit jest włączony do developmentu. Przed TestFlight skonfiguruj product IDs w App Store Connect.";
 
-"Security, appearance and Pro controls." = "Bezpieczeństwo, wygląd i kontrola Pro.";
+"Security, appearance and account controls." = "Bezpieczeństwo, wygląd i konto.";
 "Account" = "Konto";
 "Pro status" = "Status Pro";
 "Manage subscription" = "Zarządzaj subskrypcją";
@@ -280,23 +279,11 @@
 "Export profiles" = "Eksportuj profile";
 "Import profiles" = "Importuj profile";
 "Clear terminal history" = "Wyczyść historię terminala";
-"Clear cache" = "Wyczyść cache";
 "About" = "O aplikacji";
 "Version" = "Wersja";
 "Privacy" = "Prywatność";
 "Terms" = "Warunki";
 "Contact support" = "Kontakt z pomocą";
-"Debug" = "Debug";
-"Force Pro locally" = "Wymuś Pro lokalnie";
-"Reset onboarding" = "Reset onboardingu";
-"Simulate offline server" = "Symuluj serwer offline";
-"Simulate high CPU" = "Symuluj wysokie CPU";
-"Simulate disk full" = "Symuluj pełny dysk";
-"Simulate expired subscription" = "Symuluj wygasłą subskrypcję";
-"Show StoreKit debug state" = "Pokaż debug StoreKit";
-"Clear local database" = "Wyczyść lokalną bazę";
-"Export logs" = "Eksportuj logi";
-"Developer / QA" = "Developer / QA";
 
 "Start SysPulse" = "Rozpocznij";
 "Add your first server" = "Dodaj pierwszy serwer";
@@ -305,9 +292,7 @@
 "No saved servers" = "Brak zapisanych serwerów";
 "New session" = "Nowa sesja";
 "Close session" = "Zamknij sesję";
-"Ask AI to generate a command" = "Poproś AI o komendę";
 "Paste" = "Wklej";
-"AI" = "AI";
 "SysPulse SSH" = "SysPulse SSH";
 "Commands are executed on the remote Linux server over SSH." = "Komendy są wykonywane na zdalnym serwerze Linux przez SSH.";
 "No server selected. Add a server profile first." = "Nie wybrano serwera. Najpierw dodaj profil serwera.";
@@ -402,14 +387,6 @@
 "iCloud sync is not available in this build." = "Synchronizacja iCloud nie jest dostępna w tej kompilacji.";
 "CloudKit entitlement could not be verified at runtime. Sync will try CloudKit." = "Nie udało się zweryfikować uprawnienia CloudKit w runtime. Synchronizacja spróbuje użyć CloudKit.";
 
-"Restore purchases will sync through StoreKit 2." = "Zakupy zostaną przywrócone przez StoreKit 2.";
-"Export profiles placeholder." = "Eksport profili jest jeszcze placeholderem.";
-"Import profiles placeholder." = "Import profili jest jeszcze placeholderem.";
-"Cache cleared." = "Cache wyczyszczony.";
-"Restore uses StoreKit 2 when products are configured." = "Przywracanie użyje StoreKit 2 po skonfigurowaniu produktów.";
-"Mock StoreKit is ready" = "Mock StoreKit gotowy";
-"Products loaded: %@" = "Produkty załadowane: %@";
-"Using mock StoreKit products for development." = "Do developmentu używane są mock-produkty StoreKit.";
 "Purchase is pending approval." = "Zakup czeka na zatwierdzenie.";
 "Purchase cancelled." = "Zakup anulowany.";
 "Unknown purchase result." = "Nieznany wynik zakupu.";
@@ -511,7 +488,6 @@
 "Backend monitoring failed: %@" = "Monitoring backendu nie powiódł się: %@";
 "CPU usage" = "Użycie CPU";
 "RAM usage" = "Użycie RAM";
-"Disk usage" = "Użycie dysku";
 "Health score" = "Ocena stanu";
 "Failed services" = "Usługi z błędem";
 "High CPU" = "Wysokie CPU";

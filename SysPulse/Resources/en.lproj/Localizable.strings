@@ -248,9 +248,8 @@
 "Lifetime Pro" = "Lifetime Pro";
 "Unlock all local premium features." = "Unlock all local premium features.";
 "Restore purchases" = "Restore purchases";
-"Mock StoreKit is enabled for development. Configure product IDs in App Store Connect before TestFlight." = "Mock StoreKit is enabled for development. Configure product IDs in App Store Connect before TestFlight.";
 
-"Security, appearance and Pro controls." = "Security, appearance and Pro controls.";
+"Security, appearance and account controls." = "Security, appearance and account controls.";
 "Account" = "Account";
 "Pro status" = "Pro status";
 "Manage subscription" = "Manage subscription";
@@ -280,23 +279,11 @@
 "Export profiles" = "Export profiles";
 "Import profiles" = "Import profiles";
 "Clear terminal history" = "Clear terminal history";
-"Clear cache" = "Clear cache";
 "About" = "About";
 "Version" = "Version";
 "Privacy" = "Privacy";
 "Terms" = "Terms";
 "Contact support" = "Contact support";
-"Debug" = "Debug";
-"Force Pro locally" = "Force Pro locally";
-"Reset onboarding" = "Reset onboarding";
-"Simulate offline server" = "Simulate offline server";
-"Simulate high CPU" = "Simulate high CPU";
-"Simulate disk full" = "Simulate disk full";
-"Simulate expired subscription" = "Simulate expired subscription";
-"Show StoreKit debug state" = "Show StoreKit debug state";
-"Clear local database" = "Clear local database";
-"Export logs" = "Export logs";
-"Developer / QA" = "Developer / QA";
 
 "Start SysPulse" = "Start SysPulse";
 "Add your first server" = "Add your first server";
@@ -307,9 +294,7 @@
 "Open Servers" = "Open Servers";
 "New session" = "New session";
 "Close session" = "Close session";
-"Ask AI to generate a command" = "Ask AI to generate a command";
 "Paste" = "Paste";
-"AI" = "AI";
 "SysPulse SSH" = "SysPulse SSH";
 "Commands are executed on the remote Linux server over SSH." = "Commands are executed on the remote Linux server over SSH.";
 "No server selected. Add a server profile first." = "No server selected. Add a server profile first.";
@@ -404,14 +389,6 @@
 "iCloud sync is not available in this build." = "iCloud sync is not available in this build.";
 "CloudKit entitlement could not be verified at runtime. Sync will try CloudKit." = "CloudKit entitlement could not be verified at runtime. Sync will try CloudKit.";
 
-"Restore purchases will sync through StoreKit 2." = "Restore purchases will sync through StoreKit 2.";
-"Export profiles placeholder." = "Export profiles placeholder.";
-"Import profiles placeholder." = "Import profiles placeholder.";
-"Cache cleared." = "Cache cleared.";
-"Restore uses StoreKit 2 when products are configured." = "Restore uses StoreKit 2 when products are configured.";
-"Mock StoreKit is ready" = "Mock StoreKit is ready";
-"Products loaded: %@" = "Products loaded: %@";
-"Using mock StoreKit products for development." = "Using mock StoreKit products for development.";
 "Purchase is pending approval." = "Purchase is pending approval.";
 "Purchase cancelled." = "Purchase cancelled.";
 "Unknown purchase result." = "Unknown purchase result.";
@@ -513,7 +490,6 @@
 "Backend monitoring failed: %@" = "Backend monitoring failed: %@";
 "CPU usage" = "CPU usage";
 "RAM usage" = "RAM usage";
-"Disk usage" = "Disk usage";
 "Health score" = "Health score";
 "Failed services" = "Failed services";
 "High CPU" = "High CPU";

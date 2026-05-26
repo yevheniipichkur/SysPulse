@@ -29,10 +29,10 @@ final class AppState: ObservableObject {
     @Published var subscription: SubscriptionState {
         didSet {
             settingsStorage.saveSubscription(subscription)
+            enforceSubscriptionBoundaries()
         }
     }
     @Published var isPaywallPresented = false
-    @Published var isDebugMenuPresented = false
     @Published var isSecurityUnlocked = false
     @Published var isSecurityPromptInProgress = false
     @Published var isPrivacyShieldVisible = false
@@ -96,6 +96,7 @@ final class AppState: ObservableObject {
         self.subscription = SettingsStorageService().loadSubscription()
         self.packageStatuses = PackageDetector.defaultStatuses
         self.selectedServer = nil
+        enforceSubscriptionBoundaries()
         if areUITestAnimationsDisabled {
             UIView.setAnimationsEnabled(false)
         }
@@ -143,7 +144,16 @@ final class AppState: ObservableObject {
     }
 
     var isProUnlocked: Bool {
-        subscription.isPro || settings.forceProOverride
+        if subscription.isPro { return true }
+        #if DEBUG
+        return settings.forceProOverride
+        #else
+        return isScreenshotMode && settings.forceProOverride
+        #endif
+    }
+
+    var effectiveTerminalTheme: TerminalTheme {
+        isProUnlocked || !settings.terminalTheme.isPremium ? settings.terminalTheme : .liquidDark
     }
 
     var preferredColorScheme: ColorScheme? {
@@ -450,15 +460,16 @@ final class AppState: ObservableObject {
                 }
                 let metrics = try await metricsCollector.collect(server: server, using: sshClient, previous: previous)
                 await MainActor.run {
-                    metricsByServer[server.id] = metrics
+                    let visibleMetrics = isProUnlocked ? metrics : metricsWithoutPremiumSignals(metrics)
+                    metricsByServer[server.id] = visibleMetrics
                     metricRefreshingServerIDs.remove(server.id)
                     if selectedServer?.id == server.id {
                         selectedServer?.status = .online
                     }
                     lastCommandOutput = localized("Metrics refreshed for %@.", server.name)
                     updateLiveActivity(message: localized("Metrics refreshed"))
-                    evaluateAlertRules(for: server, metrics: metrics)
-                    sendBackendMonitoringSnapshotIfEnabled(server: server, metrics: metrics)
+                    evaluateAlertRules(for: server, metrics: visibleMetrics)
+                    sendBackendMonitoringSnapshotIfEnabled(server: server, metrics: visibleMetrics)
                 }
             } catch {
                 await MainActor.run {
@@ -580,6 +591,7 @@ final class AppState: ObservableObject {
     }
 
     func refreshDockerContainers(for server: ServerProfile? = nil) {
+        guard requireProFeature() else { return }
         guard let targetServer = server ?? selectedServer else {
             lastCommandOutput = localized("Select a server before running commands.")
             return
@@ -604,6 +616,7 @@ final class AppState: ObservableObject {
     }
 
     func refreshSystemdServices(for server: ServerProfile? = nil) {
+        guard requireProFeature() else { return }
         guard let targetServer = server ?? selectedServer else {
             lastCommandOutput = localized("Select a server before running commands.")
             return
@@ -628,6 +641,7 @@ final class AppState: ObservableObject {
     }
 
     func refreshLogEntries(for server: ServerProfile? = nil) {
+        guard requireProFeature() else { return }
         guard let targetServer = server ?? selectedServer else {
             lastCommandOutput = localized("Select a server before running commands.")
             return
@@ -672,65 +686,6 @@ final class AppState: ObservableObject {
                 }
             }
         }
-    }
-
-    func simulateHighCPU() {
-        guard let server = selectedServer else { return }
-        var metrics = metric(for: server)
-        metrics.cpuUsage = 94
-        metrics.healthScore = 48
-        metricsByServer[server.id] = metrics
-        updateLiveActivity(message: localized("High CPU simulated"))
-    }
-
-    func simulateDiskFull() {
-        guard let server = selectedServer else { return }
-        var metrics = metric(for: server)
-        metrics.diskUsage = 93
-        metrics.healthScore = 42
-        metricsByServer[server.id] = metrics
-        updateLiveActivity(message: localized("Disk warning simulated"))
-    }
-
-    func simulateOfflineServer() {
-        selectedServer?.status = .offline
-    }
-
-    func resetOnboarding() {
-        hasSeenOnboarding = false
-    }
-
-    func clearSavedProfiles() {
-        guard let profileRepository else {
-            lastCommandOutput = localized("Profile database is not ready yet.")
-            return
-        }
-
-        let credentialIdentifiers = serverProfiles.compactMap(\.credentialIdentifier)
-        do {
-            try profileRepository.deleteAllProfiles()
-        } catch {
-            lastCommandOutput = localized("Failed to clear profiles: %@", error.localizedDescription)
-            return
-        }
-
-        credentialIdentifiers.forEach { try? KeychainService.shared.deleteSecret(account: $0) }
-        serverProfiles = []
-        metricsByServer = [:]
-        terminalSessions = []
-        selectedServer = nil
-        processItemsByServer = [:]
-        diskInfoByServer = [:]
-        dockerContainersByServer = [:]
-        systemdServicesByServer = [:]
-        logEntriesByServer = [:]
-        sftpItemsByServer = [:]
-        sftpPathByServer = [:]
-        sftpLoadingServerIDs = []
-        sftpLoadTokensByServer = [:]
-        metricRefreshingServerIDs = []
-        publishWidgetSnapshots()
-        uploadProfilesToICloudIfEnabled()
     }
 
     func makeEncryptedProfileExport(passphrase: String) -> URL? {
@@ -1003,7 +958,50 @@ final class AppState: ObservableObject {
     }
 
     private func publishWidgetSnapshots() {
-        widgetDataService.save(profiles: serverProfiles, metricsByServer: metricsByServer)
+        if isProUnlocked {
+            widgetDataService.save(profiles: serverProfiles, metricsByServer: metricsByServer)
+        } else {
+            widgetDataService.saveLocked()
+        }
+    }
+
+    private func requireProFeature(message: String = "Unlock Pro to use this feature.") -> Bool {
+        guard isProUnlocked else {
+            lastCommandOutput = localized(message)
+            isPaywallPresented = true
+            return false
+        }
+        return true
+    }
+
+    private func enforceSubscriptionBoundaries() {
+        guard !subscription.isPro else {
+            publishWidgetSnapshots()
+            return
+        }
+        if settings.terminalTheme.isPremium {
+            settings.terminalTheme = .liquidDark
+        }
+        if settings.iCloudSyncEnabled {
+            settings.iCloudSyncEnabled = false
+        }
+        metricsByServer = metricsByServer.mapValues(metricsWithoutPremiumSignals)
+        dockerContainersByServer = [:]
+        systemdServicesByServer = [:]
+        logEntriesByServer = [:]
+        if !isScreenshotMode {
+            settings.forceProOverride = false
+        }
+        publishWidgetSnapshots()
+    }
+
+    private func metricsWithoutPremiumSignals(_ metrics: ServerMetrics) -> ServerMetrics {
+        var sanitized = metrics
+        sanitized.failedServices = 0
+        sanitized.dockerRunning = 0
+        sanitized.dockerTotal = 0
+        sanitized.healthScore = healthScoreService.score(for: sanitized)
+        return sanitized
     }
 
     private func reloadProfilesFromRepository() {

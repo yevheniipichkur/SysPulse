@@ -434,7 +434,15 @@ struct ProcessService {
 
 struct DiskService {
     func usageCommand() -> String {
-        "df -P -B1 --output=source,target,used,avail,pcent 2>/dev/null | tail -n +2"
+        #"""
+        sh <<'SYSPULSE'
+        if df -B1 --output=source,target,used,avail,pcent >/dev/null 2>&1; then
+          df -B1 --output=source,target,used,avail,pcent 2>/dev/null | tail -n +2
+        else
+          df -P -k 2>/dev/null | awk 'NR>1{printf "%s %s %.0f %.0f %s\n",$1,$6,$3*1024,$4*1024,$5}'
+        fi
+        SYSPULSE
+        """#
     }
 
     func blockDevicesCommand() -> String {
@@ -458,18 +466,25 @@ struct DiskService {
                     return nil
                 }
 
-                let parts = trimmed.split(whereSeparator: \.isWhitespace)
-                guard parts.count >= 5,
-                      let usedBytes = Double(String(parts[2])),
-                      let freeBytes = Double(String(parts[3])) else {
+                let parts = trimmed.split(whereSeparator: \.isWhitespace).map(String.init)
+                guard parts.count >= 5 else {
                     return nil
                 }
 
-                let percentText = String(parts[4]).replacingOccurrences(of: "%", with: "")
+                let isClassicDFOutput = parts.count >= 6 && Double(parts[1]) != nil
+                let filesystem = parts[0]
+                let mountPoint = isClassicDFOutput ? parts[5] : parts[1]
+
+                guard let usedBytes = Double(parts[2]),
+                      let freeBytes = Double(parts[3]) else {
+                    return nil
+                }
+
+                let percentText = parts[4].replacingOccurrences(of: "%", with: "")
                 let usage = Double(percentText.normalizingDecimalSeparator) ?? 0
                 return DiskInfo(
-                    mountPoint: String(parts[1]),
-                    filesystem: String(parts[0]),
+                    mountPoint: mountPoint,
+                    filesystem: filesystem,
                     usedGB: usedBytes / 1_073_741_824,
                     freeGB: freeBytes / 1_073_741_824,
                     usagePercent: usage,
@@ -727,6 +742,22 @@ struct WidgetDataService {
             )
         }
         store.save(WidgetSnapshotEnvelope(generatedAt: .now, servers: snapshots))
+    }
+
+    func saveLocked() {
+        let locked = WidgetServerSnapshot(
+            id: UUID(uuidString: "99999999-9999-9999-9999-999999999999") ?? UUID(),
+            name: "Unlock Pro",
+            status: "Pro",
+            cpu: 0,
+            ram: 0,
+            disk: 0,
+            health: 0,
+            uptime: "Widgets",
+            osName: "Open SysPulse",
+            updatedAt: .now
+        )
+        store.save(WidgetSnapshotEnvelope(generatedAt: .now, servers: [locked]))
     }
 
     func load() -> WidgetSnapshotEnvelope {

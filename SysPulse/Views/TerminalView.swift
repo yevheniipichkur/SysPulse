@@ -139,7 +139,7 @@ struct TerminalView: View {
     }
 
     private var terminalCanvas: some View {
-        let palette = TerminalThemePalette(theme: appState.settings.terminalTheme)
+        let palette = TerminalThemePalette(theme: appState.effectiveTerminalTheme)
 
         return VStack(spacing: 0) {
             topChrome(palette: palette)
@@ -515,16 +515,6 @@ struct TerminalView: View {
                 focusActiveTerminal()
             }
             .font(.caption.weight(.bold))
-            .buttonStyle(.plain)
-
-            Button {
-                appState.isPaywallPresented = true
-            } label: {
-                Text("AI")
-                    .font(.caption.weight(.black))
-                    .frame(width: 30, height: 30)
-                    .background(.thinMaterial, in: Circle())
-            }
             .buttonStyle(.plain)
         }
     }

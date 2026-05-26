@@ -323,8 +323,13 @@ struct ServerDetailView: View {
                 }
 
                 LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
-                    MonitorSummaryTile(title: "Docker", value: "\(metrics.dockerRunning)/\(metrics.dockerTotal)", symbol: "shippingbox", tint: .blue)
-                    MonitorSummaryTile(title: "Services", value: "\(metrics.failedServices)", symbol: "exclamationmark.triangle", tint: metrics.failedServices > 0 ? .orange : .green)
+                    if appState.isProUnlocked {
+                        MonitorSummaryTile(title: "Docker", value: "\(metrics.dockerRunning)/\(metrics.dockerTotal)", symbol: "shippingbox", tint: .blue)
+                        MonitorSummaryTile(title: "Services", value: "\(metrics.failedServices)", symbol: "exclamationmark.triangle", tint: metrics.failedServices > 0 ? .orange : .green)
+                    } else {
+                        MonitorSummaryTile(title: "Docker", value: "Pro", symbol: "shippingbox", tint: .cyan)
+                        MonitorSummaryTile(title: "Services", value: "Pro", symbol: "exclamationmark.triangle", tint: .cyan)
+                    }
                     MonitorSummaryTile(title: "Network", value: "\(Int(metrics.networkInMB + metrics.networkOutMB)) MB", symbol: "network", tint: .purple)
                     MonitorSummaryTile(title: "Temperature", value: metrics.temperatureCelsius.map { "\(Int($0))°C" } ?? "N/A", symbol: "thermometer.medium", tint: .red)
                 }
@@ -431,30 +436,30 @@ struct ServerDetailView: View {
         return VStack(spacing: 12) {
             if !appState.isProUnlocked {
                 PremiumLockedCard(title: "Docker monitoring is Pro", message: "Unlock live container stats, logs and restart actions.")
-            }
-
-            monitorRefreshHeader(
-                title: "Docker scan",
-                message: "Container states and live stats parsed from Docker CLI.",
-                primaryTitle: "Refresh Containers",
-                primarySymbol: "shippingbox",
-                primaryAction: { appState.refreshDockerContainers(for: server) }
-            )
-
-            if containers.isEmpty {
-                EmptyStateView(
-                    title: "No containers loaded",
-                    message: "Refresh to read Docker container states.",
-                    symbol: "shippingbox"
-                )
             } else {
-                ForEach(containers) { container in
-                    dockerRow(container)
-                }
-            }
+                monitorRefreshHeader(
+                    title: "Docker scan",
+                    message: "Container states and live stats parsed from Docker CLI.",
+                    primaryTitle: "Refresh Containers",
+                    primarySymbol: "shippingbox",
+                    primaryAction: { appState.refreshDockerContainers(for: server) }
+                )
 
-            commandPreview(title: "Docker compose projects", command: "docker compose ls 2>/dev/null || docker-compose ls 2>/dev/null || echo 'Docker Compose not found'")
-            commandPreview(title: "Recent Docker state", command: "docker ps -a --format '{{.Names}} {{.Status}}' | head -n 40")
+                if containers.isEmpty {
+                    EmptyStateView(
+                        title: "No containers loaded",
+                        message: "Refresh to read Docker container states.",
+                        symbol: "shippingbox"
+                    )
+                } else {
+                    ForEach(containers) { container in
+                        dockerRow(container)
+                    }
+                }
+
+                commandPreview(title: "Docker compose projects", command: "docker compose ls 2>/dev/null || docker-compose ls 2>/dev/null || echo 'Docker Compose not found'")
+                commandPreview(title: "Recent Docker state", command: "docker ps -a --format '{{.Names}} {{.Status}}' | head -n 40")
+            }
         }
     }
 
@@ -463,31 +468,31 @@ struct ServerDetailView: View {
         return VStack(spacing: 12) {
             if !appState.isProUnlocked {
                 PremiumLockedCard(title: "Advanced systemd is Pro", message: "Unlock restart/start/stop actions and failed service diagnostics.")
-            }
-
-            monitorRefreshHeader(
-                title: "Services",
-                message: "systemd units parsed into actionable status rows.",
-                primaryTitle: "Refresh Services",
-                primarySymbol: "gearshape.2",
-                primaryAction: { appState.refreshSystemdServices(for: server) }
-            )
-
-            if services.isEmpty {
-                EmptyStateView(
-                    title: "No services loaded",
-                    message: "Refresh to read systemd service states.",
-                    symbol: "gearshape.2"
-                )
             } else {
-                ForEach(services) { service in
-                    serviceRow(service)
-                }
-            }
+                monitorRefreshHeader(
+                    title: "Services",
+                    message: "systemd units parsed into actionable status rows.",
+                    primaryTitle: "Refresh Services",
+                    primarySymbol: "gearshape.2",
+                    primaryAction: { appState.refreshSystemdServices(for: server) }
+                )
 
-            commandPreview(title: "Failed units", command: systemdService.failedUnitsCommand())
-            commandPreview(title: "Enabled services", command: "systemctl list-unit-files --type=service --state=enabled --no-pager | head -n 45")
-            commandPreview(title: "Recent service errors", command: "journalctl -p err -n 80 --no-pager")
+                if services.isEmpty {
+                    EmptyStateView(
+                        title: "No services loaded",
+                        message: "Refresh to read systemd service states.",
+                        symbol: "gearshape.2"
+                    )
+                } else {
+                    ForEach(services) { service in
+                        serviceRow(service)
+                    }
+                }
+
+                commandPreview(title: "Failed units", command: systemdService.failedUnitsCommand())
+                commandPreview(title: "Enabled services", command: "systemctl list-unit-files --type=service --state=enabled --no-pager | head -n 45")
+                commandPreview(title: "Recent service errors", command: "journalctl -p err -n 80 --no-pager")
+            }
         }
     }
 
@@ -496,32 +501,32 @@ struct ServerDetailView: View {
         return VStack(spacing: 12) {
             if !appState.isProUnlocked {
                 PremiumLockedCard(title: "Logs viewer is Pro", message: "Unlock journalctl, dmesg, nginx and Docker logs.")
-            }
-
-            monitorRefreshHeader(
-                title: "Recent Logs",
-                message: "Journal entries parsed into severity-aware rows.",
-                primaryTitle: "Refresh Logs",
-                primarySymbol: "doc.text.magnifyingglass",
-                primaryAction: { appState.refreshLogEntries(for: server) }
-            )
-
-            if entries.isEmpty {
-                EmptyStateView(
-                    title: "No logs loaded",
-                    message: "Refresh to read journal entries.",
-                    symbol: "doc.text.magnifyingglass"
-                )
             } else {
-                ForEach(entries.prefix(40)) { entry in
-                    logRow(entry)
-                }
-            }
+                monitorRefreshHeader(
+                    title: "Recent Logs",
+                    message: "Journal entries parsed into severity-aware rows.",
+                    primaryTitle: "Refresh Logs",
+                    primarySymbol: "doc.text.magnifyingglass",
+                    primaryAction: { appState.refreshLogEntries(for: server) }
+                )
 
-            commandPreview(title: "System journal", command: logsService.journalCommand(lines: 200))
-            commandPreview(title: "Kernel ring buffer", command: logsService.dmesgCommand(lines: 120))
-            commandPreview(title: "nginx error log", command: logsService.nginxErrorLogCommand(lines: 200))
-            commandPreview(title: "SSH auth log", command: "sudo tail -n 120 /var/log/auth.log 2>/dev/null || sudo tail -n 120 /var/log/secure 2>/dev/null")
+                if entries.isEmpty {
+                    EmptyStateView(
+                        title: "No logs loaded",
+                        message: "Refresh to read journal entries.",
+                        symbol: "doc.text.magnifyingglass"
+                    )
+                } else {
+                    ForEach(entries.prefix(40)) { entry in
+                        logRow(entry)
+                    }
+                }
+
+                commandPreview(title: "System journal", command: logsService.journalCommand(lines: 200))
+                commandPreview(title: "Kernel ring buffer", command: logsService.dmesgCommand(lines: 120))
+                commandPreview(title: "nginx error log", command: logsService.nginxErrorLogCommand(lines: 200))
+                commandPreview(title: "SSH auth log", command: "sudo tail -n 120 /var/log/auth.log 2>/dev/null || sudo tail -n 120 /var/log/secure 2>/dev/null")
+            }
         }
     }
 
@@ -728,13 +733,24 @@ struct ServerDetailView: View {
         }
     }
 
-    private func commandPreview(title: LocalizedStringKey, command: String, requiresConfirmation: Bool = false) -> some View {
+    private func commandPreview(
+        title: LocalizedStringKey,
+        command: String,
+        requiresConfirmation: Bool = false,
+        isLocked: Bool = false,
+        isPremium: Bool = false
+    ) -> some View {
         GlassCard(cornerRadius: 18, padding: 12) {
             VStack(alignment: .leading, spacing: 10) {
                 HStack(alignment: .firstTextBaseline) {
-                    Text(title)
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.secondary)
+                    HStack(spacing: 6) {
+                        Text(title)
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                        if isPremium {
+                            PremiumBadge()
+                        }
+                    }
                     Spacer()
                     Button {
                         UIPasteboard.general.string = command
@@ -744,13 +760,18 @@ struct ServerDetailView: View {
                     }
                     .buttonStyle(.plain)
                     Button {
-                        if requiresConfirmation {
+                        if isLocked {
+                            appState.isPaywallPresented = true
+                        } else if requiresConfirmation {
                             confirm(command)
                         } else {
                             runRemote(command)
                         }
                     } label: {
-                        Label("Run via SSH", systemImage: "play.fill")
+                        Label(
+                            isLocked ? LocalizedStringKey("Unlock Pro") : LocalizedStringKey("Run via SSH"),
+                            systemImage: isLocked ? "sparkles" : "play.fill"
+                        )
                             .font(.caption.weight(.bold))
                     }
                     .buttonStyle(.plain)
@@ -779,7 +800,14 @@ struct ServerDetailView: View {
             }
 
             ForEach(filtered) { command in
-                commandPreview(title: LocalizedStringKey(command.title), command: command.command)
+                let isLocked = isCommandLocked(command)
+                commandPreview(
+                    title: LocalizedStringKey(command.title),
+                    command: command.command,
+                    requiresConfirmation: CommandRunner().requiresConfirmation(command),
+                    isLocked: isLocked,
+                    isPremium: command.isPremium || isLocked
+                )
             }
 
             if filtered.isEmpty {
@@ -790,6 +818,12 @@ struct ServerDetailView: View {
                 )
             }
         }
+    }
+
+    private func isCommandLocked(_ command: QuickCommand) -> Bool {
+        guard !appState.isProUnlocked else { return false }
+        let catalogIndex = appState.quickCommands.firstIndex { $0.id == command.id } ?? Int.max
+        return command.isPremium || catalogIndex >= 3
     }
 
     private func actions(server: ServerProfile) -> some View {
