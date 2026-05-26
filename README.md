@@ -35,7 +35,8 @@ Workflow запускает приложение в deterministic screenshot mod
 - `01-servers.png`
 - `02-monitor.png`
 - `03-terminal.png`
-- `04-commands.png`
+- `04-files.png`
+- `05-settings.png`
 
 ## Free vs Pro
 

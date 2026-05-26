@@ -477,10 +477,10 @@ jobs:
           /usr/libexec/PlistBuddy -c "Print :CFBundleIconName" "$APP_PLIST"
           /usr/libexec/PlistBuddy -c "Print :CFBundleIcons:CFBundlePrimaryIcon:CFBundleIconName" "$APP_PLIST"
 
-          # UILaunchScreen must be present or iOS shows black bars (letterboxing)
-          /usr/libexec/PlistBuddy -c "Add :UILaunchScreen dict" "$APP_PLIST" 2>/dev/null || true
-          /usr/libexec/PlistBuddy -c "Add :UILaunchScreen:UIColorName string LaunchBackground" "$APP_PLIST" 2>/dev/null || true
-          echo "UILaunchScreen: $(/usr/libexec/PlistBuddy -c "Print :UILaunchScreen" "$APP_PLIST" 2>/dev/null || echo 'not found')"
+          # A launch storyboard keeps iOS from letterboxing the app on large iPhone screens.
+          /usr/libexec/PlistBuddy -c "Set :UILaunchStoryboardName LaunchScreen" "$APP_PLIST" 2>/dev/null \
+            || /usr/libexec/PlistBuddy -c "Add :UILaunchStoryboardName string LaunchScreen" "$APP_PLIST"
+          echo "UILaunchStoryboardName: $(/usr/libexec/PlistBuddy -c "Print :UILaunchStoryboardName" "$APP_PLIST" 2>/dev/null || echo 'not found')"
 
       - name: Export IPA
         if: ${{ env.APPLE_TEAM_ID != '' && env.APPLE_CERTIFICATE_BASE64 != '' }}
@@ -694,12 +694,13 @@ jobs:
           fi
           echo ""
 
-          echo "--- UILaunchScreen (letterboxing check) ---"
-          LAUNCH_SCREEN=$(/usr/libexec/PlistBuddy -c "Print :UILaunchScreen" "$APP_DIR/Info.plist" 2>/dev/null || true)
-          if [ -n "$LAUNCH_SCREEN" ]; then
-            echo "UILaunchScreen: OK"
+          echo "--- Launch screen (letterboxing check) ---"
+          LAUNCH_STORYBOARD=$(/usr/libexec/PlistBuddy -c "Print :UILaunchStoryboardName" "$APP_DIR/Info.plist" 2>/dev/null || true)
+          echo "UILaunchStoryboardName: ${LAUNCH_STORYBOARD:-not found}"
+          if [ "$LAUNCH_STORYBOARD" = "LaunchScreen" ] && find "$APP_DIR" -name "LaunchScreen.storyboardc" -type d | grep -q .; then
+            echo "Launch screen storyboard: OK"
           else
-            echo "::error::UILaunchScreen key missing from Info.plist — iOS will show black bars (letterboxing) on device."
+            echo "::error::LaunchScreen storyboard metadata or compiled resource is missing — iOS may show black bars (letterboxing) on large devices."
             VALIDATION_FAILED=1
           fi
           echo ""

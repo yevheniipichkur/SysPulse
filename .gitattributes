@@ -4,6 +4,7 @@
 *.yml text eol=lf
 *.yaml text eol=lf
 *.plist text eol=lf
+*.storyboard text eol=lf
 *.xcprivacy text eol=lf
 *.json text eol=lf
 *.strings text eol=lf

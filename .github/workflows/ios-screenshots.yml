@@ -50,20 +50,64 @@ jobs:
       - name: Generate Xcode project
         run: xcodegen generate
 
-      - name: Resolve screenshot simulator
+      - name: Create screenshot simulator
         run: |
           set -euo pipefail
-          SIMULATOR_ID=$(xcrun simctl list devices available | awk -F '[()]' '/iPhone/ && /Pro Max/ {print $2; exit}')
-          if [ -z "$SIMULATOR_ID" ]; then
-            SIMULATOR_ID=$(xcrun simctl list devices available | awk -F '[()]' '/iPhone/ {print $2; exit}')
-          fi
-          if [ -z "$SIMULATOR_ID" ]; then
-            echo "::error::No available iPhone simulator found."
-            xcrun simctl list devices available
-            exit 1
-          fi
+          SIM_INFO_FILE=$(mktemp)
+          python3 <<'PY' > "$SIM_INFO_FILE"
+          import json
+          import re
+          import subprocess
+          import sys
+
+          devtypes = json.loads(subprocess.check_output(["xcrun", "simctl", "list", "devicetypes", "--json"]))["devicetypes"]
+          runtimes = json.loads(subprocess.check_output(["xcrun", "simctl", "list", "runtimes", "--json"]))["runtimes"]
+
+          preferred_devices = [
+              "iPhone 16 Pro Max",
+              "iPhone 15 Pro Max",
+              "iPhone 14 Pro Max",
+          ]
+          device = next((item for name in preferred_devices for item in devtypes if item.get("name") == name), None)
+          if device is None:
+              device = next((item for item in devtypes if "iPhone" in item.get("name", "") and "Pro Max" in item.get("name", "")), None)
+          if device is None:
+              device = next((item for item in devtypes if "iPhone" in item.get("name", "")), None)
+          if device is None:
+              sys.exit("No available iPhone device type found.")
+
+          ios_runtimes = [
+              item for item in runtimes
+              if item.get("isAvailable", False)
+              and (
+                  item.get("platform") == "iOS"
+                  or item.get("name", "").startswith("iOS")
+                  or "SimRuntime.iOS" in item.get("identifier", "")
+              )
+          ]
+          if not ios_runtimes:
+              sys.exit("No available iOS runtime found.")
+
+          def version_key(item):
+              return tuple(int(part) for part in re.findall(r"\d+", item.get("version", "")))
+
+          runtime = sorted(ios_runtimes, key=version_key)[-1]
+          print(device["identifier"])
+          print(runtime["identifier"])
+          print(device["name"])
+          print(runtime["name"])
+          PY
+
+          DEVICE_TYPE_ID=$(sed -n '1p' "$SIM_INFO_FILE")
+          RUNTIME_ID=$(sed -n '2p' "$SIM_INFO_FILE")
+          DEVICE_NAME=$(sed -n '3p' "$SIM_INFO_FILE")
+          RUNTIME_NAME=$(sed -n '4p' "$SIM_INFO_FILE")
+          rm -f "$SIM_INFO_FILE"
+
+          SIMULATOR_ID=$(xcrun simctl create "SysPulse Screenshots" "$DEVICE_TYPE_ID" "$RUNTIME_ID")
+          echo "SIMULATOR_ID=$SIMULATOR_ID" >> "$GITHUB_ENV"
           echo "SIMULATOR_DESTINATION=id=$SIMULATOR_ID" >> "$GITHUB_ENV"
-          echo "Using simulator id=$SIMULATOR_ID"
+          echo "Using $DEVICE_NAME on $RUNTIME_NAME (id=$SIMULATOR_ID)"
 
       - name: Capture screenshots
         run: |
@@ -100,6 +144,28 @@ jobs:
             grep -E "error:|XCTAssert|failed|Failure|Timed out|waitFor|Unable to|Exception|Test Case|Issue recorded" build/logs/screenshots.log | tail -n 220 || true
             echo "::endgroup::"
           fi
+
+          validate_launch_screen() {
+            app_path=$(find build/DerivedData/Build/Products -path "*/Debug-iphonesimulator/*.app" -name "SysPulse.app" | head -n 1 || true)
+            if [ -z "$app_path" ]; then
+              echo "::error::Could not find built SysPulse.app to validate launch screen metadata."
+              return 1
+            fi
+
+            launch_storyboard=$(/usr/libexec/PlistBuddy -c "Print :UILaunchStoryboardName" "$app_path/Info.plist" 2>/dev/null || true)
+            echo "UILaunchStoryboardName: ${launch_storyboard:-not found}"
+            if [ "$launch_storyboard" != "LaunchScreen" ]; then
+              echo "::error::Expected UILaunchStoryboardName=LaunchScreen. iOS may letterbox screenshots on large devices."
+              return 1
+            fi
+            if ! find "$app_path" -name "LaunchScreen.storyboardc" -type d | grep -q .; then
+              echo "::error::LaunchScreen.storyboardc was not found in the built app bundle."
+              return 1
+            fi
+          }
+
+          launch_screen_status=0
+          validate_launch_screen || launch_screen_status=$?
 
           capture_simulator_screenshot() {
             tab="$1"
@@ -146,7 +212,10 @@ jobs:
           echo "::endgroup::"
 
           png_count=$(find build/screenshots -name "*.png" -type f | wc -l | tr -d " ")
-          if [ "$png_count" -lt 5 ]; then
+          if [ "$launch_screen_status" -ne 0 ]; then
+            echo "::error::Launch screen validation failed; refusing to upload potentially letterboxed screenshots."
+            status=65
+          elif [ "$png_count" -lt 5 ]; then
             echo "::error::Expected 5 App Store screenshots, found $png_count."
             status=65
           elif [ "$status" -ne 0 ]; then
@@ -165,3 +234,11 @@ jobs:
             build/logs/screenshots.log
             build/logs/SysPulseScreenshots.xcresult
           if-no-files-found: warn
+
+      - name: Delete screenshot simulator
+        if: always()
+        run: |
+          if [ -n "${SIMULATOR_ID:-}" ]; then
+            xcrun simctl shutdown "$SIMULATOR_ID" >/dev/null 2>&1 || true
+            xcrun simctl delete "$SIMULATOR_ID" >/dev/null 2>&1 || true
+          fi
