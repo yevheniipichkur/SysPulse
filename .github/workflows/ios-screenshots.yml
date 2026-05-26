@@ -145,7 +145,8 @@ jobs:
             echo "::endgroup::"
           fi
 
-          validate_launch_screen() {
+          launch_screen_was_patched=0
+          ensure_launch_screen() {
             app_path=$(find build/DerivedData/Build/Products -path "*/Debug-iphonesimulator/*.app" -name "SysPulse.app" | head -n 1 || true)
             if [ -z "$app_path" ]; then
               echo "::error::Could not find built SysPulse.app to validate launch screen metadata."
@@ -155,8 +156,10 @@ jobs:
             launch_storyboard=$(/usr/libexec/PlistBuddy -c "Print :UILaunchStoryboardName" "$app_path/Info.plist" 2>/dev/null || true)
             echo "UILaunchStoryboardName: ${launch_storyboard:-not found}"
             if [ "$launch_storyboard" != "LaunchScreen" ]; then
-              echo "::error::Expected UILaunchStoryboardName=LaunchScreen. iOS may letterbox screenshots on large devices."
-              return 1
+              echo "::warning::Expected UILaunchStoryboardName=LaunchScreen. Patching built app before direct simulator capture."
+              /usr/libexec/PlistBuddy -c "Set :UILaunchStoryboardName LaunchScreen" "$app_path/Info.plist" 2>/dev/null \
+                || /usr/libexec/PlistBuddy -c "Add :UILaunchStoryboardName string LaunchScreen" "$app_path/Info.plist"
+              launch_screen_was_patched=1
             fi
             if ! find "$app_path" -name "LaunchScreen.storyboardc" -type d | grep -q .; then
               echo "::error::LaunchScreen.storyboardc was not found in the built app bundle."
@@ -165,7 +168,7 @@ jobs:
           }
 
           launch_screen_status=0
-          validate_launch_screen || launch_screen_status=$?
+          ensure_launch_screen || launch_screen_status=$?
 
           capture_simulator_screenshot() {
             tab="$1"
@@ -199,7 +202,10 @@ jobs:
           }
 
           png_count=$(find build/screenshots -name "*.png" -type f | wc -l | tr -d " ")
-          if [ "$png_count" -lt 5 ]; then
+          if [ "$png_count" -lt 5 ] || [ "$launch_screen_was_patched" -ne 0 ]; then
+            if [ "$launch_screen_was_patched" -ne 0 ] && [ "$png_count" -ge 5 ]; then
+              echo "::warning::UI test screenshots were captured before launch screen patching. Recapturing directly from the simulator."
+            fi
             echo "::warning::UI test wrote $png_count PNG files. Capturing App Store screenshots directly from the simulator."
             if ! capture_all_simulator_screenshots; then
               echo "::warning::Direct simulator capture failed. Capturing one fallback screenshot."
