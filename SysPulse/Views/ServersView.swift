@@ -578,7 +578,7 @@ struct AddServerView: View {
                 .lineLimit(1)
                 .minimumScaleFactor(0.82)
                 .background(
-                    LinearGradient(colors: [.cyan, .blue], startPoint: .topLeading, endPoint: .bottomTrailing),
+                    LinearGradient(colors: [SysPulseDesign.actionStart, SysPulseDesign.actionEnd], startPoint: .topLeading, endPoint: .bottomTrailing),
                     in: RoundedRectangle(cornerRadius: 16, style: .continuous)
                 )
         }

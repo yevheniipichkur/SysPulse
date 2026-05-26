@@ -79,10 +79,10 @@ struct PaywallView: View {
 
             Text("SSH, SFTP, alerts and widgets in one secure workspace.")
                 .font(.caption.weight(.semibold))
-                .foregroundStyle(.cyan)
+                .foregroundStyle(SysPulseDesign.actionStart)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 7)
-                .background(.cyan.opacity(0.12), in: Capsule())
+                .background(SysPulseDesign.actionStart.opacity(0.12), in: Capsule())
         }
         .padding(.top, 30)
     }
@@ -328,7 +328,7 @@ private struct PlanCard: View {
                                     .padding(.horizontal, 7)
                                     .padding(.vertical, 4)
                                     .background(.green.opacity(0.16), in: Capsule())
-                                    .foregroundStyle(.green)
+                                    .foregroundStyle(.primary)
                             }
                         }
                         Text(subtitle)

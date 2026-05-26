@@ -112,7 +112,7 @@ struct MissingToolsView: View {
                                             .frame(maxWidth: .infinity)
                                             .padding(.vertical, 13)
                                             .foregroundStyle(.white)
-                                            .background(.orange, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                                            .background(SysPulseDesign.warningAction, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
                                     }
                                     .buttonStyle(.plain)
                                 }

@@ -9,6 +9,12 @@ enum SysPulseDesign {
     static let accent = Color(red: 0.20, green: 0.76, blue: 0.92)
     static let ink = Color(red: 0.04, green: 0.06, blue: 0.09)
     static let darkPanel = Color(red: 0.06, green: 0.08, blue: 0.12)
+    static let actionStart = Color(red: 0.02, green: 0.47, blue: 0.68)
+    static let actionEnd = Color(red: 0.08, green: 0.25, blue: 0.78)
+    static let proStart = Color(red: 0.02, green: 0.48, blue: 0.68)
+    static let proEnd = Color(red: 0.26, green: 0.18, blue: 0.68)
+    static let warningAction = Color(red: 0.72, green: 0.34, blue: 0.00)
+    static let destructiveAction = Color(red: 0.72, green: 0.08, blue: 0.10)
 }
 
 enum SysPulseMotion {
@@ -134,6 +140,7 @@ struct AppBackground: View {
 }
 
 struct GlassCard<Content: View>: View {
+    @Environment(\.colorScheme) private var colorScheme
     var cornerRadius: CGFloat = SysPulseDesign.cardRadius
     var padding: CGFloat = 16
     @ViewBuilder var content: Content
@@ -143,17 +150,22 @@ struct GlassCard<Content: View>: View {
             .padding(padding)
             .background {
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .fill(.ultraThinMaterial)
+                    .fill(.regularMaterial)
                     .overlay {
                         RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                            .stroke(.white.opacity(0.18), lineWidth: 1)
+                            .fill(colorScheme == .dark ? Color.white.opacity(0.035) : Color.white.opacity(0.72))
+                    }
+                    .overlay {
+                        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                            .stroke(colorScheme == .dark ? Color.white.opacity(0.16) : Color.black.opacity(0.08), lineWidth: 1)
                     }
             }
-            .shadow(color: .black.opacity(0.16), radius: 22, x: 0, y: 12)
+            .shadow(color: .black.opacity(colorScheme == .dark ? 0.16 : 0.08), radius: 22, x: 0, y: 12)
     }
 }
 
 struct StatusPill: View {
+    @Environment(\.colorScheme) private var colorScheme
     var status: ServerStatus
 
     var body: some View {
@@ -165,9 +177,21 @@ struct StatusPill: View {
             Text(status.titleKey)
                 .font(.caption.weight(.semibold))
         }
+        .foregroundStyle(.primary)
         .padding(.horizontal, 10)
         .padding(.vertical, 7)
-        .background(.thinMaterial, in: Capsule())
+        .background {
+            Capsule()
+                .fill(.regularMaterial)
+                .overlay {
+                    Capsule()
+                        .fill(status.color.opacity(colorScheme == .dark ? 0.08 : 0.12))
+                }
+                .overlay {
+                    Capsule()
+                        .stroke(status.color.opacity(colorScheme == .dark ? 0.22 : 0.30), lineWidth: 1)
+                }
+        }
         .accessibilityLabel(Text(status.titleKey))
     }
 }
@@ -180,13 +204,14 @@ struct PremiumBadge: View {
             .padding(.vertical, 6)
             .foregroundStyle(.white)
             .background(
-                LinearGradient(colors: [.cyan, .indigo], startPoint: .topLeading, endPoint: .bottomTrailing),
+                LinearGradient(colors: [SysPulseDesign.proStart, SysPulseDesign.proEnd], startPoint: .topLeading, endPoint: .bottomTrailing),
                 in: Capsule()
             )
     }
 }
 
 struct SafetyBadge: View {
+    @Environment(\.colorScheme) private var colorScheme
     var level: CommandSafetyLevel
 
     var body: some View {
@@ -195,7 +220,14 @@ struct SafetyBadge: View {
             .foregroundStyle(level.color)
             .padding(.horizontal, 9)
             .padding(.vertical, 6)
-            .background(level.color.opacity(0.12), in: Capsule())
+            .background {
+                Capsule()
+                    .fill(level.color.opacity(colorScheme == .dark ? 0.14 : 0.16))
+                    .overlay {
+                        Capsule()
+                            .stroke(level.color.opacity(colorScheme == .dark ? 0.22 : 0.30), lineWidth: 1)
+                    }
+            }
     }
 }
 
@@ -331,7 +363,7 @@ struct GlassPrimaryButton: View {
                 .padding(.vertical, 15)
                 .foregroundStyle(.white)
                 .background(
-                    LinearGradient(colors: [.cyan, .blue], startPoint: .topLeading, endPoint: .bottomTrailing),
+                    LinearGradient(colors: [SysPulseDesign.actionStart, SysPulseDesign.actionEnd], startPoint: .topLeading, endPoint: .bottomTrailing),
                     in: RoundedRectangle(cornerRadius: SysPulseDesign.controlRadius, style: .continuous)
                 )
         }
@@ -340,26 +372,39 @@ struct GlassPrimaryButton: View {
 }
 
 struct PressableGlassButtonStyle: ButtonStyle {
+    @Environment(\.colorScheme) private var colorScheme
     var tint: Color = .cyan
     var cornerRadius: CGFloat = SysPulseDesign.controlRadius
     var verticalPadding: CGFloat = 10
     var horizontalPadding: CGFloat = 12
 
     func makeBody(configuration: Configuration) -> some View {
-        configuration.label
+        let idleTintOpacity = colorScheme == .dark ? 0.08 : 0.10
+        let idleStroke = colorScheme == .dark ? Color.white.opacity(0.16) : Color.black.opacity(0.10)
+
+        return configuration.label
             .padding(.vertical, verticalPadding)
             .padding(.horizontal, horizontalPadding)
             .foregroundStyle(configuration.isPressed ? tint : .primary)
             .background(
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .fill(.thinMaterial)
+                    .fill(.regularMaterial)
                     .overlay {
                         RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                            .fill(tint.opacity(configuration.isPressed ? 0.20 : 0.08))
+                            .fill(colorScheme == .dark ? Color.white.opacity(0.025) : Color.white.opacity(0.58))
                     }
                     .overlay {
                         RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                            .stroke(tint.opacity(configuration.isPressed ? 0.42 : 0.16), lineWidth: 1)
+                            .fill(tint.opacity(configuration.isPressed ? 0.22 : idleTintOpacity))
+                    }
+                    .overlay {
+                        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                            .stroke(
+                                configuration.isPressed
+                                    ? tint.opacity(0.48)
+                                    : idleStroke,
+                                lineWidth: 1
+                            )
                     }
             )
             .scaleEffect(configuration.isPressed ? 0.96 : 1)
@@ -432,7 +477,7 @@ struct ActionEmptyStateView: View {
                         .padding(.vertical, 13)
                         .foregroundStyle(.white)
                         .background(
-                            LinearGradient(colors: [.cyan, .blue], startPoint: .topLeading, endPoint: .bottomTrailing),
+                            LinearGradient(colors: [SysPulseDesign.actionStart, SysPulseDesign.actionEnd], startPoint: .topLeading, endPoint: .bottomTrailing),
                             in: RoundedRectangle(cornerRadius: 16, style: .continuous)
                         )
                 }

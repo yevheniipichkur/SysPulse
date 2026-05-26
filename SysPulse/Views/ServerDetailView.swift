@@ -911,7 +911,7 @@ struct ServerDetailView: View {
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 12)
                             .foregroundStyle(.white)
-                            .background(.red.opacity(0.82), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                            .background(SysPulseDesign.destructiveAction, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
                     }
                     .buttonStyle(.plain)
                 }

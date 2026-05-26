@@ -98,7 +98,10 @@ private struct SecurityLockView: View {
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 14)
                         .foregroundStyle(.white)
-                        .background(.cyan, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        .background(
+                            LinearGradient(colors: [SysPulseDesign.actionStart, SysPulseDesign.actionEnd], startPoint: .topLeading, endPoint: .bottomTrailing),
+                            in: RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        )
                 }
                 .buttonStyle(.plain)
                 .disabled(isAuthenticating)
@@ -177,6 +180,12 @@ private struct TabBarAccessibilityConfigurator: UIViewControllerRepresentable {
             applySoon()
         }
 
+        override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
+            super.traitCollectionDidChange(previousTraitCollection)
+            guard previousTraitCollection?.userInterfaceStyle != traitCollection.userInterfaceStyle else { return }
+            applySoon()
+        }
+
         func applySoon() {
             DispatchQueue.main.async { [weak self] in
                 self?.apply()
@@ -197,13 +206,20 @@ private struct TabBarAccessibilityConfigurator: UIViewControllerRepresentable {
         }
 
         private func applyAppearance(to tabBar: UITabBar) {
+            let isDark = tabBar.traitCollection.userInterfaceStyle == .dark
             let appearance = UITabBarAppearance()
             appearance.configureWithTransparentBackground()
-            appearance.backgroundEffect = UIBlurEffect(style: .systemUltraThinMaterialDark)
-            appearance.backgroundColor = UIColor(red: 0.03, green: 0.04, blue: 0.06, alpha: 0.72)
+            appearance.backgroundEffect = UIBlurEffect(style: isDark ? .systemUltraThinMaterialDark : .systemThinMaterialLight)
+            appearance.backgroundColor = isDark
+                ? UIColor(red: 0.03, green: 0.04, blue: 0.06, alpha: 0.82)
+                : UIColor(red: 0.97, green: 0.99, blue: 1.00, alpha: 0.92)
 
-            let selectedColor = UIColor(red: 0.20, green: 0.76, blue: 0.92, alpha: 1)
-            let normalColor = UIColor.white.withAlphaComponent(0.58)
+            let selectedColor = isDark
+                ? UIColor(red: 0.20, green: 0.76, blue: 0.92, alpha: 1)
+                : UIColor(red: 0.00, green: 0.38, blue: 0.58, alpha: 1)
+            let normalColor = isDark
+                ? UIColor.white.withAlphaComponent(0.74)
+                : UIColor(red: 0.10, green: 0.15, blue: 0.20, alpha: 0.68)
             styleTabItemAppearance(appearance.stackedLayoutAppearance, selectedColor: selectedColor, normalColor: normalColor)
             styleTabItemAppearance(appearance.inlineLayoutAppearance, selectedColor: selectedColor, normalColor: normalColor)
             styleTabItemAppearance(appearance.compactInlineLayoutAppearance, selectedColor: selectedColor, normalColor: normalColor)

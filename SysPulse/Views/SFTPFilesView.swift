@@ -276,11 +276,11 @@ struct SFTPFilesView: View {
                             } label: {
                                 Text(crumb.title)
                                     .font(.caption.monospaced().weight(.semibold))
-                                    .foregroundStyle(crumb.isLast ? Color.primary : Color.cyan)
+                                    .foregroundStyle(crumb.isLast ? Color.primary : SysPulseDesign.actionStart)
                                     .padding(.horizontal, 9)
                                     .frame(height: 28)
                                     .background(
-                                        (crumb.isLast ? Color.cyan.opacity(0.12) : Color.white.opacity(0.05)),
+                                        (crumb.isLast ? SysPulseDesign.actionStart.opacity(0.12) : Color.white.opacity(0.05)),
                                         in: Capsule()
                                     )
                             }
@@ -414,7 +414,7 @@ struct SFTPFilesView: View {
             HStack(spacing: 10) {
                 Label(appState.localized("%d selected", selectedItemIDs.count), systemImage: "checkmark.circle")
                     .font(.caption.weight(.bold))
-                    .foregroundStyle(.cyan)
+                    .foregroundStyle(SysPulseDesign.actionStart)
                 Spacer()
                 Button("Select all") {
                     selectedItemIDs = Set(visibleItems.map(\.id))
@@ -728,7 +728,7 @@ struct SFTPFilesView: View {
                         navigate(to: targetPath(for: index, parts: parts), server: server)
                     }
                     .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.cyan)
+                    .foregroundStyle(SysPulseDesign.actionStart)
                     .buttonStyle(.plain)
                 }
             }
