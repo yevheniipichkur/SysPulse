@@ -18,11 +18,24 @@ struct TerminalView: View {
     @State private var sessionConnectionStates: [UUID: TerminalConnectionState] = [:]
     @StateObject private var terminalBridgeStore = TerminalBridgeStore()
 
-    private var selectedSession: TerminalSession? {
-        if let selectedSessionID {
-            return appState.terminalSessions.first { $0.id == selectedSessionID }
+    private var selectedServerID: UUID? {
+        appState.selectedServer?.id
+    }
+
+    private var visibleTerminalSessions: [TerminalSession] {
+        guard let selectedServerID else {
+            return appState.terminalSessions
         }
-        return appState.terminalSessions.first
+        return appState.terminalSessions.filter { $0.serverID == selectedServerID }
+    }
+
+    private var selectedSession: TerminalSession? {
+        if let selectedSessionID,
+           let session = appState.terminalSessions.first(where: { $0.id == selectedSessionID }),
+           selectedServerID == nil || session.serverID == selectedServerID {
+            return session
+        }
+        return visibleTerminalSessions.first
     }
 
     private var sessionServer: ServerProfile? {
@@ -37,7 +50,7 @@ struct TerminalView: View {
         if appState.isScreenshotMode {
             return selectedSession != nil
         }
-        guard let id = selectedSessionID else { return false }
+        guard let id = activeSessionID else { return false }
         return ptySessions[id] != nil
     }
 
@@ -52,17 +65,16 @@ struct TerminalView: View {
     }
 
     private var activePTY: PTYSession? {
-        let id = selectedSessionID ?? appState.terminalSessions.first?.id
-        return id.flatMap { ptySessions[$0] }
+        activeSessionID.flatMap { ptySessions[$0] }
     }
 
     private var activeSessionID: UUID? {
-        selectedSessionID ?? selectedSession?.id ?? appState.terminalSessions.first?.id
+        selectedSession?.id
     }
 
     private var activePrompt: String {
         guard let server = sessionServer,
-              let sessionID = selectedSessionID ?? selectedSession?.id else {
+              let sessionID = activeSessionID else {
             return "$ "
         }
         let state = runtimeStates[sessionID] ?? TerminalRuntimeState(server: server)
@@ -177,6 +189,7 @@ struct TerminalView: View {
                 .padding(.top, 8)
                 .padding(.bottom, 6)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .id(session.id)
                 .contentShape(Rectangle())
                 .onTapGesture {
                     keyboardActive = true
@@ -387,18 +400,16 @@ struct TerminalView: View {
             }
 
             Menu {
-                if appState.terminalSessions.isEmpty {
+                if visibleTerminalSessions.isEmpty {
                     Button("New session") {
                         if let server = appState.selectedServer {
                             createSession(for: server)
                         }
                     }
                 } else {
-                    ForEach(appState.terminalSessions) { session in
+                    ForEach(visibleTerminalSessions) { session in
                         Button(session.title) {
-                            updateWithMotion {
-                                selectedSessionID = session.id
-                            }
+                            selectSession(session)
                         }
                     }
                     Divider()
@@ -417,10 +428,10 @@ struct TerminalView: View {
 
     private var terminalSessionStrip: some View {
         Group {
-            if !appState.terminalSessions.isEmpty {
+            if !visibleTerminalSessions.isEmpty {
                 ScrollView(.horizontal) {
                     HStack(spacing: 8) {
-                        ForEach(appState.terminalSessions) { session in
+                        ForEach(visibleTerminalSessions) { session in
                             TerminalSessionPill(
                                 title: session.title,
                                 isActive: session.id == activeSessionID,
@@ -429,9 +440,7 @@ struct TerminalView: View {
                                     closeSession(session.id)
                                 }
                             ) {
-                                updateWithMotion {
-                                    selectedSessionID = session.id
-                                }
+                                selectSession(session)
                                 keyboardActive = true
                                 focusActiveTerminal()
                             }
@@ -678,7 +687,7 @@ struct TerminalView: View {
             createSession(for: server)
         }
 
-        let sessionID = selectedSessionID ?? appState.terminalSessions.first?.id
+        let sessionID = activeSessionID
         guard let sessionID else { return }
         if selectedSessionID == nil {
             selectedSessionID = sessionID
@@ -704,7 +713,9 @@ struct TerminalView: View {
 
     private func ensureSessionForSelectedServer() {
         guard let server = appState.selectedServer else {
-            selectedSessionID = appState.terminalSessions.first?.id
+            if selectedSessionID == nil {
+                selectedSessionID = appState.terminalSessions.first?.id
+            }
             return
         }
         ensureSession(for: server)
@@ -712,9 +723,7 @@ struct TerminalView: View {
 
     private func ensureSession(for server: ServerProfile) {
         if let existing = appState.terminalSessions.first(where: { $0.serverID == server.id }) {
-            updateWithMotion {
-                selectedSessionID = existing.id
-            }
+            selectSession(existing, updateSelectedServer: false)
             if runtimeStates[existing.id] == nil {
                 runtimeStates[existing.id] = TerminalRuntimeState(server: server)
             }
@@ -737,6 +746,7 @@ struct TerminalView: View {
             runtimeStates[session.id] = TerminalRuntimeState(server: server)
             selectedSessionID = session.id
         }
+        refreshVisibleTerminal(for: session)
         appState.haptic(.light)
         if !appState.isScreenshotMode {
             keyboardActive = true
@@ -803,13 +813,13 @@ struct TerminalView: View {
     private static let cwdProbeCommand = "printf '\\033]777;cwd:%s;home:%s;host:%s\\007' \"$PWD\" \"$HOME\" \"$(hostname 2>/dev/null || uname -n)\"\n"
 
     private func append(_ text: String, to sessionID: UUID? = nil) {
-        guard let id = sessionID ?? selectedSessionID ?? appState.terminalSessions.first?.id,
+        guard let id = sessionID ?? activeSessionID,
               let index = appState.terminalSessions.firstIndex(where: { $0.id == id }) else { return }
         appState.terminalSessions[index].transcript += text
     }
 
     private func clearTranscript() {
-        guard let id = selectedSessionID,
+        guard let id = activeSessionID,
               let index = appState.terminalSessions.firstIndex(where: { $0.id == id }) else { return }
         updateWithMotion {
             appState.terminalSessions[index].transcript = ""
@@ -818,7 +828,7 @@ struct TerminalView: View {
     }
 
     private func closeCurrentSession() {
-        guard let id = selectedSessionID else { return }
+        guard let id = activeSessionID else { return }
         closeSession(id)
     }
 
@@ -831,7 +841,10 @@ struct TerminalView: View {
         updateWithMotion {
             appState.terminalSessions.removeAll { $0.id == id }
             if selectedSessionID == id {
-                selectedSessionID = appState.terminalSessions.first?.id
+                selectedSessionID = visibleTerminalSessions.first?.id
+                if let selectedSession {
+                    refreshVisibleTerminal(for: selectedSession)
+                }
             }
         }
     }
@@ -841,6 +854,27 @@ struct TerminalView: View {
             appState.select(server, tab: .terminal)
         }
         ensureSession(for: server)
+    }
+
+    private func selectSession(_ session: TerminalSession, updateSelectedServer: Bool = true) {
+        updateWithMotion {
+            selectedSessionID = session.id
+            if updateSelectedServer,
+               let serverID = session.serverID,
+               let server = appState.serverProfiles.first(where: { $0.id == serverID }) {
+                appState.selectedServer = server
+            }
+        }
+        if let serverID = session.serverID,
+           let server = appState.serverProfiles.first(where: { $0.id == serverID }),
+           runtimeStates[session.id] == nil {
+            runtimeStates[session.id] = TerminalRuntimeState(server: server)
+        }
+        refreshVisibleTerminal(for: session)
+    }
+
+    private func refreshVisibleTerminal(for session: TerminalSession) {
+        terminalBridgeStore.bridge(for: session.id).replaceVisibleContent(with: Array(session.transcript.utf8))
     }
 
     private func reconnectCurrentSession() {
@@ -1037,6 +1071,7 @@ private final class TerminalFeedBridge: ObservableObject {
     private var resetHandler: (() -> Void)?
     private var focusHandler: (() -> Void)?
     private var pending: [[UInt8]] = []
+    private var pendingReplacement: [UInt8]?
     private var pendingFocus = false
     private var isReadyForOutput = false
 
@@ -1048,7 +1083,7 @@ private final class TerminalFeedBridge: ObservableObject {
         feedHandler = feed
         resetHandler = reset
         focusHandler = focus
-        flushPendingIfPossible()
+        isReadyForOutput = false
         if pendingFocus {
             pendingFocus = false
             focus()
@@ -1069,7 +1104,13 @@ private final class TerminalFeedBridge: ObservableObject {
         }
     }
 
+    func replaceVisibleContent(with bytes: [UInt8]) {
+        pendingReplacement = bytes
+        isReadyForOutput = false
+    }
+
     func reset() {
+        pendingReplacement = nil
         pending.removeAll()
         if let resetHandler {
             resetHandler()
@@ -1087,7 +1128,19 @@ private final class TerminalFeedBridge: ObservableObject {
     }
 
     private func flushPendingIfPossible() {
-        guard isReadyForOutput, let feedHandler, !pending.isEmpty else { return }
+        guard isReadyForOutput, let feedHandler else { return }
+        if let pendingReplacement {
+            if let resetHandler {
+                resetHandler()
+            } else {
+                feedHandler(Array("\u{1B}[2J\u{1B}[H".utf8))
+            }
+            if !pendingReplacement.isEmpty {
+                feedHandler(pendingReplacement)
+            }
+            self.pendingReplacement = nil
+        }
+        guard !pending.isEmpty else { return }
         let buffered = pending
         pending.removeAll(keepingCapacity: true)
         buffered.forEach(feedHandler)
