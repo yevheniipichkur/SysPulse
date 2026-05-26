@@ -48,7 +48,7 @@ xcodebuild test \
   -project SysPulse.xcodeproj \
   -scheme SysPulse \
   -configuration Debug \
-  -destination "platform=iOS Simulator,name=iPhone 16 Pro Max" \
+  -destination "platform=iOS Simulator,name=iPhone 13 Pro Max" \
   CODE_SIGNING_ALLOWED=NO
 ```
 
@@ -60,9 +60,11 @@ SYSPULSE_SCREENSHOT_DIR="$PWD/build/screenshots" xcodebuild test \
   -project SysPulse.xcodeproj \
   -scheme SysPulseScreenshots \
   -configuration Debug \
-  -destination "platform=iOS Simulator,name=iPhone 16 Pro Max" \
+  -destination "platform=iOS Simulator,name=iPhone 13 Pro Max" \
   CODE_SIGNING_ALLOWED=NO
 ```
+
+Screenshot workflow normalizes exported PNG files to `1284 x 2778`, which is accepted by App Store Connect for iPhone uploads.
 
 Archive:
 
@@ -175,7 +177,7 @@ brew install xcodegen
 - Проверьте пароль `APPLE_CERTIFICATE_PASSWORD`.
 - Убедитесь, что `.p12` экспортирован вместе с private key.
 
-`Simulator iPhone 16 Pro Max not found`:
+`Simulator iPhone 13 Pro Max not found`:
 
 - Измените destination в workflow на доступный симулятор.
 - Посмотрите список в логе шага `xcrun simctl list runtimes`.

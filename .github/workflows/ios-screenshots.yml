@@ -64,9 +64,11 @@ jobs:
           runtimes = json.loads(subprocess.check_output(["xcrun", "simctl", "list", "runtimes", "--json"]))["runtimes"]
 
           preferred_devices = [
-              "iPhone 16 Pro Max",
+              "iPhone 13 Pro Max",
+              "iPhone 12 Pro Max",
               "iPhone 15 Pro Max",
               "iPhone 14 Pro Max",
+              "iPhone 16 Pro Max",
           ]
           device = next((item for name in preferred_devices for item in devtypes if item.get("name") == name), None)
           if device is None:
@@ -201,6 +203,41 @@ jobs:
             capture_simulator_screenshot settings 05-settings || return 1
           }
 
+          normalize_app_store_screenshots() {
+            target_width=1284
+            target_height=2778
+
+            for screenshot in build/screenshots/*.png; do
+              [ -f "$screenshot" ] || continue
+
+              width=$(sips -g pixelWidth "$screenshot" 2>/dev/null | awk '/pixelWidth/ {print $2; exit}')
+              height=$(sips -g pixelHeight "$screenshot" 2>/dev/null | awk '/pixelHeight/ {print $2; exit}')
+              echo "$(basename "$screenshot"): ${width:-?}x${height:-?}"
+              if [ -z "$width" ] || [ -z "$height" ]; then
+                echo "::error::Could not read PNG dimensions for $screenshot."
+                return 1
+              fi
+
+              if [ "$width" = "$target_width" ] && [ "$height" = "$target_height" ]; then
+                continue
+              fi
+
+              if awk "BEGIN { exit !($width * $target_height < $target_width * $height) }"; then
+                sips --resampleWidth "$target_width" "$screenshot" >/dev/null
+              else
+                sips --resampleHeight "$target_height" "$screenshot" >/dev/null
+              fi
+              sips --cropToHeightWidth "$target_height" "$target_width" "$screenshot" >/dev/null
+
+              width=$(sips -g pixelWidth "$screenshot" 2>/dev/null | awk '/pixelWidth/ {print $2; exit}')
+              height=$(sips -g pixelHeight "$screenshot" 2>/dev/null | awk '/pixelHeight/ {print $2; exit}')
+              if [ "$width" != "$target_width" ] || [ "$height" != "$target_height" ]; then
+                echo "::error::$(basename "$screenshot") has ${width:-?}x${height:-?}; expected ${target_width}x${target_height}."
+                return 1
+              fi
+            done
+          }
+
           png_count=$(find build/screenshots -name "*.png" -type f | wc -l | tr -d " ")
           if [ "$png_count" -lt 5 ] || [ "$launch_screen_was_patched" -ne 0 ]; then
             if [ "$launch_screen_was_patched" -ne 0 ] && [ "$png_count" -ge 5 ]; then
@@ -213,12 +250,17 @@ jobs:
             fi
           fi
 
+          normalize_status=0
+          normalize_app_store_screenshots || normalize_status=$?
+
           echo "::group::Screenshot output files"
           find build/screenshots build/logs -maxdepth 2 -type f -print || true
           echo "::endgroup::"
 
           png_count=$(find build/screenshots -name "*.png" -type f | wc -l | tr -d " ")
-          if [ "$launch_screen_status" -ne 0 ]; then
+          if [ "$normalize_status" -ne 0 ]; then
+            status=65
+          elif [ "$launch_screen_status" -ne 0 ]; then
             echo "::error::Launch screen validation failed; refusing to upload potentially letterboxed screenshots."
             status=65
           elif [ "$png_count" -lt 5 ]; then

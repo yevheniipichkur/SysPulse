@@ -38,6 +38,8 @@ Workflow запускает приложение в deterministic screenshot mod
 - `04-files.png`
 - `05-settings.png`
 
+PNG нормализуются до `1284 x 2778`, чтобы App Store Connect принимал их как iPhone screenshots.
+
 ## Free vs Pro
 
 Free:
