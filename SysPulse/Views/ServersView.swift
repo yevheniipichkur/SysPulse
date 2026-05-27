@@ -176,6 +176,15 @@ struct ServerCardView: View {
 
     private var accent: Color { Color(hex: server.accentHex) }
 
+    private func localizedMetricText(_ value: String) -> String {
+        switch value {
+        case "Unknown", "Unknown Linux":
+            return appState.localized(value)
+        default:
+            return value
+        }
+    }
+
     var body: some View {
         GlassCard(cornerRadius: 28, padding: 18) {
             VStack(alignment: .leading, spacing: 16) {
@@ -203,7 +212,7 @@ struct ServerCardView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
-                        Text(metrics.osName)
+                        Text(localizedMetricText(metrics.osName))
                             .font(.caption2)
                             .foregroundStyle(.secondary)
                     }
@@ -231,7 +240,7 @@ struct ServerCardView: View {
 
                 ScrollView(.horizontal) {
                     HStack(spacing: 10) {
-                        Label(metrics.uptime, systemImage: "clock")
+                        Label(localizedMetricText(metrics.uptime), systemImage: "clock")
                         Label("\(Int(metrics.temperatureCelsius ?? 0))°C", systemImage: "thermometer.medium")
                         Label("\(metrics.dockerRunning)/\(metrics.dockerTotal)", systemImage: "shippingbox")
                         if metrics.failedServices > 0 {

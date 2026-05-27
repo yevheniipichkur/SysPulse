@@ -15,6 +15,15 @@ struct ServerDetailView: View {
     private let systemdService = SystemdService()
     private let logsService = LogsService()
 
+    private func localizedMetricText(_ value: String) -> String {
+        switch value {
+        case "Unknown", "Unknown Linux":
+            return appState.localized(value)
+        default:
+            return value
+        }
+    }
+
     var body: some View {
         ZStack {
             AppBackground()
@@ -164,9 +173,9 @@ struct ServerDetailView: View {
                         Text("Uptime")
                             .font(.caption2)
                             .foregroundStyle(.secondary)
-                        Text(metrics.uptime)
+                        Text(localizedMetricText(metrics.uptime))
                             .font(.headline.monospacedDigit())
-                        Text(metrics.osName)
+                        Text(localizedMetricText(metrics.osName))
                             .font(.caption2)
                             .foregroundStyle(.secondary)
                     }
@@ -310,10 +319,10 @@ struct ServerDetailView: View {
                                 .font(.caption.weight(.semibold))
                                 .foregroundStyle(.secondary)
                         }
-                        Text(metrics.osName)
+                        Text(localizedMetricText(metrics.osName))
                             .font(.headline)
                             .lineLimit(1)
-                        Text("\(metrics.uptime) · load \(metrics.loadAverage)")
+                        Text(appState.localized("%@ · load %@", localizedMetricText(metrics.uptime), metrics.loadAverage))
                             .font(.caption)
                             .foregroundStyle(.secondary)
                             .lineLimit(1)
