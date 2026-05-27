@@ -52,8 +52,8 @@ struct ProfileCloudSyncService {
         guard diagnostic.canAttemptSync else {
             throw ProfileCloudSyncError.unavailableInCurrentBuild(containerIdentifier)
         }
-        // CKContainer can raise an Objective-C exception when the signed app is
-        // missing CloudKit entitlements, so construct it through an @try/@catch bridge.
+        // CI validates the signed IPA entitlements before upload because CloudKit
+        // traps the process when the app is signed without the requested container.
         guard let safeContainer = SysPulseSafeCKContainer(containerIdentifier) else {
             throw ProfileCloudSyncError.unavailableInCurrentBuild(containerIdentifier)
         }

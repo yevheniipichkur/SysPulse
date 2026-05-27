@@ -89,6 +89,43 @@ jobs:
       - name: Generate Xcode project
         run: xcodegen generate
 
+      - name: Validate generated entitlements
+        run: |
+          set -euo pipefail
+          python3 <<'PY'
+          import plistlib
+          from pathlib import Path
+
+          expected = {
+              "SysPulse/SysPulse.entitlements": {
+                  "com.apple.security.application-groups": "group.com.yevheniipichkur.syspulse",
+                  "com.apple.developer.icloud-container-identifiers": "iCloud.com.yevheniipichkur.syspulse",
+                  "com.apple.developer.icloud-container-environment": "Production",
+                  "com.apple.developer.icloud-services": "CloudKit",
+              },
+              "SysPulseWidgets/SysPulseWidgets.entitlements": {
+                  "com.apple.security.application-groups": "group.com.yevheniipichkur.syspulse",
+              },
+          }
+
+          def contains(value, expected_value):
+              if isinstance(value, list):
+                  return expected_value in value
+              return value == expected_value
+
+          failed = False
+          for path, checks in expected.items():
+              entitlements = plistlib.loads(Path(path).read_bytes())
+              print(f"{path}: {entitlements}")
+              for key, expected_value in checks.items():
+                  value = entitlements.get(key)
+                  if not contains(value, expected_value):
+                      print(f"::error::{path} missing {key}={expected_value!r}; found {value!r}")
+                      failed = True
+          if failed:
+              raise SystemExit(1)
+          PY
+
       - name: Stamp bundle versions
         run: |
           set -euo pipefail
@@ -408,80 +445,6 @@ jobs:
             exit 1
           fi
 
-      - name: Patch archive bundle versions
-        if: ${{ env.APPLE_TEAM_ID != '' && env.APPLE_CERTIFICATE_BASE64 != '' }}
-        run: |
-          set -euo pipefail
-          echo "Patching CFBundleVersion to build number $BUILD_NUMBER in archived app bundles."
-
-          set_plist_string() {
-            local plist="$1"
-            local key="$2"
-            local value="$3"
-            /usr/libexec/PlistBuddy -c "Set :$key $value" "$plist" 2>/dev/null \
-              || /usr/libexec/PlistBuddy -c "Add :$key string $value" "$plist"
-          }
-
-          PATCHED=0
-          while IFS= read -r -d '' plist; do
-            case "$plist" in
-              *.app/Info.plist|*.appex/Info.plist)
-                set_plist_string "$plist" CFBundleVersion "$BUILD_NUMBER"
-                set_plist_string "$plist" CFBundleShortVersionString "$MARKETING_VERSION"
-                BUNDLE_ID=$(/usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$plist" 2>/dev/null || echo "unknown")
-                BUNDLE_VERSION=$(/usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "$plist")
-                echo "$BUNDLE_ID CFBundleVersion=$BUNDLE_VERSION ($plist)"
-                if [ "$BUNDLE_VERSION" != "$BUILD_NUMBER" ]; then
-                  echo "::error::$plist has CFBundleVersion=$BUNDLE_VERSION, expected $BUILD_NUMBER."
-                  exit 1
-                fi
-                PATCHED=$((PATCHED + 1))
-                ;;
-            esac
-          done < <(find "$ARCHIVE_PATH/Products/Applications" -name Info.plist -print0)
-
-          if [ "$PATCHED" -eq 0 ]; then
-            echo "::error::No app or app extension Info.plist files were patched in the archive."
-            exit 1
-          fi
-
-          ARCHIVE_INFO="$ARCHIVE_PATH/Info.plist"
-          /usr/libexec/PlistBuddy -c "Set :ApplicationProperties:CFBundleVersion $BUILD_NUMBER" "$ARCHIVE_INFO" 2>/dev/null \
-            || /usr/libexec/PlistBuddy -c "Add :ApplicationProperties:CFBundleVersion string $BUILD_NUMBER" "$ARCHIVE_INFO" 2>/dev/null \
-            || true
-          /usr/libexec/PlistBuddy -c "Set :ApplicationProperties:CFBundleShortVersionString $MARKETING_VERSION" "$ARCHIVE_INFO" 2>/dev/null \
-            || /usr/libexec/PlistBuddy -c "Add :ApplicationProperties:CFBundleShortVersionString string $MARKETING_VERSION" "$ARCHIVE_INFO" 2>/dev/null \
-            || true
-
-      - name: Ensure app icon plist metadata
-        if: ${{ env.APPLE_TEAM_ID != '' && env.APPLE_CERTIFICATE_BASE64 != '' }}
-        run: |
-          set -euo pipefail
-          APP_DIR=$(find "$ARCHIVE_PATH/Products/Applications" -maxdepth 1 -name "*.app" | head -n 1)
-          APP_PLIST="$APP_DIR/Info.plist"
-          echo "Patching icon metadata in $APP_PLIST"
-
-          /usr/libexec/PlistBuddy -c "Set :CFBundleIconName AppIcon" "$APP_PLIST" 2>/dev/null \
-            || /usr/libexec/PlistBuddy -c "Add :CFBundleIconName string AppIcon" "$APP_PLIST"
-
-          /usr/libexec/PlistBuddy -c "Add :CFBundleIcons dict" "$APP_PLIST" 2>/dev/null || true
-          /usr/libexec/PlistBuddy -c "Add :CFBundleIcons:CFBundlePrimaryIcon dict" "$APP_PLIST" 2>/dev/null || true
-          /usr/libexec/PlistBuddy -c "Set :CFBundleIcons:CFBundlePrimaryIcon:CFBundleIconName AppIcon" "$APP_PLIST" 2>/dev/null \
-            || /usr/libexec/PlistBuddy -c "Add :CFBundleIcons:CFBundlePrimaryIcon:CFBundleIconName string AppIcon" "$APP_PLIST"
-
-          if ! /usr/libexec/PlistBuddy -c "Print :CFBundleIcons:CFBundlePrimaryIcon:CFBundleIconFiles" "$APP_PLIST" >/dev/null 2>&1; then
-            /usr/libexec/PlistBuddy -c "Add :CFBundleIcons:CFBundlePrimaryIcon:CFBundleIconFiles array" "$APP_PLIST"
-            /usr/libexec/PlistBuddy -c "Add :CFBundleIcons:CFBundlePrimaryIcon:CFBundleIconFiles:0 string AppIcon" "$APP_PLIST"
-          fi
-
-          /usr/libexec/PlistBuddy -c "Print :CFBundleIconName" "$APP_PLIST"
-          /usr/libexec/PlistBuddy -c "Print :CFBundleIcons:CFBundlePrimaryIcon:CFBundleIconName" "$APP_PLIST"
-
-          # A launch storyboard keeps iOS from letterboxing the app on large iPhone screens.
-          /usr/libexec/PlistBuddy -c "Set :UILaunchStoryboardName LaunchScreen" "$APP_PLIST" 2>/dev/null \
-            || /usr/libexec/PlistBuddy -c "Add :UILaunchStoryboardName string LaunchScreen" "$APP_PLIST"
-          echo "UILaunchStoryboardName: $(/usr/libexec/PlistBuddy -c "Print :UILaunchStoryboardName" "$APP_PLIST" 2>/dev/null || echo 'not found')"
-
       - name: Export IPA
         if: ${{ env.APPLE_TEAM_ID != '' && env.APPLE_CERTIFICATE_BASE64 != '' }}
         env:
@@ -705,6 +668,52 @@ jobs:
           fi
           echo ""
 
+          echo "--- Signed app entitlements ---"
+          APP_ENTITLEMENTS="build/logs/app-signed-entitlements.plist"
+          if codesign -d --entitlements :- "$APP_DIR" > "$APP_ENTITLEMENTS" 2>build/logs/app-codesign-entitlements.log; then
+            cat "$APP_ENTITLEMENTS"
+            set +e
+            python3 <<'PY'
+          import plistlib
+          import sys
+          from pathlib import Path
+
+          entitlements = plistlib.loads(Path("build/logs/app-signed-entitlements.plist").read_bytes())
+          checks = {
+              "com.apple.security.application-groups": "group.com.yevheniipichkur.syspulse",
+              "com.apple.developer.icloud-container-identifiers": "iCloud.com.yevheniipichkur.syspulse",
+              "com.apple.developer.icloud-container-environment": "Production",
+              "com.apple.developer.icloud-services": "CloudKit",
+          }
+
+          def contains(value, expected_value):
+              if isinstance(value, list):
+                  return expected_value in value or "*" in value
+              return value == expected_value or value == "*"
+
+          failed = False
+          for key, expected_value in checks.items():
+              value = entitlements.get(key)
+              if not contains(value, expected_value):
+                  print(f"::error::Signed app entitlements missing {key}={expected_value!r}; found {value!r}")
+                  failed = True
+          if failed:
+              sys.exit(1)
+          PY
+            APP_ENTITLEMENTS_STATUS=$?
+            set -e
+            if [ "$APP_ENTITLEMENTS_STATUS" -ne 0 ]; then
+              VALIDATION_FAILED=1
+            else
+              echo "Signed app entitlements: OK"
+            fi
+          else
+            echo "::error::Could not read signed app entitlements."
+            cat build/logs/app-codesign-entitlements.log || true
+            VALIDATION_FAILED=1
+          fi
+          echo ""
+
           echo "--- Widget NSExtensionPointIdentifier ---"
           WIDGET_PLUGIN=$(find "$APP_DIR/PlugIns" -maxdepth 1 -name "*.appex" 2>/dev/null | head -n 1 || true)
           if [ -n "$WIDGET_PLUGIN" ]; then
@@ -729,6 +738,35 @@ jobs:
               echo "Widget NSExtensionPointIdentifier: OK"
             else
               echo "::error::NSExtensionPointIdentifier = '${WIDGET_POINT:-missing}'. Expected 'com.apple.widgetkit-extension'."
+              VALIDATION_FAILED=1
+            fi
+            echo ""
+            echo "--- Signed widget entitlements ---"
+            WIDGET_ENTITLEMENTS="build/logs/widget-signed-entitlements.plist"
+            if codesign -d --entitlements :- "$WIDGET_PLUGIN" > "$WIDGET_ENTITLEMENTS" 2>build/logs/widget-codesign-entitlements.log; then
+              cat "$WIDGET_ENTITLEMENTS"
+              set +e
+              python3 <<'PY'
+          import plistlib
+          import sys
+          from pathlib import Path
+
+          entitlements = plistlib.loads(Path("build/logs/widget-signed-entitlements.plist").read_bytes())
+          groups = entitlements.get("com.apple.security.application-groups")
+          if not isinstance(groups, list) or "group.com.yevheniipichkur.syspulse" not in groups:
+              print(f"::error::Signed widget entitlements missing app group; found {groups!r}")
+              sys.exit(1)
+          PY
+              WIDGET_ENTITLEMENTS_STATUS=$?
+              set -e
+              if [ "$WIDGET_ENTITLEMENTS_STATUS" -ne 0 ]; then
+                VALIDATION_FAILED=1
+              else
+                echo "Signed widget entitlements: OK"
+              fi
+            else
+              echo "::error::Could not read signed widget entitlements."
+              cat build/logs/widget-codesign-entitlements.log || true
               VALIDATION_FAILED=1
             fi
           else

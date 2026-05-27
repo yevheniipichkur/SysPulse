@@ -37,6 +37,14 @@ targets:
       - path: Shared
     entitlements:
       path: SysPulse/SysPulse.entitlements
+      properties:
+        com.apple.security.application-groups:
+          - group.com.yevheniipichkur.syspulse
+        com.apple.developer.icloud-container-identifiers:
+          - iCloud.com.yevheniipichkur.syspulse
+        com.apple.developer.icloud-container-environment: Production
+        com.apple.developer.icloud-services:
+          - CloudKit
     info:
       path: SysPulse/Info.plist
       properties:
@@ -100,6 +108,9 @@ targets:
       - path: SysPulseWidgets/Resources
     entitlements:
       path: SysPulseWidgets/SysPulseWidgets.entitlements
+      properties:
+        com.apple.security.application-groups:
+          - group.com.yevheniipichkur.syspulse
     info:
       path: SysPulseWidgets/Info.plist
       properties:
