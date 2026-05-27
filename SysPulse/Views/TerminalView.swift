@@ -273,7 +273,12 @@ struct TerminalView: View {
             LinearGradient(colors: palette.background, startPoint: .topLeading, endPoint: .bottomTrailing)
                 .ignoresSafeArea()
         )
+        .overlay(alignment: .bottom) {
+            floatingCommandSuggestions(palette: palette)
+                .padding(.bottom, 12)
+        }
         .animation(SysPulseMotion.softSpring(disabled: appState.shouldReduceMotion), value: isTranscriptSearchPresented)
+        .animation(SysPulseMotion.quickSpring(disabled: appState.shouldReduceMotion), value: terminalCommandSuggestions)
     }
 
     private func terminalSurface(for session: TerminalSession, palette: TerminalThemePalette) -> some View {
@@ -571,7 +576,6 @@ struct TerminalView: View {
         return VStack(spacing: 8) {
             connectionBar
             terminalSessionStrip
-            if keyboardActive { historySuggestions }
             keyboardAccessory
         }
         .padding(.horizontal, 8)
@@ -772,42 +776,85 @@ struct TerminalView: View {
         }
     }
 
-    // Shows recent commands or prefix-filtered history when typing
-    private var historySuggestions: some View {
-        let palette = terminalPalette
-        let suggestions = currentInput.isEmpty ? [] : Array(
-            commandHistory.reversed()
-                .filter { $0.hasPrefix(currentInput) && $0 != currentInput }
-                .prefix(6)
-        )
+    private var terminalCommandSuggestions: [String] {
+        let query = currentInput.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty else { return [] }
+
+        let historyMatches = commandHistory
+            .reversed()
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty && $0 != query }
+            .sorted { lhs, rhs in
+                let lhsHasPrefix = lhs.range(of: query, options: [.caseInsensitive, .diacriticInsensitive])?.lowerBound == lhs.startIndex
+                let rhsHasPrefix = rhs.range(of: query, options: [.caseInsensitive, .diacriticInsensitive])?.lowerBound == rhs.startIndex
+                if lhsHasPrefix != rhsHasPrefix { return lhsHasPrefix }
+                return lhs.count < rhs.count
+            }
+            .filter { $0.localizedCaseInsensitiveContains(query) }
+
+        let normalizedQuery = query.lowercased()
+        let directoryMatches: [String]
+        if normalizedQuery == "cd" || normalizedQuery.hasPrefix("cd ") {
+            directoryMatches = ["cd ~", "cd /opt", "cd /var/log", "cd /etc", "cd /home"]
+                .filter { $0.localizedCaseInsensitiveContains(query) || query == "cd" }
+        } else {
+            directoryMatches = []
+        }
+
+        var seen: Set<String> = []
+        let merged = (historyMatches + directoryMatches).filter { seen.insert($0).inserted }
+        return Array(merged.prefix(4))
+    }
+
+    private func floatingCommandSuggestions(palette: TerminalThemePalette) -> some View {
+        let suggestions = terminalCommandSuggestions
 
         return Group {
-            if !suggestions.isEmpty {
-                ScrollView(.horizontal) {
-                    HStack(spacing: 6) {
-                        ForEach(suggestions, id: \.self) { cmd in
-                            Button(cmd) {
-                                applySuggestion(cmd)
+            if keyboardActive,
+               selectedSession != nil,
+               !isTranscriptSearchPresented,
+               !suggestions.isEmpty {
+                VStack(alignment: .leading, spacing: 0) {
+                    ForEach(suggestions, id: \.self) { suggestion in
+                        Button {
+                            applySuggestion(suggestion)
+                        } label: {
+                            HStack(spacing: 10) {
+                                Text(suggestion)
+                                    .font(.caption.monospaced().weight(.semibold))
+                                    .lineLimit(1)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                Image(systemName: "return")
+                                    .font(.caption2.weight(.bold))
+                                    .foregroundStyle(palette.secondaryControlForeground)
                             }
-                            .font(.caption.monospaced())
-                            .lineLimit(1)
-                            .padding(.horizontal, 10)
-                            .frame(height: 28)
+                            .padding(.horizontal, 12)
+                            .frame(height: 34)
                             .foregroundStyle(palette.controlForeground)
-                            .background(palette.controlBackground, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-                            .overlay {
-                                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                    .stroke(palette.controlStroke, lineWidth: 1)
-                            }
-                            .buttonStyle(.plain)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+
+                        if suggestion != suggestions.last {
+                            Divider()
+                                .overlay(palette.controlStroke.opacity(0.72))
                         }
                     }
-                    .padding(.horizontal, 2)
                 }
-                .scrollIndicators(.hidden)
+                .frame(width: 236)
+                .background(commandSuggestionBackground(palette: palette), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .stroke(palette.controlStroke.opacity(0.70), lineWidth: 1)
+                }
+                .shadow(color: .black.opacity(palette.isLight ? 0.12 : 0.35), radius: 18, x: 0, y: 10)
                 .transition(.opacity.combined(with: .move(edge: .bottom)))
             }
         }
+    }
+
+    private func commandSuggestionBackground(palette: TerminalThemePalette) -> Color {
+        palette.isLight ? Color.white.opacity(0.96) : Color.black.opacity(0.74)
     }
 
     // Replaces the old TextField — shows a local mirror of what's being typed
@@ -861,19 +908,20 @@ struct TerminalView: View {
         let palette = terminalPalette
 
         return ScrollView(.horizontal) {
-            HStack(spacing: 6) {
+            HStack(spacing: 14) {
                 ForEach(["esc", "tab", "ctrl", "alt", "/", "|", "~", "-", "^C", "^X", "^O", "↑", "↓", "←", "→"], id: \.self) { key in
                     Button {
                         insertAccessory(key)
                     } label: {
                         Text(key)
-                            .font(.caption.weight(.bold))
-                            .frame(width: key.count > 2 ? 44 : 34)
+                            .font(.caption.monospaced().weight(.semibold))
+                            .frame(width: key.count > 2 ? 40 : 26)
                     }
                     .buttonStyle(TerminalKeyStyle(isActive: keyIsLatched(key), palette: palette))
                 }
             }
-            .padding(.horizontal, 2)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 3)
         }
         .scrollIndicators(.hidden)
     }
@@ -2191,22 +2239,18 @@ private struct TerminalKeyStyle: ButtonStyle {
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .frame(height: 30)
-            .padding(.horizontal, 5)
-            .foregroundStyle(isActive ? palette.accent : palette.controlForeground)
+            .frame(height: 28)
+            .padding(.horizontal, 2)
+            .foregroundStyle(isActive ? palette.controlForeground : palette.searchAccent)
             .background(
-                RoundedRectangle(cornerRadius: 9, style: .continuous)
-                    .fill(palette.controlBackground)
+                Capsule()
+                    .fill(configuration.isPressed || isActive ? palette.accent.opacity(isActive ? 0.24 : 0.13) : Color.clear)
                     .overlay {
-                        RoundedRectangle(cornerRadius: 9, style: .continuous)
-                            .fill(palette.accent.opacity(configuration.isPressed ? 0.22 : isActive ? 0.16 : 0.05))
-                    }
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 9, style: .continuous)
-                            .stroke(configuration.isPressed || isActive ? palette.accent.opacity(0.38) : palette.controlStroke, lineWidth: 1)
+                        Capsule()
+                            .stroke(configuration.isPressed || isActive ? palette.accent.opacity(0.34) : Color.clear, lineWidth: 1)
                     }
             )
-            .scaleEffect(configuration.isPressed ? 0.91 : 1.0)
+            .scaleEffect(configuration.isPressed ? 0.96 : 1.0)
             .animation(.easeOut(duration: 0.07), value: configuration.isPressed)
     }
 }
