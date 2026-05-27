@@ -2497,31 +2497,31 @@ private struct TerminalThemePalette {
 
     // MARK: – Accessory key colours (Termius-style solid keys)
 
-    /// Normal fill — matches iOS keyboard secondary-key look
+    /// Normal fill — iOS systemGray2 equivalent (matches Termius accessory key shade)
     var keyBackground: SwiftUI.Color {
         isLight
-            ? SwiftUI.Color(white: 0.76)   // light-mode: medium-light gray
-            : SwiftUI.Color(white: 0.27)   // dark-mode: charcoal like iOS kbd special keys
+            ? SwiftUI.Color(white: 0.72)   // light: iOS kbd secondary key ~ADB3BE
+            : SwiftUI.Color(white: 0.40)   // dark:  iOS kbd secondary key ~676769
     }
 
-    /// Pressed fill — immediately lighter so the tap is obvious
+    /// Pressed fill — noticeably brighter for instant tap feedback
     var keyPressedBackground: SwiftUI.Color {
         isLight
             ? SwiftUI.Color(white: 0.54)
-            : SwiftUI.Color(white: 0.50)
+            : SwiftUI.Color(white: 0.62)
     }
 
     /// Normal label colour
     var keyForeground: SwiftUI.Color {
         isLight
-            ? SwiftUI.Color(white: 0.08)
+            ? SwiftUI.Color(white: 0.06)
             : SwiftUI.Color.white
     }
 
     /// Label colour while the key is being held down
     var keyPressedForeground: SwiftUI.Color {
         isLight
-            ? SwiftUI.Color(white: 0.08)
+            ? SwiftUI.Color(white: 0.06)
             : SwiftUI.Color.white
     }
 }
