@@ -228,6 +228,8 @@ struct PaywallView: View {
                 try await appState.purchaseProduct(product)
                 dismiss()
             } catch StoreKitServiceError.userCancelled {
+            } catch StoreKitServiceError.pendingApproval {
+                purchaseStatusMessage = appState.localized("Purchase is pending approval.")
             } catch {
                 errorMessage = error.localizedDescription
                 showError = true

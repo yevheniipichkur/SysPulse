@@ -202,6 +202,15 @@ enum SubscriptionPlan: String, Codable, Hashable {
     case proMonthly = "Pro Monthly"
     case proYearly = "Pro Yearly"
     case lifetime = "Lifetime Pro"
+
+    var rank: Int {
+        switch self {
+        case .free: 0
+        case .proMonthly: 1
+        case .proYearly: 2
+        case .lifetime: 3
+        }
+    }
 }
 
 enum HealthRating: String, Hashable {
@@ -672,7 +681,19 @@ struct SubscriptionState: Codable, Hashable {
     var lastStoreKitMessage: String = ""
 
     var isPro: Bool {
-        isActive
+        guard isActive else { return false }
+        if plan == .lifetime { return true }
+        guard let expiresAt else { return false }
+        return expiresAt > .now
+    }
+
+    func isBetterEntitlement(than other: SubscriptionState) -> Bool {
+        guard isPro else { return false }
+        guard other.isPro else { return true }
+        if plan.rank != other.plan.rank {
+            return plan.rank > other.plan.rank
+        }
+        return (expiresAt ?? .distantFuture) > (other.expiresAt ?? .distantFuture)
     }
 }
 

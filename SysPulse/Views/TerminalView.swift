@@ -16,6 +16,8 @@ struct TerminalView: View {
     @State private var terminalSearchText = ""
     @State private var isTranscriptSearchPresented = false
     @State private var sessionConnectionStates: [UUID: TerminalConnectionState] = [:]
+    @State private var pendingTerminalCommandConfirmation: TerminalCommandConfirmation?
+    @State private var isTerminalCommandConfirmationPresented = false
     @StateObject private var terminalBridgeStore = TerminalBridgeStore()
 
     private var selectedServerID: UUID? {
@@ -139,6 +141,20 @@ struct TerminalView: View {
                 focusActiveTerminal()
             }
         }
+        .alert("Confirm remote command", isPresented: $isTerminalCommandConfirmationPresented) {
+            Button("Cancel", role: .cancel) {
+                pendingTerminalCommandConfirmation = nil
+            }
+            if let confirmation = pendingTerminalCommandConfirmation {
+                Button(appState.localized("Run on %@", confirmation.serverName), role: .destructive) {
+                    confirmPendingTerminalCommand(confirmation)
+                }
+            }
+        } message: {
+            if let confirmation = pendingTerminalCommandConfirmation {
+                Text(terminalSafetyMessage(for: confirmation))
+            }
+        }
         .accessibilityIdentifier(AppTab.terminal.screenAccessibilityIdentifier)
     }
 
@@ -189,8 +205,7 @@ struct TerminalView: View {
                     palette: palette,
                     onInput: { bytes in
                         let outboundBytes = transformedTerminalInput(bytes)
-                        mirrorTerminalInput(outboundBytes)
-                        activePTY?.send(outboundBytes)
+                        handleTerminalInput(outboundBytes)
                     },
                     onResize: { cols, rows in
                         ptySessions[session.id]?.resize(cols: cols, rows: rows)
@@ -777,6 +792,76 @@ struct TerminalView: View {
         return bytes
     }
 
+    private func handleTerminalInput(_ bytes: [UInt8]) {
+        guard !bytes.isEmpty else { return }
+        if let confirmation = terminalCommandConfirmation(for: bytes) {
+            pendingTerminalCommandConfirmation = confirmation
+            isTerminalCommandConfirmationPresented = true
+            appState.haptic(.rigid)
+            return
+        }
+        mirrorTerminalInput(bytes)
+        activePTY?.send(bytes)
+    }
+
+    private func terminalCommandConfirmation(for bytes: [UInt8]) -> TerminalCommandConfirmation? {
+        guard pendingTerminalCommandConfirmation == nil,
+              let server = sessionServer,
+              let command = terminalCommandCandidate(beforeSubmitting: bytes) else {
+            return nil
+        }
+
+        let analysis = CommandSafetyAnalyzer().analyze(command)
+        guard analysis.requiresConfirmation else { return nil }
+        return TerminalCommandConfirmation(
+            serverName: server.name,
+            command: command,
+            reasons: analysis.reasons.map { appState.localized($0) },
+            bytes: bytes
+        )
+    }
+
+    private func terminalCommandCandidate(beforeSubmitting bytes: [UInt8]) -> String? {
+        var candidate = currentInput
+        for byte in bytes {
+            switch byte {
+            case 10, 13:
+                let trimmed = candidate.trimmingCharacters(in: .whitespacesAndNewlines)
+                return trimmed.isEmpty ? nil : trimmed
+            case 3, 21:
+                return nil
+            case 8, 127:
+                if !candidate.isEmpty { candidate.removeLast() }
+            case 32...126:
+                candidate.append(Character(UnicodeScalar(byte)))
+            default:
+                continue
+            }
+        }
+        return nil
+    }
+
+    private func terminalSafetyMessage(for confirmation: TerminalCommandConfirmation) -> String {
+        var lines = [
+            appState.localized("Server: %@", confirmation.serverName),
+            appState.localized("Command: %@", confirmation.command)
+        ]
+        if !confirmation.reasons.isEmpty {
+            lines.append(appState.localized("Risk: %@", confirmation.reasons.joined(separator: ", ")))
+        }
+        lines.append(appState.localized("This command will run remotely over SSH."))
+        return lines.joined(separator: "\n")
+    }
+
+    private func confirmPendingTerminalCommand(_ confirmation: TerminalCommandConfirmation) {
+        pendingTerminalCommandConfirmation = nil
+        isTerminalCommandConfirmationPresented = false
+        mirrorTerminalInput(confirmation.bytes)
+        activePTY?.send(confirmation.bytes)
+        keyboardActive = true
+        focusActiveTerminal()
+    }
+
     private func controlByte(for byte: UInt8) -> UInt8? {
         switch byte {
         case 32:
@@ -908,7 +993,7 @@ struct TerminalView: View {
             sessionConnectionStates[sessionID] = .disconnected
             guard let idx = appStateRef.terminalSessions.firstIndex(where: { $0.id == sessionID }) else { return }
             if let error {
-                let message = "\n[Disconnected: \(error.localizedDescription)]\n"
+                let message = "\n[Disconnected: \(appStateRef.connectionErrorMessage(error, server: server))]\n"
                 appStateRef.terminalSessions[idx].transcript += message
                 bridge.feed(Array(message.utf8))
             } else {
@@ -1139,6 +1224,14 @@ private struct TerminalRuntimeState {
         }
         return absoluteDirectory
     }
+}
+
+private struct TerminalCommandConfirmation: Identifiable {
+    let id = UUID()
+    var serverName: String
+    var command: String
+    var reasons: [String]
+    var bytes: [UInt8]
 }
 
 private enum TerminalConnectionState: Equatable {

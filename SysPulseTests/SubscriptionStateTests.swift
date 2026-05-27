@@ -7,8 +7,29 @@ final class SubscriptionStateTests: XCTestCase {
         XCTAssertFalse(expiredLifetime.isPro)
     }
 
-    func testActiveEntitlementUnlocksPro() {
+    func testActiveSubscriptionWithoutExpirationDoesNotUnlockPro() {
         let activeMonthly = SubscriptionState(plan: .proMonthly, isActive: true)
+        XCTAssertFalse(activeMonthly.isPro)
+    }
+
+    func testActiveSubscriptionRequiresFutureExpiration() {
+        let activeMonthly = SubscriptionState(plan: .proMonthly, isActive: true, expiresAt: Date().addingTimeInterval(3600))
         XCTAssertTrue(activeMonthly.isPro)
+    }
+
+    func testExpiredSubscriptionDoesNotUnlockPro() {
+        let expiredYearly = SubscriptionState(plan: .proYearly, isActive: true, expiresAt: Date().addingTimeInterval(-3600))
+        XCTAssertFalse(expiredYearly.isPro)
+    }
+
+    func testLifetimeDoesNotRequireExpiration() {
+        let lifetime = SubscriptionState(plan: .lifetime, isActive: true)
+        XCTAssertTrue(lifetime.isPro)
+    }
+
+    func testBestEntitlementPrefersLifetime() {
+        let monthly = SubscriptionState(plan: .proMonthly, isActive: true, expiresAt: Date().addingTimeInterval(3600))
+        let lifetime = SubscriptionState(plan: .lifetime, isActive: true)
+        XCTAssertTrue(lifetime.isBetterEntitlement(than: monthly))
     }
 }

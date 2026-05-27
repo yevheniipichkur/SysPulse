@@ -59,7 +59,8 @@ struct ServersView: View {
                         ServerCardView(
                             server: server,
                             metrics: appState.metric(for: server),
-                            isRefreshing: appState.isRefreshingMetrics(for: server)
+                            isRefreshing: appState.isRefreshingMetrics(for: server),
+                            metricError: appState.metricError(for: server)
                         )
                             .listItemEntrance(index: index, disabled: appState.shouldReduceMotion)
                             .onTapGesture {
@@ -121,7 +122,8 @@ struct ServersView: View {
                         ServerCardView(
                             server: server,
                             metrics: appState.metric(for: server),
-                            isRefreshing: false
+                            isRefreshing: false,
+                            metricError: appState.metricError(for: server)
                         )
                     }
                 }
@@ -174,6 +176,7 @@ struct ServerCardView: View {
     var server: ServerProfile
     var metrics: ServerMetrics
     var isRefreshing = false
+    var metricError: String?
 
     private var accent: Color { Color(hex: server.accentHex) }
     private var healthRating: HealthRating { .rating(for: metrics.healthScore) }
@@ -245,6 +248,10 @@ struct ServerCardView: View {
                     colorScheme: colorScheme
                 )
 
+                if let metricError, !metricError.isEmpty {
+                    ServerConnectionIssueBanner(message: metricError)
+                }
+
                 LazyVGrid(
                     columns: Array(repeating: GridItem(.flexible(minimum: 0), spacing: 10), count: 3),
                     spacing: 10
@@ -290,6 +297,31 @@ struct ServerCardView: View {
                 .stroke(attentionColor.opacity(needsAttention ? (colorScheme == .dark ? 0.42 : 0.34) : 0), lineWidth: needsAttention ? 1.5 : 0)
         }
         .animation(.spring(response: 0.24, dampingFraction: 0.86), value: isRefreshing)
+    }
+}
+
+private struct ServerConnectionIssueBanner: View {
+    var message: String
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 8) {
+            Image(systemName: "wifi.exclamationmark")
+                .font(.caption.weight(.bold))
+                .foregroundStyle(.orange)
+            Text(message)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background(.orange.opacity(0.10), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(.orange.opacity(0.22), lineWidth: 1)
+        }
     }
 }
 
@@ -854,7 +886,7 @@ struct AddServerView: View {
                 }
             } catch {
                 await MainActor.run {
-                    statusMessage = error.localizedDescription
+                    statusMessage = appState.connectionErrorMessage(error, server: server)
                 }
             }
             if editingServer == nil {

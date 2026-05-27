@@ -19,6 +19,7 @@ struct SFTPFilesView: View {
     private var currentPath: String { appState.sftpPath(for: server) }
     private var allItems: [SFTPRemoteItem] { appState.sftpItems(for: server) }
     private var isLoading: Bool { appState.isSFTPLoading(for: server) }
+    private var loadError: String? { appState.sftpError(for: server) }
     private var activeAnimation: Animation? {
         SysPulseMotion.softSpring(disabled: appState.shouldReduceMotion)
     }
@@ -136,6 +137,11 @@ struct SFTPFilesView: View {
 
                 pathCard(server: server)
 
+                if let loadError, !loadError.isEmpty, !allItems.isEmpty {
+                    sftpConnectionIssueCard(message: loadError, server: server)
+                        .transition(.opacity.combined(with: .move(edge: .top)))
+                }
+
                 if isSelectionMode {
                     selectionBar
                         .transition(.opacity.combined(with: .move(edge: .top)))
@@ -144,6 +150,10 @@ struct SFTPFilesView: View {
                 if isLoading && allItems.isEmpty {
                     skeletonList
                         .transition(.opacity.combined(with: .move(edge: .bottom)))
+                } else if let loadError, !loadError.isEmpty, allItems.isEmpty {
+                    sftpConnectionIssueCard(message: loadError, server: server)
+                        .frame(maxWidth: .infinity, minHeight: 300)
+                        .transition(.opacity.combined(with: .scale(scale: 0.98)))
                 } else if visibleItems.isEmpty {
                     emptyCard
                         .frame(maxWidth: .infinity, minHeight: 320)
@@ -403,6 +413,38 @@ struct SFTPFilesView: View {
             Capsule().stroke(.white.opacity(0.16), lineWidth: 1)
         }
         .shadow(color: .black.opacity(0.16), radius: 14, x: 0, y: 8)
+    }
+
+    private func sftpConnectionIssueCard(message: String, server: ServerProfile) -> some View {
+        GlassCard(cornerRadius: 22, padding: 14) {
+            HStack(alignment: .top, spacing: 12) {
+                Image(systemName: "wifi.exclamationmark")
+                    .font(.title3.weight(.semibold))
+                    .foregroundStyle(.orange)
+                    .frame(width: 38, height: 38)
+                    .background(.orange.opacity(0.12), in: RoundedRectangle(cornerRadius: 13, style: .continuous))
+
+                VStack(alignment: .leading, spacing: 5) {
+                    Text("Connection issue")
+                        .font(.headline)
+                    Text(message)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Spacer(minLength: 8)
+
+                Button {
+                    appState.refreshSFTPDirectory(for: server)
+                } label: {
+                    Image(systemName: "arrow.clockwise")
+                        .frame(width: 34, height: 34)
+                }
+                .buttonStyle(PressableGlassButtonStyle(tint: .orange, cornerRadius: 13, verticalPadding: 0, horizontalPadding: 0))
+                .accessibilityLabel("Try Again")
+            }
+        }
     }
 
     private var emptyCard: some View {

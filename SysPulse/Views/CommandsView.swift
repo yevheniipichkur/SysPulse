@@ -111,7 +111,7 @@ struct CommandsView: View {
                 }
             } catch {
                 await MainActor.run {
-                    appState.lastCommandOutput = error.localizedDescription
+                    appState.lastCommandOutput = appState.connectionErrorMessage(error, server: server)
                 }
             }
         }

@@ -4,6 +4,7 @@ import StoreKit
 enum StoreKitServiceError: LocalizedError {
     case failedVerification
     case userCancelled
+    case pendingApproval
     case purchaseFailed(String)
 
     var errorDescription: String? {
@@ -12,6 +13,8 @@ enum StoreKitServiceError: LocalizedError {
             return L10n.string("Purchase verification failed.")
         case .userCancelled:
             return L10n.string("Purchase was cancelled.")
+        case .pendingApproval:
+            return L10n.string("Purchase is pending approval.")
         case .purchaseFailed(let msg):
             return msg
         }
@@ -49,6 +52,9 @@ final class StoreKitService: ObservableObject {
         do {
             products = try await Product.products(for: Self.productIDs)
                 .sorted { $0.price < $1.price }
+            statusMessage = products.isEmpty
+                ? L10n.string("No StoreKit products were returned.")
+                : ""
         } catch {
             products = []
             statusMessage = L10n.string("Could not load products: %@", error.localizedDescription)
@@ -65,7 +71,7 @@ final class StoreKitService: ObservableObject {
             await transaction.finish()
             return state(from: transaction)
         case .pending:
-            throw StoreKitServiceError.purchaseFailed(L10n.string("Purchase is pending approval."))
+            throw StoreKitServiceError.pendingApproval
         case .userCancelled:
             throw StoreKitServiceError.userCancelled
         @unknown default:
@@ -92,7 +98,7 @@ final class StoreKitService: ObservableObject {
         for await result in Transaction.currentEntitlements {
             guard let transaction = try? checkVerified(result) else { continue }
             let s = state(from: transaction)
-            if s.isActive { best = s }
+            if s.isPro, s.isBetterEntitlement(than: best) { best = s }
             await transaction.finish()
         }
         best.productsLoaded = !products.isEmpty
@@ -107,9 +113,9 @@ final class StoreKitService: ObservableObject {
     private func listenForTransactions() async {
         for await result in Transaction.updates {
             guard let transaction = try? checkVerified(result) else { continue }
-            let s = state(from: transaction)
-            onSubscriptionChange?(s)
             await transaction.finish()
+            let current = await verifyCurrentEntitlements()
+            onSubscriptionChange?(current)
         }
     }
 
@@ -120,9 +126,9 @@ final class StoreKitService: ObservableObject {
         s.expiresAt = transaction.expirationDate
 
         let product = products.first { $0.id == transaction.productID }
-        let isNonConsumable = product?.type == .nonConsumable
+        let isLifetime = product?.type == .nonConsumable || transaction.productID.contains("lifetime")
 
-        if isNonConsumable {
+        if isLifetime {
             // Non-consumable (lifetime): never expires, only revocable
             s.plan = .lifetime
             s.isActive = transaction.revocationDate == nil
