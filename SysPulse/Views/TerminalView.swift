@@ -11,6 +11,8 @@ struct TerminalView: View {
     @State private var controlModifierActive: Bool = false
     @State private var altModifierActive: Bool = false
     @State private var ptySessions: [UUID: PTYSession] = [:]
+    @State private var terminalViewportSizes: [UUID: PTYTerminalSize] = [:]
+    @State private var pendingPTYConnections: [UUID: ServerProfile] = [:]
     @State private var runtimeStates: [UUID: TerminalRuntimeState] = [:]
     @State private var terminalSurfaceVisible = false
     @State private var terminalSearchText = ""
@@ -232,7 +234,7 @@ struct TerminalView: View {
                         handleTerminalInput(outboundBytes)
                     },
                     onResize: { cols, rows in
-                        ptySessions[session.id]?.resize(cols: cols, rows: rows)
+                        handleTerminalResize(sessionID: session.id, cols: cols, rows: rows)
                     }
                 )
                 .padding(.horizontal, 10)
@@ -1044,7 +1046,7 @@ struct TerminalView: View {
 
         if ptySessions[sessionID] == nil {
             append("[Reconnecting PTY…]\n", to: sessionID)
-            connectPTY(sessionID: sessionID, server: server)
+            connectPTYWhenViewportReady(sessionID: sessionID, server: server)
         }
 
         if mirrorInput {
@@ -1056,6 +1058,22 @@ struct TerminalView: View {
     private func focusActiveTerminal() {
         guard let id = activeSessionID else { return }
         terminalBridgeStore.bridge(for: id).focus()
+    }
+
+    private func handleTerminalResize(sessionID: UUID, cols: Int, rows: Int) {
+        let size = PTYTerminalSize(cols: cols, rows: rows)
+        guard size.isUsable else { return }
+        terminalViewportSizes[sessionID] = size
+        ptySessions[sessionID]?.resize(cols: cols, rows: rows)
+
+        if let pendingServer = pendingPTYConnections[sessionID],
+           ptySessions[sessionID] == nil {
+            connectPTY(sessionID: sessionID, server: pendingServer, initialSize: size)
+        }
+
+        if activeSessionID == sessionID {
+            focusActiveTerminal()
+        }
     }
 
     // MARK: - Session management
@@ -1077,7 +1095,7 @@ struct TerminalView: View {
                 runtimeStates[existing.id] = TerminalRuntimeState(server: server)
             }
             if ptySessions[existing.id] == nil {
-                connectPTY(sessionID: existing.id, server: server)
+                connectPTYWhenViewportReady(sessionID: existing.id, server: server)
             }
         } else {
             createSession(for: server)
@@ -1100,14 +1118,38 @@ struct TerminalView: View {
         if !appState.isScreenshotMode {
             keyboardActive = true
         }
-        connectPTY(sessionID: session.id, server: server)
+        connectPTYWhenViewportReady(sessionID: session.id, server: server)
     }
 
-    private func connectPTY(sessionID: UUID, server: ServerProfile) {
+    private func connectPTYWhenViewportReady(sessionID: UUID, server: ServerProfile) {
+        guard ptySessions[sessionID] == nil else { return }
+        if appState.isScreenshotMode {
+            connectPTY(sessionID: sessionID, server: server, initialSize: nil)
+            return
+        }
+        if let size = terminalViewportSizes[sessionID], size.isUsable {
+            pendingPTYConnections.removeValue(forKey: sessionID)
+            connectPTY(sessionID: sessionID, server: server, initialSize: size)
+        } else {
+            pendingPTYConnections[sessionID] = server
+            sessionConnectionStates[sessionID] = .connecting
+            focusActiveTerminal()
+            Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(650))
+                guard pendingPTYConnections[sessionID]?.id == server.id,
+                      ptySessions[sessionID] == nil else { return }
+                let fallbackSize = terminalViewportSizes[sessionID] ?? PTYTerminalSize(cols: 42, rows: 20)
+                connectPTY(sessionID: sessionID, server: server, initialSize: fallbackSize)
+            }
+        }
+    }
+
+    private func connectPTY(sessionID: UUID, server: ServerProfile, initialSize: PTYTerminalSize?) {
         var state = runtimeStates[sessionID] ?? TerminalRuntimeState(server: server)
         state.host = server.host
         runtimeStates[sessionID] = state
         sessionConnectionStates[sessionID] = .connecting
+        pendingPTYConnections.removeValue(forKey: sessionID)
         if appState.isScreenshotMode {
             let transcript = appState.screenshotTerminalTranscript(for: server)
             if let index = appState.terminalSessions.firstIndex(where: { $0.id == sessionID }) {
@@ -1139,6 +1181,7 @@ struct TerminalView: View {
         let bridge = terminalBridgeStore.bridge(for: sessionID)
         pty.onData = { [weak bridge] bytes in
             bridge?.feed(bytes)
+            bridge?.focus()
         }
         pty.onDisconnect = { [appStateRef] error in
             sessionConnectionStates[sessionID] = .disconnected
@@ -1154,7 +1197,8 @@ struct TerminalView: View {
             }
         }
         ptySessions[sessionID] = pty
-        pty.connect(to: server, using: appStateRef.sshClient)
+        pty.connect(to: server, using: appStateRef.sshClient, initialSize: initialSize)
+        focusActiveTerminal()
     }
 
     private func welcomeTranscript(for server: ServerProfile) -> String { "" }
@@ -1184,6 +1228,8 @@ struct TerminalView: View {
     private func closeSession(_ id: UUID) {
         ptySessions[id]?.disconnect()
         ptySessions.removeValue(forKey: id)
+        terminalViewportSizes.removeValue(forKey: id)
+        pendingPTYConnections.removeValue(forKey: id)
         runtimeStates.removeValue(forKey: id)
         sessionConnectionStates.removeValue(forKey: id)
         terminalBridgeStore.remove(id)
@@ -1243,7 +1289,7 @@ struct TerminalView: View {
         append(message, to: sessionID)
         bridge.feed(Array(message.utf8))
         appState.haptic(.light)
-        connectPTY(sessionID: sessionID, server: server)
+        connectPTYWhenViewportReady(sessionID: sessionID, server: server)
     }
 
     private func leaveTerminal(to tab: AppTab) {
@@ -1633,12 +1679,22 @@ private struct SwiftTermTerminalSurface: UIViewRepresentable {
                 terminalView?.feed(text: terminalReplayResetSequence)
             },
             focus: { [weak terminalView] in
-                DispatchQueue.main.async {
-                    _ = terminalView?.becomeFirstResponder()
-                }
+                focusTerminalView(terminalView)
             }
         )
         scheduleOutputReadinessFallback(for: terminalView)
+    }
+
+    private func focusTerminalView(_ terminalView: SwiftTerm.TerminalView?) {
+        DispatchQueue.main.async { [weak terminalView] in
+            _ = terminalView?.becomeFirstResponder()
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) { [weak terminalView] in
+            _ = terminalView?.becomeFirstResponder()
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.48) { [weak terminalView] in
+            _ = terminalView?.becomeFirstResponder()
+        }
     }
 
     private func scheduleOutputReadinessFallback(for terminalView: SwiftTerm.TerminalView) {
