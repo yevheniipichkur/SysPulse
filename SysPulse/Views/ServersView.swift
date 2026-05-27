@@ -211,7 +211,7 @@ struct ServerCardView: View {
                             .fill(accent.opacity(0.16))
                             .frame(width: 52, height: 52)
                             .shadow(color: accent.opacity(0.25), radius: 16)
-                        Image(systemName: server.serverType.symbol)
+                        Image(systemName: server.displayIcon)
                             .font(.title3.weight(.semibold))
                             .foregroundStyle(accent)
                     }
@@ -603,13 +603,7 @@ struct AddServerView: View {
                                 symbol: "tag"
                             )
                             ServerFormDivider()
-                            ServerFormTextField(
-                                title: "Icon",
-                                placeholder: LocalizedStringKey(serverType.symbol),
-                                text: $icon,
-                                symbol: "square.grid.2x2",
-                                autocapitalization: .never
-                            )
+                            ServerIconPicker(selection: $icon, serverType: serverType, accent: accent)
                             ServerFormDivider()
                             ServerAccentPicker(selection: $accentHex)
                         }
@@ -872,6 +866,8 @@ struct AddServerView: View {
             username: username,
             authenticationType: authType,
             credentialIdentifier: credentialID,
+            icon: icon,
+            accentHex: accentHex,
             serverType: serverType,
             status: .unknown
         )
@@ -1068,6 +1064,91 @@ private struct ServerPickerRow<Content: View>: View {
     }
 }
 
+private struct ServerIconPicker: View {
+    @Binding var selection: String
+    var serverType: ServerType
+    var accent: Color
+
+    private static let choices = [
+        "server.rack",
+        "desktopcomputer",
+        "externaldrive.connected.to.line.below",
+        "cpu",
+        "network",
+        "terminal",
+        "folder",
+        "cloud",
+        "shippingbox",
+        "lock.shield",
+        "house",
+        "building.2",
+        "antenna.radiowaves.left.and.right",
+        "bolt.horizontal.circle",
+        "memorychip"
+    ]
+
+    private var selectedSymbol: String {
+        let trimmed = selection.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? serverType.symbol : trimmed
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 10) {
+                Image(systemName: selectedSymbol)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(accent)
+                    .frame(width: 28, height: 28)
+                    .background(accent.opacity(0.12), in: Circle())
+
+                Text("Icon")
+                    .font(.callout.weight(.semibold))
+
+                Spacer()
+
+                TextField(LocalizedStringKey(serverType.symbol), text: $selection)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .font(.caption.monospaced().weight(.semibold))
+                    .multilineTextAlignment(.trailing)
+                    .frame(width: 160)
+            }
+
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 42), spacing: 9)], spacing: 9) {
+                ForEach(Self.choices, id: \.self) { symbol in
+                    iconButton(symbol)
+                }
+            }
+        }
+        .frame(minHeight: 112)
+        .accessibilityElement(children: .contain)
+    }
+
+    private func iconButton(_ symbol: String) -> some View {
+        let isSelected = selectedSymbol == symbol
+
+        return Button {
+            selection = symbol
+        } label: {
+            Image(systemName: symbol)
+                .font(.headline.weight(.semibold))
+                .foregroundStyle(isSelected ? accent : .secondary)
+                .frame(width: 42, height: 42)
+                .background(
+                    (isSelected ? accent.opacity(0.16) : Color.primary.opacity(0.055)),
+                    in: RoundedRectangle(cornerRadius: 14, style: .continuous)
+                )
+                .overlay {
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .stroke(isSelected ? accent.opacity(0.55) : Color.primary.opacity(0.08), lineWidth: isSelected ? 1.5 : 1)
+                }
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(Text("Server icon"))
+        .accessibilityValue(Text(isSelected ? "Selected" : symbol))
+    }
+}
+
 private struct ServerAccentPicker: View {
     @Binding var selection: String
 
@@ -1127,7 +1208,8 @@ private struct ServerAccentPicker: View {
                 .shadow(color: Color(hex: hex).opacity(isSelected ? 0.35 : 0.12), radius: isSelected ? 10 : 4)
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(Text("Accent \(hex)"))
+        .accessibilityLabel(Text("Accent"))
+        .accessibilityValue(Text(hex))
     }
 }
 

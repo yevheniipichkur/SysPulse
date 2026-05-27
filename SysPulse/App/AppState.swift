@@ -47,6 +47,7 @@ final class AppState: ObservableObject {
     @Published var sftpPathByServer: [UUID: String] = [:]
     @Published var sftpLoadingServerIDs: Set<UUID> = []
     @Published var sftpErrorByServer: [UUID: String] = [:]
+    @Published var sftpOperationsByServer: [UUID: [SFTPOperation]] = [:]
     @Published var metricRefreshingServerIDs: Set<UUID> = []
     @Published var metricErrorByServer: [UUID: String] = [:]
     @Published var alertRules: [AlertRule] = []
@@ -171,7 +172,7 @@ final class AppState: ObservableObject {
     }
 
     var shouldReduceMotion: Bool {
-        settings.reduceAnimations || areUITestAnimationsDisabled
+        settings.reduceAnimations || areUITestAnimationsDisabled || UIAccessibility.isReduceMotionEnabled
     }
 
     func localized(_ key: String, _ arguments: CVarArg...) -> String {
@@ -380,6 +381,22 @@ final class AppState: ObservableObject {
         return sftpErrorByServer[server.id]
     }
 
+    func sftpOperations(for server: ServerProfile?) -> [SFTPOperation] {
+        guard let server else { return [] }
+        return sftpOperationsByServer[server.id] ?? []
+    }
+
+    func clearFinishedSFTPOperations(for server: ServerProfile?) {
+        guard let server else { return }
+        sftpOperationsByServer[server.id] = sftpOperations(for: server).filter { $0.status == .running }
+    }
+
+    func dismissSFTPOperation(_ operation: SFTPOperation) {
+        var operations = sftpOperationsByServer[operation.serverID] ?? []
+        operations.removeAll { $0.id == operation.id }
+        sftpOperationsByServer[operation.serverID] = operations
+    }
+
     func isRefreshingMetrics(for server: ServerProfile?) -> Bool {
         guard let server else { return false }
         return metricRefreshingServerIDs.contains(server.id)
@@ -465,6 +482,7 @@ final class AppState: ObservableObject {
         sftpPathByServer.removeValue(forKey: serverID)
         sftpLoadingServerIDs.remove(serverID)
         sftpErrorByServer.removeValue(forKey: serverID)
+        sftpOperationsByServer.removeValue(forKey: serverID)
         sftpLoadTokensByServer.removeValue(forKey: serverID)
         metricRefreshingServerIDs.remove(serverID)
         metricErrorByServer.removeValue(forKey: serverID)
@@ -795,6 +813,43 @@ final class AppState: ObservableObject {
         }
     }
 
+    @discardableResult
+    private func beginSFTPOperation(
+        kind: SFTPOperationKind,
+        fileName: String,
+        server: ServerProfile,
+        remotePath: String
+    ) -> UUID {
+        let operation = SFTPOperation(
+            serverID: server.id,
+            kind: kind,
+            fileName: fileName,
+            remotePath: remotePath,
+            status: .running,
+            message: localized("Waiting for server...")
+        )
+        var operations = sftpOperationsByServer[server.id] ?? []
+        operations.insert(operation, at: 0)
+        sftpOperationsByServer[server.id] = Array(operations.prefix(8))
+        return operation.id
+    }
+
+    private func finishSFTPOperation(
+        _ operationID: UUID,
+        serverID: UUID,
+        status: SFTPOperationStatus,
+        message: String
+    ) {
+        guard var operations = sftpOperationsByServer[serverID],
+              let index = operations.firstIndex(where: { $0.id == operationID }) else {
+            return
+        }
+        operations[index].status = status
+        operations[index].message = message
+        operations[index].completedAt = status == .running ? nil : .now
+        sftpOperationsByServer[serverID] = Array(operations.prefix(8))
+    }
+
     func refreshSFTPDirectory(for server: ServerProfile? = nil, path: String? = nil) {
         guard let targetServer = server ?? selectedServer else {
             lastCommandOutput = localized("Select a server before running commands.")
@@ -841,26 +896,31 @@ final class AppState: ObservableObject {
     }
 
     func uploadSFTPFile(from url: URL, to server: ServerProfile) {
+        let fileName = url.lastPathComponent
+        let directory = sftpPath(for: server)
+        let operationID = beginSFTPOperation(kind: .upload, fileName: fileName, server: server, remotePath: directory)
         let didStartAccess = url.startAccessingSecurityScopedResource()
         let data: Data
         do {
             data = try Data(contentsOf: url)
         } catch {
-            lastCommandOutput = localized("Could not read the local file: %@", error.localizedDescription)
+            let message = localized("Could not read the local file: %@", error.localizedDescription)
+            finishSFTPOperation(operationID, serverID: server.id, status: .failed, message: message)
+            lastCommandOutput = message
             if didStartAccess { url.stopAccessingSecurityScopedResource() }
             return
         }
         if didStartAccess { url.stopAccessingSecurityScopedResource() }
 
-        let fileName = url.lastPathComponent
-        let directory = sftpPath(for: server)
         lastCommandOutput = localized("Uploading %@ via SFTP...", fileName)
+        finishSFTPOperation(operationID, serverID: server.id, status: .running, message: localized("Uploading to %@...", directory))
         sftpErrorByServer.removeValue(forKey: server.id)
         Task {
             do {
                 try await sftpService.upload(data, named: fileName, to: directory, server: server, via: sshClient)
                 await MainActor.run {
                     sftpErrorByServer.removeValue(forKey: server.id)
+                    finishSFTPOperation(operationID, serverID: server.id, status: .succeeded, message: localized("Uploaded %@.", fileName))
                     lastCommandOutput = localized("Uploaded %@ via SFTP.", fileName)
                     refreshSFTPDirectory(for: server)
                 }
@@ -868,6 +928,7 @@ final class AppState: ObservableObject {
                 await MainActor.run {
                     let message = connectionErrorMessage(error, server: server)
                     sftpErrorByServer[server.id] = message
+                    finishSFTPOperation(operationID, serverID: server.id, status: .failed, message: message)
                     lastCommandOutput = localized("SFTP failed for %@: %@", server.name, message)
                 }
             }
@@ -875,31 +936,38 @@ final class AppState: ObservableObject {
     }
 
     func downloadSFTPFile(_ item: SFTPRemoteItem, from server: ServerProfile) async -> URL? {
+        let operationID = beginSFTPOperation(kind: .download, fileName: item.name, server: server, remotePath: item.path)
         lastCommandOutput = localized("Downloading %@ via SFTP...", item.name)
+        finishSFTPOperation(operationID, serverID: server.id, status: .running, message: localized("Downloading from %@...", item.path))
         sftpErrorByServer.removeValue(forKey: server.id)
         do {
             let data = try await sftpService.download(item, server: server, via: sshClient)
             let url = FileManager.default.temporaryDirectory.appendingPathComponent(item.name)
             try data.write(to: url, options: .atomic)
             sftpErrorByServer.removeValue(forKey: server.id)
+            finishSFTPOperation(operationID, serverID: server.id, status: .succeeded, message: localized("Download ready."))
             lastCommandOutput = localized("Downloaded %@ via SFTP.", item.name)
             return url
         } catch {
             let message = connectionErrorMessage(error, server: server)
             sftpErrorByServer[server.id] = message
+            finishSFTPOperation(operationID, serverID: server.id, status: .failed, message: message)
             lastCommandOutput = localized("SFTP failed for %@: %@", server.name, message)
             return nil
         }
     }
 
     func deleteSFTPItem(_ item: SFTPRemoteItem, from server: ServerProfile) {
+        let operationID = beginSFTPOperation(kind: .delete, fileName: item.name, server: server, remotePath: item.path)
         lastCommandOutput = localized("Deleting %@ via SFTP...", item.name)
+        finishSFTPOperation(operationID, serverID: server.id, status: .running, message: localized("Deleting from %@...", item.path))
         sftpErrorByServer.removeValue(forKey: server.id)
         Task {
             do {
                 try await sftpService.delete(item, server: server, via: sshClient)
                 await MainActor.run {
                     sftpErrorByServer.removeValue(forKey: server.id)
+                    finishSFTPOperation(operationID, serverID: server.id, status: .succeeded, message: localized("Deleted %@.", item.name))
                     lastCommandOutput = localized("Deleted %@ via SFTP.", item.name)
                     refreshSFTPDirectory(for: server)
                 }
@@ -907,6 +975,7 @@ final class AppState: ObservableObject {
                 await MainActor.run {
                     let message = connectionErrorMessage(error, server: server)
                     sftpErrorByServer[server.id] = message
+                    finishSFTPOperation(operationID, serverID: server.id, status: .failed, message: message)
                     lastCommandOutput = localized("SFTP failed for %@: %@", server.name, message)
                 }
             }
@@ -915,7 +984,10 @@ final class AppState: ObservableObject {
 
     func deleteSFTPItems(_ items: [SFTPRemoteItem], from server: ServerProfile) {
         guard !items.isEmpty else { return }
+        let operationTitle = localized("%d items", items.count)
+        let operationID = beginSFTPOperation(kind: .delete, fileName: operationTitle, server: server, remotePath: sftpPath(for: server))
         lastCommandOutput = localized("Deleting %d SFTP items...", items.count)
+        finishSFTPOperation(operationID, serverID: server.id, status: .running, message: localized("Deleting %d items...", items.count))
         sftpErrorByServer.removeValue(forKey: server.id)
         Task {
             do {
@@ -924,6 +996,7 @@ final class AppState: ObservableObject {
                 }
                 await MainActor.run {
                     sftpErrorByServer.removeValue(forKey: server.id)
+                    finishSFTPOperation(operationID, serverID: server.id, status: .succeeded, message: localized("Deleted %d items.", items.count))
                     lastCommandOutput = localized("Deleted %d SFTP items.", items.count)
                     refreshSFTPDirectory(for: server)
                 }
@@ -931,6 +1004,7 @@ final class AppState: ObservableObject {
                 await MainActor.run {
                     let message = connectionErrorMessage(error, server: server)
                     sftpErrorByServer[server.id] = message
+                    finishSFTPOperation(operationID, serverID: server.id, status: .failed, message: message)
                     lastCommandOutput = localized("SFTP failed for %@: %@", server.name, message)
                 }
             }

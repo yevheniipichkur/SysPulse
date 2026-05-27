@@ -20,6 +20,7 @@ struct SFTPFilesView: View {
     private var allItems: [SFTPRemoteItem] { appState.sftpItems(for: server) }
     private var isLoading: Bool { appState.isSFTPLoading(for: server) }
     private var loadError: String? { appState.sftpError(for: server) }
+    private var operations: [SFTPOperation] { appState.sftpOperations(for: server) }
     private var activeAnimation: Animation? {
         SysPulseMotion.softSpring(disabled: appState.shouldReduceMotion)
     }
@@ -135,6 +136,11 @@ struct SFTPFilesView: View {
                         .transition(.move(edge: .top).combined(with: .opacity))
                 }
 
+                if !operations.isEmpty {
+                    sftpOperationCenter(server: server)
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                }
+
                 pathCard(server: server)
 
                 if let loadError, !loadError.isEmpty, !allItems.isEmpty {
@@ -175,6 +181,7 @@ struct SFTPFilesView: View {
             .animation(activeAnimation, value: visibleItems)
             .animation(activeAnimation, value: isLoading)
             .animation(activeAnimation, value: pendingNavigationPath)
+            .animation(activeAnimation, value: operations)
         }
         .refreshable {
             appState.refreshSFTPDirectory(for: server)
@@ -190,13 +197,14 @@ struct SFTPFilesView: View {
     }
 
     private func sftpHeader(server: ServerProfile) -> some View {
+        let accent = Color(hex: server.accentHex)
         GlassCard(cornerRadius: 28, padding: 16) {
             HStack(spacing: 14) {
-                Image(systemName: "folder.fill")
+                Image(systemName: server.displayIcon)
                     .font(.title2.weight(.semibold))
-                    .foregroundStyle(.blue)
+                    .foregroundStyle(accent)
                     .frame(width: 50, height: 50)
-                    .background(.blue.opacity(0.14), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    .background(accent.opacity(0.14), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
 
                 VStack(alignment: .leading, spacing: 5) {
                     Text(server.name)
@@ -224,7 +232,7 @@ struct SFTPFilesView: View {
                             .frame(width: 34, height: 34)
                     }
                     .buttonStyle(PressableGlassButtonStyle(cornerRadius: 14, verticalPadding: 0, horizontalPadding: 0))
-                    .accessibilityLabel("Upload File")
+                    .accessibilityLabel(Text("Upload File"))
 
                     Button {
                         appState.refreshSFTPDirectory(for: server)
@@ -233,7 +241,7 @@ struct SFTPFilesView: View {
                         .frame(width: 34, height: 34)
                     }
                     .buttonStyle(PressableGlassButtonStyle(cornerRadius: 14, verticalPadding: 0, horizontalPadding: 0))
-                    .accessibilityLabel("Refresh Files")
+                    .accessibilityLabel(Text("Refresh Files"))
                 }
             }
         }
@@ -267,7 +275,7 @@ struct SFTPFilesView: View {
                     }
                     .buttonStyle(PressableGlassButtonStyle(cornerRadius: 13, verticalPadding: 0, horizontalPadding: 0))
                     .disabled(currentPath == "." || currentPath == "~")
-                    .accessibilityLabel("Go to Home")
+                    .accessibilityLabel(Text("Go to Home"))
 
                     Button {
                         navigate(to: parentPath, server: server)
@@ -276,7 +284,7 @@ struct SFTPFilesView: View {
                     }
                     .buttonStyle(PressableGlassButtonStyle(cornerRadius: 13, verticalPadding: 0, horizontalPadding: 0))
                     .disabled(currentPath == "." || currentPath == "/")
-                    .accessibilityLabel("Go Up")
+                    .accessibilityLabel(Text("Go Up"))
                 }
 
                 ScrollView(.horizontal) {
@@ -336,6 +344,7 @@ struct SFTPFilesView: View {
                             .frame(width: 32, height: 32)
                     }
                     .buttonStyle(PressableGlassButtonStyle(cornerRadius: 13, verticalPadding: 0, horizontalPadding: 0))
+                    .accessibilityLabel(Text("Share downloaded file"))
                 }
 
                 Button {
@@ -345,8 +354,108 @@ struct SFTPFilesView: View {
                         .frame(width: 32, height: 32)
                 }
                 .buttonStyle(PressableGlassButtonStyle(tint: .gray, cornerRadius: 13, verticalPadding: 0, horizontalPadding: 0))
+                .accessibilityLabel(Text("Dismiss download"))
             }
         }
+    }
+
+    private func sftpOperationCenter(server: ServerProfile) -> some View {
+        let runningCount = operations.filter { $0.status == .running }.count
+        let hasFinishedOperations = operations.contains { $0.status != .running }
+
+        return GlassCard(cornerRadius: 22, padding: 14) {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(spacing: 10) {
+                    Label("SFTP Operations", systemImage: "arrow.up.arrow.down.circle")
+                        .font(.headline)
+
+                    Spacer(minLength: 8)
+
+                    if runningCount > 0 {
+                        Label(appState.localized("%d active", runningCount), systemImage: "bolt.fill")
+                            .font(.caption.weight(.bold))
+                            .foregroundStyle(.cyan)
+                            .padding(.horizontal, 9)
+                            .frame(height: 26)
+                            .background(.cyan.opacity(0.12), in: Capsule())
+                            .accessibilityLabel(Text(appState.localized("%d active SFTP operations", runningCount)))
+                    }
+
+                    if hasFinishedOperations {
+                        Button {
+                            appState.clearFinishedSFTPOperations(for: server)
+                        } label: {
+                            Image(systemName: "checkmark.circle")
+                                .frame(width: 30, height: 30)
+                        }
+                        .buttonStyle(PressableGlassButtonStyle(tint: .gray, cornerRadius: 12, verticalPadding: 0, horizontalPadding: 0))
+                        .accessibilityLabel(Text("Clear finished operations"))
+                    }
+                }
+
+                VStack(spacing: 9) {
+                    ForEach(operations.prefix(4)) { operation in
+                        sftpOperationRow(operation)
+                    }
+                }
+            }
+        }
+    }
+
+    private func sftpOperationRow(_ operation: SFTPOperation) -> some View {
+        HStack(spacing: 11) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 13, style: .continuous)
+                    .fill(operation.status.color.opacity(0.13))
+                    .frame(width: 38, height: 38)
+                Image(systemName: operation.kind.symbol)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(operation.status.color)
+            }
+
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(spacing: 6) {
+                    Text(operation.kind.titleKey)
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(operation.status.color)
+                    Text(operation.fileName)
+                        .font(.subheadline.weight(.semibold))
+                        .lineLimit(1)
+                }
+
+                Text(operation.message)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+            }
+            .layoutPriority(1)
+
+            Spacer(minLength: 4)
+
+            if operation.status == .running {
+                ProgressView()
+                    .controlSize(.small)
+                    .accessibilityLabel(Text("Running"))
+            } else {
+                Image(systemName: operation.status.symbol)
+                    .font(.headline)
+                    .foregroundStyle(operation.status.color)
+                    .accessibilityHidden(true)
+
+                Button {
+                    appState.dismissSFTPOperation(operation)
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.caption.weight(.bold))
+                        .frame(width: 28, height: 28)
+                }
+                .buttonStyle(PressableGlassButtonStyle(tint: .gray, cornerRadius: 11, verticalPadding: 0, horizontalPadding: 0))
+                .accessibilityLabel(Text("Dismiss operation"))
+            }
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 9)
+        .background(Color.primary.opacity(0.045), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 
     private var skeletonList: some View {
@@ -442,7 +551,7 @@ struct SFTPFilesView: View {
                         .frame(width: 34, height: 34)
                 }
                 .buttonStyle(PressableGlassButtonStyle(tint: .orange, cornerRadius: 13, verticalPadding: 0, horizontalPadding: 0))
-                .accessibilityLabel("Try Again")
+                .accessibilityLabel(Text("Try Again"))
             }
         }
     }
@@ -526,6 +635,7 @@ struct SFTPFilesView: View {
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel(Text(verbatim: fileAccessibilityLabel(for: item)))
 
                 VStack(alignment: .trailing, spacing: 4) {
                     if !item.modifiedAt.isEmpty {
@@ -546,7 +656,7 @@ struct SFTPFilesView: View {
                                     .frame(width: 30, height: 30)
                             }
                             .buttonStyle(PressableGlassButtonStyle(cornerRadius: 12, verticalPadding: 0, horizontalPadding: 0))
-                            .accessibilityLabel("Download")
+                            .accessibilityLabel(Text("Download"))
                             .disabled(isSelectionMode)
                         }
 
@@ -558,7 +668,7 @@ struct SFTPFilesView: View {
                                 .frame(width: 30, height: 30)
                         }
                         .buttonStyle(PressableGlassButtonStyle(tint: .red, cornerRadius: 12, verticalPadding: 0, horizontalPadding: 0))
-                        .accessibilityLabel("Delete")
+                        .accessibilityLabel(Text("Delete"))
                         .disabled(isSelectionMode)
 
                         if item.isDirectory {
@@ -823,7 +933,7 @@ struct SFTPFilesView: View {
             } label: {
                 Image(systemName: "arrow.up.doc")
             }
-            .accessibilityLabel("Upload File")
+            .accessibilityLabel(Text("Upload File"))
 
             Menu {
                 if let server {
@@ -857,6 +967,17 @@ struct SFTPFilesView: View {
 
     private func formatSize(_ bytes: Int64) -> String {
         ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)
+    }
+
+    private func fileAccessibilityLabel(for item: SFTPRemoteItem) -> String {
+        var details = [appState.localized(item.kind.titleText)]
+        if !item.isDirectory && item.size > 0 {
+            details.append(formatSize(item.size))
+        }
+        if !item.permissions.isEmpty {
+            details.append(item.permissions)
+        }
+        return "\(item.name), \(details.joined(separator: ", "))"
     }
 
     private func toggleSelection(_ item: SFTPRemoteItem) {

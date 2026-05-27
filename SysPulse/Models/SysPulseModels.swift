@@ -416,6 +416,92 @@ final class ServerProfile: Identifiable {
             .map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
     }
+
+    var displayIcon: String {
+        let trimmedIcon = icon.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmedIcon.isEmpty ? serverType.symbol : trimmedIcon
+    }
+}
+
+enum SFTPOperationKind: String, Codable, CaseIterable, Identifiable, Hashable {
+    case upload
+    case download
+    case delete
+
+    var id: String { rawValue }
+
+    var titleKey: LocalizedStringKey {
+        switch self {
+        case .upload:
+            "Upload"
+        case .download:
+            "Download"
+        case .delete:
+            "Delete"
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .upload:
+            "arrow.up.doc"
+        case .download:
+            "arrow.down.doc"
+        case .delete:
+            "trash"
+        }
+    }
+}
+
+enum SFTPOperationStatus: String, Codable, Hashable {
+    case running
+    case succeeded
+    case failed
+
+    var titleKey: LocalizedStringKey {
+        switch self {
+        case .running:
+            "Running"
+        case .succeeded:
+            "Done"
+        case .failed:
+            "Failed"
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .running:
+            "arrow.triangle.2.circlepath"
+        case .succeeded:
+            "checkmark.circle.fill"
+        case .failed:
+            "xmark.octagon.fill"
+        }
+    }
+
+    var color: Color {
+        switch self {
+        case .running:
+            .cyan
+        case .succeeded:
+            .green
+        case .failed:
+            .red
+        }
+    }
+}
+
+struct SFTPOperation: Identifiable, Codable, Equatable, Hashable {
+    var id: UUID = UUID()
+    var serverID: UUID
+    var kind: SFTPOperationKind
+    var fileName: String
+    var remotePath: String
+    var status: SFTPOperationStatus
+    var message: String
+    var startedAt: Date = .now
+    var completedAt: Date?
 }
 
 struct SSHCredential: Identifiable, Codable, Hashable {
@@ -827,7 +913,7 @@ enum SFTPRemoteItemKind: String, Codable, Hashable {
     case symlink
     case other
 
-    var titleKey: LocalizedStringKey {
+    var titleText: String {
         switch self {
         case .directory:
             "Directory"
@@ -838,6 +924,10 @@ enum SFTPRemoteItemKind: String, Codable, Hashable {
         case .other:
             "Other"
         }
+    }
+
+    var titleKey: LocalizedStringKey {
+        LocalizedStringKey(titleText)
     }
 
     var symbol: String {

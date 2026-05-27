@@ -15,10 +15,12 @@ struct TerminalView: View {
     @State private var terminalSurfaceVisible = false
     @State private var terminalSearchText = ""
     @State private var isTranscriptSearchPresented = false
+    @State private var transcriptSearchSelection = 0
     @State private var sessionConnectionStates: [UUID: TerminalConnectionState] = [:]
     @State private var pendingTerminalCommandConfirmation: TerminalCommandConfirmation?
     @State private var isTerminalCommandConfirmationPresented = false
     @StateObject private var terminalBridgeStore = TerminalBridgeStore()
+    @FocusState private var isTranscriptSearchFieldFocused: Bool
 
     private var selectedServerID: UUID? {
         appState.selectedServer?.id
@@ -88,16 +90,28 @@ struct TerminalView: View {
         TerminalThemePalette(theme: appState.effectiveTerminalTheme)
     }
 
-    private var transcriptSearchMatches: [String] {
+    private var transcriptSearchQuery: String {
+        terminalSearchText.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var transcriptSearchMatches: [TerminalSearchMatch] {
         let query = terminalSearchText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !query.isEmpty,
               let transcript = selectedSession?.transcript else { return [] }
-        return transcript
-            .split(whereSeparator: \.isNewline)
-            .map(String.init)
-            .filter { $0.localizedCaseInsensitiveContains(query) }
-            .suffix(12)
-            .map { $0 }
+        let matches = transcript
+            .split(separator: "\n", omittingEmptySubsequences: false)
+            .enumerated()
+            .compactMap { index, line -> TerminalSearchMatch? in
+                let text = plainTerminalSearchText(String(line))
+                guard text.localizedCaseInsensitiveContains(query) else { return nil }
+                return TerminalSearchMatch(lineNumber: index + 1, text: text.isEmpty ? " " : text)
+            }
+        return Array(matches.suffix(80))
+    }
+
+    private var selectedTranscriptSearchMatch: TerminalSearchMatch? {
+        guard transcriptSearchMatches.indices.contains(transcriptSearchSelection) else { return transcriptSearchMatches.first }
+        return transcriptSearchMatches[transcriptSearchSelection]
     }
 
     var body: some View {
@@ -139,6 +153,16 @@ struct TerminalView: View {
                 try? await Task.sleep(for: .seconds(appState.shouldReduceMotion ? 0.05 : 0.35))
                 keyboardActive = true
                 focusActiveTerminal()
+            }
+        }
+        .onChange(of: terminalSearchText) { _, _ in
+            transcriptSearchSelection = 0
+        }
+        .onChange(of: transcriptSearchMatches.count) { _, count in
+            if count == 0 {
+                transcriptSearchSelection = 0
+            } else {
+                transcriptSearchSelection = min(transcriptSearchSelection, count - 1)
             }
         }
         .alert("Confirm remote command", isPresented: $isTerminalCommandConfirmationPresented) {
@@ -250,13 +274,22 @@ struct TerminalView: View {
             }
             .buttonStyle(.plain)
             .foregroundStyle(palette.chromeForeground)
-            .accessibilityLabel("Reconnect")
+            .accessibilityLabel(Text("Reconnect"))
 
             Button {
                 updateWithMotion {
                     isTranscriptSearchPresented.toggle()
                     if !isTranscriptSearchPresented {
                         terminalSearchText = ""
+                        isTranscriptSearchFieldFocused = false
+                    } else {
+                        transcriptSearchSelection = 0
+                    }
+                }
+                if isTranscriptSearchPresented {
+                    Task { @MainActor in
+                        try? await Task.sleep(for: .milliseconds(120))
+                        isTranscriptSearchFieldFocused = true
                     }
                 }
             } label: {
@@ -265,7 +298,7 @@ struct TerminalView: View {
             }
             .buttonStyle(.plain)
             .foregroundStyle(isTranscriptSearchPresented ? palette.accent : palette.chromeForeground)
-            .accessibilityLabel("Search transcript")
+            .accessibilityLabel(Text("Search transcript"))
 
             Button {
                 UIPasteboard.general.string = selectedSession?.transcript ?? ""
@@ -275,6 +308,7 @@ struct TerminalView: View {
             }
             .buttonStyle(.plain)
             .foregroundStyle(palette.chromeForeground)
+            .accessibilityLabel(Text("Copy transcript"))
 
             Button {
                 clearTranscript()
@@ -284,6 +318,7 @@ struct TerminalView: View {
             }
             .buttonStyle(.plain)
             .foregroundStyle(palette.chromeForeground)
+            .accessibilityLabel(Text("Clear transcript"))
         }
         .padding(.horizontal, 14)
         .padding(.top, 10)
@@ -292,12 +327,13 @@ struct TerminalView: View {
     }
 
     private func activeServerBar(server: ServerProfile, palette: TerminalThemePalette) -> some View {
+        let serverAccent = Color(hex: server.accentHex)
         HStack(spacing: 10) {
-            Image(systemName: server.serverType.symbol)
+            Image(systemName: server.displayIcon)
                 .font(.headline.weight(.semibold))
-                .foregroundStyle(palette.accent)
+                .foregroundStyle(serverAccent)
                 .frame(width: 34, height: 34)
-                .background(palette.accent.opacity(palette.isLight ? 0.12 : 0.16), in: RoundedRectangle(cornerRadius: 11, style: .continuous))
+                .background(serverAccent.opacity(palette.isLight ? 0.12 : 0.16), in: RoundedRectangle(cornerRadius: 11, style: .continuous))
 
             VStack(alignment: .leading, spacing: 2) {
                 Text("Active server")
@@ -340,11 +376,16 @@ struct TerminalView: View {
         .background(palette.activeControlBackground, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .stroke(palette.accent.opacity(palette.isLight ? 0.34 : 0.30), lineWidth: 1)
+                .stroke(serverAccent.opacity(palette.isLight ? 0.40 : 0.32), lineWidth: 1)
         }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(Text(appState.localized("Active server: %@", server.name)))
     }
 
     private func transcriptSearchPanel(palette: TerminalThemePalette) -> some View {
+        let matches = transcriptSearchMatches
+        let selectedMatch = selectedTranscriptSearchMatch
+
         GlassCard(cornerRadius: 18, padding: 12) {
             VStack(alignment: .leading, spacing: 10) {
                 HStack(spacing: 9) {
@@ -354,6 +395,40 @@ struct TerminalView: View {
                         .font(.callout.monospaced())
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
+                        .focused($isTranscriptSearchFieldFocused)
+                        .submitLabel(.search)
+                        .accessibilityLabel(Text("Search transcript"))
+
+                    if !transcriptSearchQuery.isEmpty {
+                        Text(appState.localized("%d matches", matches.count))
+                            .font(.caption2.weight(.bold))
+                            .foregroundStyle(matches.isEmpty ? .secondary : palette.accent)
+                            .padding(.horizontal, 8)
+                            .frame(height: 24)
+                            .background(palette.controlBackground, in: Capsule())
+                            .accessibilityHidden(true)
+                    }
+
+                    Button {
+                        moveTranscriptSearchSelection(-1)
+                    } label: {
+                        Image(systemName: "chevron.up")
+                            .frame(width: 28, height: 28)
+                    }
+                    .buttonStyle(PressableGlassButtonStyle(cornerRadius: 11, verticalPadding: 0, horizontalPadding: 0))
+                    .disabled(matches.isEmpty)
+                    .accessibilityLabel(Text("Previous match"))
+
+                    Button {
+                        moveTranscriptSearchSelection(1)
+                    } label: {
+                        Image(systemName: "chevron.down")
+                            .frame(width: 28, height: 28)
+                    }
+                    .buttonStyle(PressableGlassButtonStyle(cornerRadius: 11, verticalPadding: 0, horizontalPadding: 0))
+                    .disabled(matches.isEmpty)
+                    .accessibilityLabel(Text("Next match"))
+
                     if !terminalSearchText.isEmpty {
                         Button {
                             terminalSearchText = ""
@@ -362,27 +437,73 @@ struct TerminalView: View {
                                 .foregroundStyle(.secondary)
                         }
                         .buttonStyle(.plain)
+                        .accessibilityLabel(Text("Clear search"))
                     }
                 }
 
-                if !terminalSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    if transcriptSearchMatches.isEmpty {
+                if !transcriptSearchQuery.isEmpty {
+                    if matches.isEmpty {
                         Text("No matching lines")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     } else {
-                        VStack(alignment: .leading, spacing: 6) {
-                            ForEach(Array(transcriptSearchMatches.enumerated()), id: \.offset) { _, line in
-                                Text(line)
-                                    .font(.caption.monospaced())
-                                    .foregroundStyle(palette.foreground)
-                                    .lineLimit(1)
+                        if let selectedMatch {
+                            HStack(spacing: 8) {
+                                Label(appState.localized("Line %d", selectedMatch.lineNumber), systemImage: "line.3.horizontal")
+                                    .font(.caption.weight(.bold))
+                                    .foregroundStyle(palette.accent)
+
+                                Spacer()
+
+                                Button {
+                                    copySelectedTranscriptSearchMatch()
+                                } label: {
+                                    Image(systemName: "doc.on.doc")
+                                        .frame(width: 28, height: 28)
+                                }
+                                .buttonStyle(PressableGlassButtonStyle(cornerRadius: 11, verticalPadding: 0, horizontalPadding: 0))
+                                .accessibilityLabel(Text("Copy selected match"))
                             }
                         }
+
+                        ScrollView {
+                            LazyVStack(alignment: .leading, spacing: 6) {
+                                ForEach(Array(matches.enumerated()), id: \.element.id) { index, match in
+                                    Button {
+                                        transcriptSearchSelection = index
+                                    } label: {
+                                        TerminalSearchMatchRow(
+                                            match: match,
+                                            isSelected: index == transcriptSearchSelection,
+                                            palette: palette
+                                        )
+                                    }
+                                    .buttonStyle(.plain)
+                                    .accessibilityLabel(Text(appState.localized("Line %d: %@", match.lineNumber, match.text)))
+                                }
+                            }
+                        }
+                        .frame(maxHeight: 190)
                     }
                 }
             }
         }
+    }
+
+    private func moveTranscriptSearchSelection(_ delta: Int) {
+        let count = transcriptSearchMatches.count
+        guard count > 0 else {
+            transcriptSearchSelection = 0
+            return
+        }
+        transcriptSearchSelection = (transcriptSearchSelection + delta + count) % count
+        appState.haptic(.light)
+    }
+
+    private func copySelectedTranscriptSearchMatch() {
+        guard let selectedTranscriptSearchMatch else { return }
+        UIPasteboard.general.string = selectedTranscriptSearchMatch.text
+        appState.haptic(.light)
     }
 
     private var bottomConsole: some View {
@@ -417,7 +538,7 @@ struct TerminalView: View {
         let palette = terminalPalette
 
         return HStack(spacing: 8) {
-            TerminalIconButton(systemName: "chevron.left", palette: palette) {
+            TerminalIconButton(systemName: "chevron.left", accessibilityLabel: "Back to servers", palette: palette) {
                 leaveTerminal(to: .servers)
             }
 
@@ -426,15 +547,18 @@ struct TerminalView: View {
                     Button("Add Server") { leaveTerminal(to: .servers) }
                 } else {
                     ForEach(appState.serverProfiles) { server in
-                        Button("\(server.name) · \(server.host)") {
+                        Button {
                             selectTerminalServer(server)
+                        } label: {
+                            Label("\(server.name) · \(server.host)", systemImage: server.displayIcon)
                         }
                     }
                 }
             } label: {
                 HStack(spacing: 8) {
-                    Image(systemName: "network")
                     if let sessionServer {
+                        Image(systemName: sessionServer.displayIcon)
+                            .foregroundStyle(Color(hex: sessionServer.accentHex))
                         VStack(alignment: .leading, spacing: 1) {
                             Text(sessionServer.name)
                                 .font(.caption.weight(.bold))
@@ -446,6 +570,7 @@ struct TerminalView: View {
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
                     } else {
+                        Image(systemName: "network")
                         Text(appState.localized("No saved servers"))
                             .lineLimit(1)
                     }
@@ -465,7 +590,7 @@ struct TerminalView: View {
             .buttonStyle(.plain)
             .foregroundStyle(palette.controlForeground)
 
-            TerminalIconButton(systemName: "plus", palette: palette) {
+            TerminalIconButton(systemName: "plus", accessibilityLabel: "New session", palette: palette) {
                 if let server = appState.selectedServer {
                     createSession(for: server)
                 } else {
@@ -473,7 +598,7 @@ struct TerminalView: View {
                 }
             }
 
-            TerminalIconButton(systemName: "doc.on.clipboard", palette: palette) {
+            TerminalIconButton(systemName: "doc.on.clipboard", accessibilityLabel: "Paste", palette: palette) {
                 guard let text = UIPasteboard.general.string else { return }
                 sendRawToActivePTY(Array(text.utf8), mirrorInput: true)
                 keyboardActive = true
@@ -504,7 +629,7 @@ struct TerminalView: View {
                         }
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("Terminal history")
+                .accessibilityLabel(Text("Terminal history"))
             }
 
             Menu {
@@ -1234,6 +1359,13 @@ private struct TerminalCommandConfirmation: Identifiable {
     var bytes: [UInt8]
 }
 
+private struct TerminalSearchMatch: Identifiable, Equatable {
+    var lineNumber: Int
+    var text: String
+
+    var id: String { "\(lineNumber)-\(text)" }
+}
+
 private enum TerminalConnectionState: Equatable {
     case connecting
     case connected
@@ -1252,6 +1384,37 @@ private enum TerminalConnectionState: Equatable {
         case .connecting: .orange
         case .connected: .green
         case .disconnected: .secondary
+        }
+    }
+}
+
+private struct TerminalSearchMatchRow: View {
+    var match: TerminalSearchMatch
+    var isSelected: Bool
+    var palette: TerminalThemePalette
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 9) {
+            Text("\(match.lineNumber)")
+                .font(.caption2.monospacedDigit().weight(.bold))
+                .foregroundStyle(isSelected ? palette.accent : palette.secondaryControlForeground)
+                .frame(width: 44, alignment: .trailing)
+
+            Text(match.text)
+                .font(.caption.monospaced())
+                .foregroundStyle(palette.foreground)
+                .lineLimit(2)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(.horizontal, 9)
+        .padding(.vertical, 7)
+        .background(
+            isSelected ? palette.accent.opacity(palette.isLight ? 0.14 : 0.20) : Color.primary.opacity(0.035),
+            in: RoundedRectangle(cornerRadius: 12, style: .continuous)
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(isSelected ? palette.accent.opacity(0.36) : palette.controlStroke.opacity(0.6), lineWidth: 1)
         }
     }
 }
@@ -1554,6 +1717,61 @@ private func sanitizeTerminalStream(_ text: String) -> String {
     return output
 }
 
+private func plainTerminalSearchText(_ text: String) -> String {
+    var output = ""
+    var index = text.startIndex
+
+    while index < text.endIndex {
+        if text[index] == "\u{1B}" {
+            let next = text.index(after: index)
+            guard next < text.endIndex else { break }
+
+            if text[next] == "[" {
+                var cursor = text.index(after: next)
+                while cursor < text.endIndex {
+                    if let scalar = text[cursor].unicodeScalars.first,
+                       scalar.value >= 0x40,
+                       scalar.value <= 0x7E {
+                        cursor = text.index(after: cursor)
+                        break
+                    }
+                    cursor = text.index(after: cursor)
+                }
+                index = cursor
+                continue
+            }
+
+            if text[next] == "]" {
+                var cursor = text.index(after: next)
+                while cursor < text.endIndex {
+                    if text[cursor] == "\u{07}" {
+                        cursor = text.index(after: cursor)
+                        break
+                    }
+                    if text[cursor] == "\u{1B}" {
+                        let afterEscape = text.index(after: cursor)
+                        if afterEscape < text.endIndex, text[afterEscape] == "\\" {
+                            cursor = text.index(after: afterEscape)
+                            break
+                        }
+                    }
+                    cursor = text.index(after: cursor)
+                }
+                index = cursor
+                continue
+            }
+
+            index = text.index(after: next)
+            continue
+        }
+
+        output.append(text[index])
+        index = text.index(after: index)
+    }
+
+    return output
+}
+
 private func applyingBackspaces(_ update: String, to existing: String) -> String {
     var result = existing
     for char in update {
@@ -1617,6 +1835,8 @@ private struct TerminalSessionPill: View {
                 .foregroundStyle(isActive ? palette.controlForeground : palette.secondaryControlForeground)
             }
             .buttonStyle(.plain)
+            .accessibilityLabel(Text(title))
+            .accessibilityValue(Text(state.title))
 
             Button(action: close) {
                 Image(systemName: "xmark")
@@ -1625,6 +1845,7 @@ private struct TerminalSessionPill: View {
                     .frame(width: 18, height: 18)
             }
             .buttonStyle(.plain)
+            .accessibilityLabel(Text("Close session"))
         }
         .padding(.leading, 11)
         .padding(.trailing, 7)
@@ -1673,6 +1894,7 @@ private struct TerminalKeyStyle: ButtonStyle {
 
 private struct TerminalIconButton: View {
     var systemName: String
+    var accessibilityLabel: LocalizedStringKey
     var palette: TerminalThemePalette
     var action: () -> Void
 
@@ -1689,6 +1911,7 @@ private struct TerminalIconButton: View {
                 }
         }
         .buttonStyle(.plain)
+        .accessibilityLabel(Text(accessibilityLabel))
     }
 }
 
