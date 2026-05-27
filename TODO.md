@@ -41,12 +41,21 @@
 - [x] Enable App Group capability in Apple Developer and provisioning profiles.
 - [x] Parse real Docker/systemd/process/log command output into structured SwiftUI lists.
 
+## Pro Features
+
+- [x] SSH Port Forwarding / Tunnels — define tunnel rules, test reachability, copy desktop SSH command.
+- [x] Custom Quick Commands — user-defined commands stored in SwiftData, CRUD UI in Commands tab.
+- [x] Server Groups / Tags — group filter chips in ServersView, groupName already on ServerProfile.
+- [x] Log Browser — browse /var/log/*.log files over SSH, tail content, search within output.
+- [x] SSH Key Manager — generate ED25519 key pairs via CryptoKit, store private key in Keychain, copy public key.
+- [x] Command Snippets — multi-line reusable snippets with categories, copy/insert actions.
+
 ## Future
 
 - [ ] Optional backend for push monitoring.
 - [ ] Team accounts.
 - [ ] Web dashboard.
 - [ ] Encrypted profile sharing.
-- [ ] Alert rules and notification scheduling.2
+- [ ] Alert rules and notification scheduling.
 - [ ] Cloud-based status history.
 
