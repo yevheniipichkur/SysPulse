@@ -382,12 +382,14 @@
 "Starting iCloud profile sync..." = "Starting iCloud profile sync...";
 "iCloud sync disabled." = "iCloud sync disabled.";
 "CloudKit entitlement" = "CloudKit entitlement";
+"iCloud capability" = "iCloud capability";
 "Signed build is ready for iCloud sync." = "Signed build is ready for iCloud sync.";
 "Provisioning profile is missing in this build." = "Provisioning profile is missing in this build.";
 "iCloud container is missing from the provisioning profile." = "iCloud container is missing from the provisioning profile.";
 "CloudKit service is missing from the provisioning profile." = "CloudKit service is missing from the provisioning profile.";
 "iCloud sync is not available in this build." = "iCloud sync is not available in this build.";
 "CloudKit entitlement could not be verified at runtime." = "CloudKit entitlement could not be verified at runtime.";
+"iCloud capability will be verified by iOS when sync starts." = "iCloud capability will be verified by iOS when sync starts.";
 "Checking iCloud account..." = "Checking iCloud account...";
 "Syncing profiles with iCloud..." = "Syncing profiles with iCloud...";
 "iCloud sync is idle." = "iCloud sync is idle.";

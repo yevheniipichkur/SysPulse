@@ -380,12 +380,14 @@
 "Starting iCloud profile sync..." = "Uruchamianie synchronizacji profili iCloud...";
 "iCloud sync disabled." = "Synchronizacja iCloud wyłączona.";
 "CloudKit entitlement" = "Uprawnienie CloudKit";
+"iCloud capability" = "Dostęp iCloud";
 "Signed build is ready for iCloud sync." = "Podpisana kompilacja jest gotowa do synchronizacji iCloud.";
 "Provisioning profile is missing in this build." = "W tej kompilacji brakuje profilu provisioning.";
 "iCloud container is missing from the provisioning profile." = "W profilu provisioning brakuje kontenera iCloud.";
 "CloudKit service is missing from the provisioning profile." = "W profilu provisioning brakuje usługi CloudKit.";
 "iCloud sync is not available in this build." = "Synchronizacja iCloud nie jest dostępna w tej kompilacji.";
 "CloudKit entitlement could not be verified at runtime." = "Nie udało się zweryfikować uprawnienia CloudKit w runtime.";
+"iCloud capability will be verified by iOS when sync starts." = "iOS zweryfikuje dostęp do iCloud po uruchomieniu synchronizacji.";
 "Checking iCloud account..." = "Sprawdzanie konta iCloud...";
 "Syncing profiles with iCloud..." = "Synchronizowanie profili z iCloud...";
 "iCloud sync is idle." = "Synchronizacja iCloud oczekuje.";

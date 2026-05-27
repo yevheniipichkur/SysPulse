@@ -232,7 +232,7 @@ struct CloudKitEntitlementDiagnostic: Equatable {
             return "Signed build is ready for iCloud sync."
         }
         if verificationSource == .unavailable {
-            return "CloudKit entitlement could not be verified at runtime."
+            return "iCloud capability will be verified by iOS when sync starts."
         }
         if verificationSource == .embeddedProvisioningProfile && !hasEmbeddedProvisioningProfile {
             return "Provisioning profile is missing in this build."

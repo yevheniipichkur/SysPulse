@@ -382,12 +382,14 @@
 "Starting iCloud profile sync..." = "Запуск синхронизации профилей iCloud...";
 "iCloud sync disabled." = "Синхронизация iCloud отключена.";
 "CloudKit entitlement" = "CloudKit entitlement";
+"iCloud capability" = "Доступ iCloud";
 "Signed build is ready for iCloud sync." = "Подписанная сборка готова к синхронизации iCloud.";
 "Provisioning profile is missing in this build." = "В этой сборке нет provisioning profile.";
 "iCloud container is missing from the provisioning profile." = "В provisioning profile нет iCloud container.";
 "CloudKit service is missing from the provisioning profile." = "В provisioning profile нет сервиса CloudKit.";
 "iCloud sync is not available in this build." = "Синхронизация iCloud недоступна в этой сборке.";
 "CloudKit entitlement could not be verified at runtime." = "CloudKit entitlement не удалось проверить во время работы.";
+"iCloud capability will be verified by iOS when sync starts." = "iOS проверит доступ к iCloud при запуске синхронизации.";
 "Checking iCloud account..." = "Проверка аккаунта iCloud...";
 "Syncing profiles with iCloud..." = "Синхронизация профилей с iCloud...";
 "iCloud sync is idle." = "Синхронизация iCloud ожидает.";

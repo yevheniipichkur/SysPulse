@@ -381,7 +381,7 @@ private struct ICloudEntitlementStatusRow: View {
                 .frame(width: 24)
 
             VStack(alignment: .leading, spacing: 4) {
-                Text("CloudKit entitlement")
+                Text("iCloud capability")
                     .font(.caption.weight(.semibold))
                 Text(LocalizedStringKey(diagnostic.messageKey))
                     .font(.caption2)
