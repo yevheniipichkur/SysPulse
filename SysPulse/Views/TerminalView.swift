@@ -578,26 +578,25 @@ struct TerminalView: View {
     private var bottomConsole: some View {
         let palette = terminalPalette
 
-        return VStack(spacing: 8) {
+        return VStack(spacing: 5) {
             connectionBar
-            terminalSessionStrip
+            inputPreviewBar
+            if visibleTerminalSessions.count > 1 {
+                terminalSessionStrip
+            }
             keyboardAccessory
         }
-        .padding(.horizontal, 8)
-        .padding(.top, 8)
-        .padding(.bottom, 8)
+        .padding(.horizontal, 6)
+        .padding(.top, 5)
+        .padding(.bottom, 5)
         .background {
             Rectangle()
-                .fill(.regularMaterial)
-                .overlay {
-                    Rectangle()
-                        .fill(palette.consoleBackground)
-                }
+                .fill(palette.terminalBarBackground)
         }
         .overlay(alignment: .top) {
             Rectangle()
-                .fill(palette.controlStroke)
-                .frame(height: 1)
+                .fill(palette.terminalBarStroke.opacity(0.42))
+                .frame(height: 0.7)
         }
         .animation(SysPulseMotion.quickSpring(disabled: appState.shouldReduceMotion), value: currentInput)
     }
@@ -605,7 +604,7 @@ struct TerminalView: View {
     private var connectionBar: some View {
         let palette = terminalPalette
 
-        return HStack(spacing: 8) {
+        return HStack(spacing: 7) {
             TerminalIconButton(systemName: "chevron.left", accessibilityLabel: "Back to servers", palette: palette) {
                 leaveTerminal(to: .servers)
             }
@@ -623,40 +622,40 @@ struct TerminalView: View {
                     }
                 }
             } label: {
-                HStack(spacing: 8) {
+                HStack(spacing: 7) {
                     if let sessionServer {
                         Image(systemName: sessionServer.displayIcon)
+                            .font(.caption.weight(.bold))
                             .foregroundStyle(Color(hex: sessionServer.accentHex))
-                        VStack(alignment: .leading, spacing: 1) {
-                            Text(sessionServer.name)
-                                .font(.caption.weight(.bold))
-                                .lineLimit(1)
-                            Text(sessionServer.host)
-                                .font(.caption2.monospaced())
-                                .foregroundStyle(palette.secondaryControlForeground)
-                                .lineLimit(1)
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
+
+                        Text("\(sessionServer.username)@\(sessionServer.host)")
+                            .font(.caption.monospaced().weight(.semibold))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.78)
+                            .frame(maxWidth: .infinity, alignment: .leading)
                     } else {
                         Image(systemName: "network")
+                            .font(.caption.weight(.bold))
                         Text(appState.localized("No saved servers"))
+                            .font(.caption.weight(.semibold))
                             .lineLimit(1)
+                            .frame(maxWidth: .infinity, alignment: .leading)
                     }
-                    Spacer(minLength: 0)
-                    Image(systemName: "chevron.down.circle.fill")
-                        .foregroundStyle(.secondary)
+                    Image(systemName: "chevron.down")
+                        .font(.caption2.weight(.heavy))
+                        .foregroundStyle(palette.terminalBarSecondaryForeground)
                 }
-                .font(.callout.weight(.semibold))
-                .padding(.horizontal, 12)
-                .frame(height: 44)
-                .background(palette.controlBackground, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .padding(.horizontal, 9)
+                .frame(height: 30)
+                .foregroundStyle(palette.terminalBarControlForeground)
+                .background(palette.terminalBarControlBackground, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
                 .overlay {
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .stroke(palette.controlStroke, lineWidth: 1)
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .stroke(palette.terminalBarStroke, lineWidth: 0.7)
                 }
+                .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
             }
             .buttonStyle(.plain)
-            .foregroundStyle(palette.controlForeground)
 
             TerminalIconButton(systemName: "plus", accessibilityLabel: "New session", palette: palette) {
                 if let server = appState.selectedServer {
@@ -664,13 +663,6 @@ struct TerminalView: View {
                 } else {
                     leaveTerminal(to: .servers)
                 }
-            }
-
-            TerminalIconButton(systemName: "doc.on.clipboard", accessibilityLabel: "Paste", palette: palette) {
-                guard let text = UIPasteboard.general.string else { return }
-                sendRawToActivePTY(Array(text.utf8), mirrorInput: true)
-                keyboardActive = true
-                focusActiveTerminal()
             }
 
             if !commandHistory.isEmpty {
@@ -688,14 +680,7 @@ struct TerminalView: View {
                         }
                     }
                 } label: {
-                    Image(systemName: "clock.arrow.circlepath")
-                        .frame(width: 38, height: 38)
-                        .foregroundStyle(palette.controlForeground)
-                        .background(palette.controlBackground, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-                        .overlay {
-                            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                .stroke(palette.controlStroke, lineWidth: 1)
-                        }
+                    TerminalToolbarIconLabel(systemName: "clock.arrow.circlepath", palette: palette)
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(Text("Terminal history"))
@@ -720,14 +705,7 @@ struct TerminalView: View {
                     }
                 }
             } label: {
-                Image(systemName: "square.grid.2x2")
-                    .frame(width: 38, height: 38)
-                    .foregroundStyle(palette.controlForeground)
-                    .background(palette.controlBackground, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            .stroke(palette.controlStroke, lineWidth: 1)
-                    }
+                TerminalToolbarIconLabel(systemName: "square.grid.2x2", palette: palette)
             }
             .buttonStyle(.plain)
         }
@@ -740,7 +718,7 @@ struct TerminalView: View {
             if !visibleTerminalSessions.isEmpty {
                 ScrollViewReader { proxy in
                     ScrollView(.horizontal) {
-                        HStack(spacing: 8) {
+                        HStack(spacing: 6) {
                             ForEach(visibleTerminalSessions) { session in
                                 TerminalSessionPill(
                                     title: session.title,
@@ -867,23 +845,25 @@ struct TerminalView: View {
     private var inputPreviewBar: some View {
         let palette = terminalPalette
 
-        return HStack(spacing: 8) {
+        return HStack(spacing: 6) {
             HStack(spacing: 6) {
-                Text(activePrompt)
-                    .foregroundStyle(palette.prompt)
-                Text(currentInput + "█")
-                    .font(.system(size: 15, design: .monospaced))
-                    .foregroundStyle(palette.controlForeground)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .lineLimit(1)
+                if currentInput.isEmpty {
+                    Text("Type a command")
+                        .foregroundStyle(palette.terminalBarPlaceholderForeground)
+                } else {
+                    Text(currentInput + "█")
+                        .foregroundStyle(palette.controlForeground)
+                }
             }
-            .font(.system(size: 15, design: .monospaced))
-            .padding(.horizontal, 12)
-            .frame(height: 38)
-            .background(palette.inputBackground, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .font(.system(size: 12.5, weight: .semibold, design: .monospaced))
+            .lineLimit(1)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 10)
+            .frame(height: 28)
+            .background(palette.terminalBarInputBackground, in: RoundedRectangle(cornerRadius: 13, style: .continuous))
             .overlay {
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .stroke(palette.controlStroke, lineWidth: 1)
+                RoundedRectangle(cornerRadius: 13, style: .continuous)
+                    .stroke(palette.terminalBarStroke.opacity(0.36), lineWidth: 0.7)
             }
             .contentShape(Rectangle())
             .onTapGesture {
@@ -898,13 +878,13 @@ struct TerminalView: View {
                 focusActiveTerminal()
             }
             .font(.caption.weight(.bold))
-            .foregroundStyle(palette.controlForeground)
-            .padding(.horizontal, 10)
-            .frame(height: 32)
-            .background(palette.controlBackground, in: Capsule())
+            .foregroundStyle(palette.terminalBarControlForeground)
+            .padding(.horizontal, 9)
+            .frame(height: 24)
+            .background(palette.terminalBarControlBackground, in: Capsule())
             .overlay {
                 Capsule()
-                    .stroke(palette.controlStroke, lineWidth: 1)
+                    .stroke(palette.terminalBarStroke, lineWidth: 0.7)
             }
             .buttonStyle(.plain)
         }
@@ -914,7 +894,7 @@ struct TerminalView: View {
         let palette = terminalPalette
 
         return ScrollView(.horizontal) {
-            HStack(spacing: 6) {
+            HStack(spacing: 7) {
                 ForEach(["esc", "tab", "ctrl", "alt", "/", "|", "~", "-", "^C", "^X", "^O", "↑", "↓", "←", "→"], id: \.self) { key in
                     Button {
                         insertAccessory(key)
@@ -925,10 +905,10 @@ struct TerminalView: View {
                     .buttonStyle(TerminalKeyStyle(isActive: keyIsLatched(key), palette: palette))
                 }
             }
-            .padding(.horizontal, 6)
+            .padding(.horizontal, 4)
         }
         .scrollIndicators(.hidden)
-        .frame(height: 46)
+        .frame(height: 26)
     }
 
     // MARK: - Input handling
@@ -2234,17 +2214,17 @@ private struct TerminalSessionPill: View {
     var action: () -> Void
 
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 6) {
             Button(action: action) {
-                HStack(spacing: 7) {
+                HStack(spacing: 6) {
                     Circle()
                         .fill(state.color)
-                        .frame(width: 7, height: 7)
+                        .frame(width: 6, height: 6)
                     Text(title)
-                        .font(.caption.weight(.bold))
+                        .font(.caption2.weight(.bold))
                         .lineLimit(1)
                 }
-                .foregroundStyle(isActive ? palette.controlForeground : palette.secondaryControlForeground)
+                .foregroundStyle(isActive ? .white : palette.terminalBarControlForeground.opacity(0.82))
             }
             .buttonStyle(.plain)
             .accessibilityLabel(Text(title))
@@ -2253,26 +2233,26 @@ private struct TerminalSessionPill: View {
             Button(action: close) {
                 Image(systemName: "xmark")
                     .font(.caption2.weight(.black))
-                    .foregroundStyle(palette.secondaryControlForeground)
-                    .frame(width: 18, height: 18)
+                    .foregroundStyle(isActive ? .white.opacity(0.74) : palette.terminalBarSecondaryForeground)
+                    .frame(width: 16, height: 16)
             }
             .buttonStyle(.plain)
             .accessibilityLabel(Text("Close session"))
         }
-        .padding(.leading, 11)
-        .padding(.trailing, 7)
-        .frame(height: 32)
-        .background(isActive ? palette.activeControlBackground : palette.controlBackground, in: Capsule())
+        .padding(.leading, 8)
+        .padding(.trailing, 5)
+        .frame(height: 24)
+        .background(isActive ? palette.terminalBarActiveBackground : palette.terminalBarControlBackground.opacity(0.72), in: Capsule())
         .overlay {
             Capsule()
-                .stroke(isActive ? palette.accent.opacity(0.68) : palette.controlStroke, lineWidth: isActive ? 1.4 : 1)
+                .stroke(isActive ? palette.terminalBarControlForeground.opacity(0.48) : palette.terminalBarStroke.opacity(0.54), lineWidth: 0.7)
         }
         .overlay(alignment: .bottom) {
             if isActive {
                 Capsule()
-                    .fill(palette.accent)
-                    .frame(width: 28, height: 2)
-                    .offset(y: 1)
+                    .fill(palette.terminalBarControlForeground)
+                    .frame(width: 20, height: 1.3)
+                    .offset(y: 0.5)
             }
         }
     }
@@ -2284,26 +2264,70 @@ private struct TerminalKeyStyle: ButtonStyle {
 
     func makeBody(configuration: Configuration) -> some View {
         let fill: SwiftUI.Color = {
-            if isActive { return palette.accent }
+            if isActive { return palette.terminalBarActiveBackground }
             if configuration.isPressed { return palette.keyPressedBackground }
             return palette.keyBackground
         }()
         let fg: SwiftUI.Color = isActive
             ? .white
             : (configuration.isPressed ? palette.keyPressedForeground : palette.keyForeground)
+        let strokeOpacity = (isActive || configuration.isPressed) ? 0.36 : 0
 
         configuration.label
-            .font(.system(size: 15, weight: .medium))
-            .padding(.horizontal, 10)
-            .frame(minWidth: 40, minHeight: 38, maxHeight: 38)
+            .font(.system(size: 11.5, weight: .bold))
+            .padding(.horizontal, 6)
+            .frame(minWidth: 24, minHeight: 24, maxHeight: 24)
             .foregroundStyle(fg)
             .background(
-                RoundedRectangle(cornerRadius: 9, style: .continuous)
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .fill(fill)
             )
+            .overlay {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .stroke(palette.terminalBarControlForeground.opacity(strokeOpacity), lineWidth: 0.6)
+            }
+            .scaleEffect(configuration.isPressed ? 0.96 : 1)
             // instant press feedback — no delay
             .animation(nil, value: configuration.isPressed)
             .animation(.spring(response: 0.20, dampingFraction: 0.75), value: isActive)
+    }
+}
+
+private struct TerminalToolbarIconLabel: View {
+    var systemName: String
+    var palette: TerminalThemePalette
+
+    var body: some View {
+        Image(systemName: systemName)
+            .font(.caption.weight(.bold))
+            .foregroundStyle(palette.terminalBarControlForeground)
+            .frame(width: 30, height: 30)
+            .background(palette.terminalBarControlBackground, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .stroke(palette.terminalBarStroke, lineWidth: 0.7)
+            }
+    }
+}
+
+private struct TerminalToolbarIconButtonStyle: ButtonStyle {
+    var palette: TerminalThemePalette
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.caption.weight(.bold))
+            .foregroundStyle(configuration.isPressed ? .white : palette.terminalBarControlForeground)
+            .frame(width: 30, height: 30)
+            .background(
+                configuration.isPressed ? palette.terminalBarControlPressedBackground : palette.terminalBarControlBackground,
+                in: RoundedRectangle(cornerRadius: 10, style: .continuous)
+            )
+            .overlay {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .stroke(configuration.isPressed ? palette.terminalBarControlForeground.opacity(0.32) : palette.terminalBarStroke, lineWidth: 0.7)
+            }
+            .scaleEffect(configuration.isPressed ? 0.96 : 1)
+            .animation(.easeOut(duration: 0.08), value: configuration.isPressed)
     }
 }
 
@@ -2316,16 +2340,8 @@ private struct TerminalIconButton: View {
     var body: some View {
         Button(action: action) {
             Image(systemName: systemName)
-                .font(.callout.weight(.bold))
-                .foregroundStyle(palette.controlForeground)
-                .frame(width: 38, height: 38)
-                .background(palette.controlBackground, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-                .overlay {
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .stroke(palette.controlStroke, lineWidth: 1)
-                }
         }
-        .buttonStyle(.plain)
+        .buttonStyle(TerminalToolbarIconButtonStyle(palette: palette))
         .accessibilityLabel(Text(accessibilityLabel))
     }
 }
@@ -2495,33 +2511,70 @@ private struct TerminalThemePalette {
         }
     }
 
-    // MARK: – Accessory key colours (Termius-style dark keys)
+    // MARK: – Compact terminal accessory bar colours
 
-    /// Normal fill — subtle dark key, slightly lighter than bar background
+    /// Bottom terminal accessory strip — deep navy like the iOS reference.
+    var terminalBarBackground: SwiftUI.Color {
+        SwiftUI.Color(red: 0.01, green: 0.05, blue: 0.10).opacity(isLight ? 0.96 : 0.99)
+    }
+
+    /// Compact icon/server button fill.
+    var terminalBarControlBackground: SwiftUI.Color {
+        SwiftUI.Color(red: 0.02, green: 0.15, blue: 0.26).opacity(0.92)
+    }
+
+    /// Pressed icon/server button fill.
+    var terminalBarControlPressedBackground: SwiftUI.Color {
+        SwiftUI.Color(red: 0.03, green: 0.25, blue: 0.40).opacity(0.95)
+    }
+
+    /// Active/latching key fill.
+    var terminalBarActiveBackground: SwiftUI.Color {
+        SwiftUI.Color(red: 0.02, green: 0.39, blue: 0.66).opacity(0.95)
+    }
+
+    /// Primary cyan label/icon color.
+    var terminalBarControlForeground: SwiftUI.Color {
+        SwiftUI.Color(red: 0.02, green: 0.67, blue: 1.0)
+    }
+
+    /// Muted cyan for secondary affordances.
+    var terminalBarSecondaryForeground: SwiftUI.Color {
+        terminalBarControlForeground.opacity(0.58)
+    }
+
+    /// Subtle cyan outline, intentionally less visible than the old glass stroke.
+    var terminalBarStroke: SwiftUI.Color {
+        terminalBarControlForeground.opacity(0.20)
+    }
+
+    /// Quiet input field fill for the mirrored command row.
+    var terminalBarInputBackground: SwiftUI.Color {
+        SwiftUI.Color(red: 0.04, green: 0.10, blue: 0.18).opacity(0.88)
+    }
+
+    /// Dim placeholder text inside the compact input row.
+    var terminalBarPlaceholderForeground: SwiftUI.Color {
+        terminalBarControlForeground.opacity(0.34)
+    }
+
+    /// Normal fill — compact dark key, slightly lighter than the bar background.
     var keyBackground: SwiftUI.Color {
-        isLight
-            ? SwiftUI.Color(white: 0.72)
-            : SwiftUI.Color.white.opacity(0.12)   // dark: near-invisible on dark navy, reveals shape
+        .clear
     }
 
-    /// Pressed fill — clearly brighter flash on tap
+    /// Pressed fill — brighter flash on tap, without increasing size.
     var keyPressedBackground: SwiftUI.Color {
-        isLight
-            ? SwiftUI.Color(white: 0.54)
-            : SwiftUI.Color.white.opacity(0.30)
+        SwiftUI.Color(red: 0.03, green: 0.21, blue: 0.34).opacity(0.90)
     }
 
-    /// Normal label colour
+    /// Normal label colour.
     var keyForeground: SwiftUI.Color {
-        isLight
-            ? SwiftUI.Color(white: 0.06)
-            : SwiftUI.Color.white
+        terminalBarControlForeground
     }
 
-    /// Label colour while the key is being held down
+    /// Label colour while the key is being held down.
     var keyPressedForeground: SwiftUI.Color {
-        isLight
-            ? SwiftUI.Color(white: 0.06)
-            : SwiftUI.Color.white
+        .white
     }
 }

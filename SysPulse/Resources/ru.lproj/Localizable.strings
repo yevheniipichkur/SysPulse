@@ -295,6 +295,7 @@
 "New session" = "Новая сессия";
 "Close session" = "Закрыть сессию";
 "Paste" = "Вставить";
+"Type a command" = "Введите команду";
 "SysPulse SSH" = "SysPulse SSH";
 "Commands are executed on the remote Linux server over SSH." = "Команды выполняются на удалённом Linux-сервере через SSH.";
 "No server selected. Add a server profile first." = "Сервер не выбран. Сначала добавьте профиль сервера.";
@@ -387,6 +388,8 @@
 "Provisioning profile is missing in this build." = "В этой сборке нет provisioning profile.";
 "iCloud container is missing from the provisioning profile." = "В provisioning profile нет iCloud container.";
 "CloudKit service is missing from the provisioning profile." = "В provisioning profile нет сервиса CloudKit.";
+"iCloud container is missing from the signed entitlements." = "В подписанных entitlements нет iCloud container.";
+"CloudKit service is missing from the signed entitlements." = "В подписанных entitlements нет сервиса CloudKit.";
 "iCloud sync is not available in this build." = "Синхронизация iCloud недоступна в этой сборке.";
 "CloudKit entitlement could not be verified at runtime." = "CloudKit entitlement не удалось проверить во время работы.";
 "iCloud capability will be verified by iOS when sync starts." = "iOS проверит доступ к iCloud при запуске синхронизации.";

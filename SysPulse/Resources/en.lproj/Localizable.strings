@@ -295,6 +295,7 @@
 "New session" = "New session";
 "Close session" = "Close session";
 "Paste" = "Paste";
+"Type a command" = "Type a command";
 "SysPulse SSH" = "SysPulse SSH";
 "Commands are executed on the remote Linux server over SSH." = "Commands are executed on the remote Linux server over SSH.";
 "No server selected. Add a server profile first." = "No server selected. Add a server profile first.";
@@ -387,6 +388,8 @@
 "Provisioning profile is missing in this build." = "Provisioning profile is missing in this build.";
 "iCloud container is missing from the provisioning profile." = "iCloud container is missing from the provisioning profile.";
 "CloudKit service is missing from the provisioning profile." = "CloudKit service is missing from the provisioning profile.";
+"iCloud container is missing from the signed entitlements." = "iCloud container is missing from the signed entitlements.";
+"CloudKit service is missing from the signed entitlements." = "CloudKit service is missing from the signed entitlements.";
 "iCloud sync is not available in this build." = "iCloud sync is not available in this build.";
 "CloudKit entitlement could not be verified at runtime." = "CloudKit entitlement could not be verified at runtime.";
 "iCloud capability will be verified by iOS when sync starts." = "iCloud capability will be verified by iOS when sync starts.";

@@ -1,5 +1,6 @@
 import CloudKit
 import Foundation
+import Security
 
 enum ProfileCloudSyncError: LocalizedError {
     case missingSnapshotData
@@ -52,10 +53,9 @@ struct ProfileCloudSyncService {
         guard diagnostic.canAttemptSync else {
             throw ProfileCloudSyncError.unavailableInCurrentBuild(containerIdentifier)
         }
-        // CKContainer(identifier:) crashes on iOS 26 when the container isn't in signed
-        // entitlements (NSException, not a Swift error). CKContainer.default() is always
-        // safe and resolves to iCloud.{bundleID} — the same container we use explicitly.
-        self.container = CKContainer.default()
+        // CKContainer can raise an Objective-C exception when the signed app is
+        // missing CloudKit entitlements, so only construct it after runtime checks.
+        self.container = CKContainer(identifier: containerIdentifier)
     }
 
     func preflight() async throws {
@@ -180,6 +180,10 @@ struct ProfileCloudSyncService {
     static func entitlementDiagnostic(
         containerIdentifier: String = SysPulseModelContainerFactory.iCloudContainerIdentifier
     ) -> CloudKitEntitlementDiagnostic {
+        if let runtimeDiagnostic = runtimeEntitlementDiagnostic(containerIdentifier: containerIdentifier) {
+            return runtimeDiagnostic
+        }
+
         guard let profile = embeddedProvisioningProfileText() else {
             return CloudKitEntitlementDiagnostic(
                 containerIdentifier: containerIdentifier,
@@ -199,6 +203,47 @@ struct ProfileCloudSyncService {
         )
     }
 
+    private static func runtimeEntitlementDiagnostic(
+        containerIdentifier: String
+    ) -> CloudKitEntitlementDiagnostic? {
+        guard let task = SecTaskCreateFromSelf(nil) else {
+            return nil
+        }
+
+        let containerIdentifiers = entitlementStrings(
+            "com.apple.developer.icloud-container-identifiers",
+            task: task
+        )
+        let iCloudServices = entitlementStrings(
+            "com.apple.developer.icloud-services",
+            task: task
+        )
+
+        return CloudKitEntitlementDiagnostic(
+            containerIdentifier: containerIdentifier,
+            verificationSource: .runtimeEntitlements,
+            hasEmbeddedProvisioningProfile: embeddedProvisioningProfileText() != nil,
+            hasContainerIdentifier: containerIdentifiers.contains(containerIdentifier),
+            hasCloudKitService: iCloudServices.contains("CloudKit")
+        )
+    }
+
+    private static func entitlementStrings(_ key: String, task: SecTask) -> [String] {
+        guard let value = SecTaskCopyValueForEntitlement(task, key as CFString, nil) else {
+            return []
+        }
+
+        if let strings = value as? [String] {
+            return strings
+        }
+
+        if let string = value as? String {
+            return [string]
+        }
+
+        return []
+    }
+
     private static func embeddedProvisioningProfileText() -> String? {
         guard let profileURL = Bundle.main.url(forResource: "embedded", withExtension: "mobileprovision"),
               let data = try? Data(contentsOf: profileURL),
@@ -212,6 +257,7 @@ struct ProfileCloudSyncService {
 
 struct CloudKitEntitlementDiagnostic: Equatable {
     enum VerificationSource: Equatable {
+        case runtimeEntitlements
         case embeddedProvisioningProfile
         case unavailable
     }
@@ -223,11 +269,11 @@ struct CloudKitEntitlementDiagnostic: Equatable {
     var hasCloudKitService: Bool
 
     var isReady: Bool {
-        verificationSource != .unavailable && hasContainerIdentifier && hasCloudKitService
+        verificationSource == .runtimeEntitlements && hasContainerIdentifier && hasCloudKitService
     }
 
     var canAttemptSync: Bool {
-        isReady || verificationSource == .unavailable
+        isReady
     }
 
     var messageKey: String {
@@ -235,15 +281,24 @@ struct CloudKitEntitlementDiagnostic: Equatable {
             return "Signed build is ready for iCloud sync."
         }
         if verificationSource == .unavailable {
-            return "iCloud capability will be verified by iOS when sync starts."
+            return "CloudKit entitlement could not be verified at runtime."
         }
         if verificationSource == .embeddedProvisioningProfile && !hasEmbeddedProvisioningProfile {
             return "Provisioning profile is missing in this build."
         }
+        if verificationSource == .embeddedProvisioningProfile && hasContainerIdentifier && hasCloudKitService {
+            return "CloudKit entitlement could not be verified at runtime."
+        }
         if !hasContainerIdentifier {
+            if verificationSource == .runtimeEntitlements {
+                return "iCloud container is missing from the signed entitlements."
+            }
             return "iCloud container is missing from the provisioning profile."
         }
         if !hasCloudKitService {
+            if verificationSource == .runtimeEntitlements {
+                return "CloudKit service is missing from the signed entitlements."
+            }
             return "CloudKit service is missing from the provisioning profile."
         }
         return "iCloud sync is not available in this build."
