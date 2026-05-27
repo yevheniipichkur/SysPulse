@@ -295,7 +295,6 @@
 "New session" = "New session";
 "Close session" = "Close session";
 "Paste" = "Paste";
-"Type a command" = "Type a command";
 "SysPulse SSH" = "SysPulse SSH";
 "Commands are executed on the remote Linux server over SSH." = "Commands are executed on the remote Linux server over SSH.";
 "No server selected. Add a server profile first." = "No server selected. Add a server profile first.";

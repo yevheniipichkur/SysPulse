@@ -580,15 +580,14 @@ struct TerminalView: View {
 
         return VStack(spacing: 5) {
             connectionBar
-            inputPreviewBar
             if visibleTerminalSessions.count > 1 {
                 terminalSessionStrip
             }
             keyboardAccessory
         }
         .padding(.horizontal, 6)
-        .padding(.top, 5)
-        .padding(.bottom, 5)
+        .padding(.top, 6)
+        .padding(.bottom, 6)
         .background {
             Rectangle()
                 .fill(palette.terminalBarBackground)
@@ -645,15 +644,15 @@ struct TerminalView: View {
                         .font(.caption2.weight(.heavy))
                         .foregroundStyle(palette.terminalBarSecondaryForeground)
                 }
-                .padding(.horizontal, 9)
-                .frame(height: 30)
+                .padding(.horizontal, 10)
+                .frame(height: 34)
                 .foregroundStyle(palette.terminalBarControlForeground)
-                .background(palette.terminalBarControlBackground, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .background(palette.terminalBarControlBackground, in: RoundedRectangle(cornerRadius: 11, style: .continuous))
                 .overlay {
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .stroke(palette.terminalBarStroke, lineWidth: 0.7)
+                    RoundedRectangle(cornerRadius: 11, style: .continuous)
+                        .stroke(palette.terminalBarStroke, lineWidth: 0.8)
                 }
-                .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .contentShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
             }
             .buttonStyle(.plain)
 
@@ -663,6 +662,13 @@ struct TerminalView: View {
                 } else {
                     leaveTerminal(to: .servers)
                 }
+            }
+
+            TerminalIconButton(systemName: "doc.on.clipboard", accessibilityLabel: "Paste", palette: palette) {
+                guard let text = UIPasteboard.general.string else { return }
+                sendRawToActivePTY(Array(text.utf8), mirrorInput: true)
+                keyboardActive = true
+                focusActiveTerminal()
             }
 
             if !commandHistory.isEmpty {
@@ -841,55 +847,6 @@ struct TerminalView: View {
         palette.isLight ? SwiftUI.Color.white.opacity(0.96) : SwiftUI.Color.black.opacity(0.74)
     }
 
-    // Replaces the old TextField — shows a local mirror of what's being typed
-    private var inputPreviewBar: some View {
-        let palette = terminalPalette
-
-        return HStack(spacing: 6) {
-            HStack(spacing: 6) {
-                if currentInput.isEmpty {
-                    Text("Type a command")
-                        .foregroundStyle(palette.terminalBarPlaceholderForeground)
-                } else {
-                    Text(currentInput + "█")
-                        .foregroundStyle(palette.controlForeground)
-                }
-            }
-            .font(.system(size: 12.5, weight: .semibold, design: .monospaced))
-            .lineLimit(1)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 10)
-            .frame(height: 28)
-            .background(palette.terminalBarInputBackground, in: RoundedRectangle(cornerRadius: 13, style: .continuous))
-            .overlay {
-                RoundedRectangle(cornerRadius: 13, style: .continuous)
-                    .stroke(palette.terminalBarStroke.opacity(0.36), lineWidth: 0.7)
-            }
-            .contentShape(Rectangle())
-            .onTapGesture {
-                keyboardActive = true
-                focusActiveTerminal()
-            }
-
-            Button("Paste") {
-                guard let text = UIPasteboard.general.string else { return }
-                sendRawToActivePTY(Array(text.utf8), mirrorInput: true)
-                keyboardActive = true
-                focusActiveTerminal()
-            }
-            .font(.caption.weight(.bold))
-            .foregroundStyle(palette.terminalBarControlForeground)
-            .padding(.horizontal, 9)
-            .frame(height: 24)
-            .background(palette.terminalBarControlBackground, in: Capsule())
-            .overlay {
-                Capsule()
-                    .stroke(palette.terminalBarStroke, lineWidth: 0.7)
-            }
-            .buttonStyle(.plain)
-        }
-    }
-
     private var keyboardAccessory: some View {
         let palette = terminalPalette
 
@@ -908,7 +865,7 @@ struct TerminalView: View {
             .padding(.horizontal, 4)
         }
         .scrollIndicators(.hidden)
-        .frame(height: 26)
+        .frame(height: 32)
     }
 
     // MARK: - Input handling
@@ -2234,14 +2191,14 @@ private struct TerminalSessionPill: View {
                 Image(systemName: "xmark")
                     .font(.caption2.weight(.black))
                     .foregroundStyle(isActive ? .white.opacity(0.74) : palette.terminalBarSecondaryForeground)
-                    .frame(width: 16, height: 16)
+                    .frame(width: 17, height: 17)
             }
             .buttonStyle(.plain)
             .accessibilityLabel(Text("Close session"))
         }
-        .padding(.leading, 8)
-        .padding(.trailing, 5)
-        .frame(height: 24)
+        .padding(.leading, 9)
+        .padding(.trailing, 6)
+        .frame(height: 28)
         .background(isActive ? palette.terminalBarActiveBackground : palette.terminalBarControlBackground.opacity(0.72), in: Capsule())
         .overlay {
             Capsule()
@@ -2271,21 +2228,33 @@ private struct TerminalKeyStyle: ButtonStyle {
         let fg: SwiftUI.Color = isActive
             ? .white
             : (configuration.isPressed ? palette.keyPressedForeground : palette.keyForeground)
-        let strokeOpacity = (isActive || configuration.isPressed) ? 0.36 : 0
+        let stroke = isActive
+            ? palette.terminalBarControlForeground.opacity(0.92)
+            : palette.terminalBarControlForeground.opacity(configuration.isPressed ? 0.36 : 0)
 
         configuration.label
-            .font(.system(size: 11.5, weight: .bold))
-            .padding(.horizontal, 6)
-            .frame(minWidth: 24, minHeight: 24, maxHeight: 24)
+            .font(.system(size: 12.5, weight: .bold))
+            .padding(.horizontal, 8)
+            .frame(minWidth: 32, minHeight: 30, maxHeight: 30)
             .foregroundStyle(fg)
+            .shadow(color: isActive ? .black.opacity(0.28) : .clear, radius: 1, x: 0, y: 1)
             .background(
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .fill(fill)
             )
             .overlay {
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .stroke(palette.terminalBarControlForeground.opacity(strokeOpacity), lineWidth: 0.6)
+                    .stroke(stroke, lineWidth: isActive ? 1.1 : 0.6)
             }
+            .overlay(alignment: .bottom) {
+                if isActive {
+                    Capsule()
+                        .fill(.white.opacity(0.92))
+                        .frame(width: 16, height: 2)
+                        .padding(.bottom, 3)
+                }
+            }
+            .shadow(color: isActive ? palette.terminalBarControlForeground.opacity(0.34) : .clear, radius: 6, x: 0, y: 0)
             .scaleEffect(configuration.isPressed ? 0.96 : 1)
             // instant press feedback — no delay
             .animation(nil, value: configuration.isPressed)
@@ -2299,13 +2268,13 @@ private struct TerminalToolbarIconLabel: View {
 
     var body: some View {
         Image(systemName: systemName)
-            .font(.caption.weight(.bold))
+            .font(.subheadline.weight(.bold))
             .foregroundStyle(palette.terminalBarControlForeground)
-            .frame(width: 30, height: 30)
-            .background(palette.terminalBarControlBackground, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .frame(width: 34, height: 34)
+            .background(palette.terminalBarControlBackground, in: RoundedRectangle(cornerRadius: 11, style: .continuous))
             .overlay {
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .stroke(palette.terminalBarStroke, lineWidth: 0.7)
+                RoundedRectangle(cornerRadius: 11, style: .continuous)
+                    .stroke(palette.terminalBarStroke, lineWidth: 0.8)
             }
     }
 }
@@ -2315,16 +2284,16 @@ private struct TerminalToolbarIconButtonStyle: ButtonStyle {
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.caption.weight(.bold))
+            .font(.subheadline.weight(.bold))
             .foregroundStyle(configuration.isPressed ? .white : palette.terminalBarControlForeground)
-            .frame(width: 30, height: 30)
+            .frame(width: 34, height: 34)
             .background(
                 configuration.isPressed ? palette.terminalBarControlPressedBackground : palette.terminalBarControlBackground,
-                in: RoundedRectangle(cornerRadius: 10, style: .continuous)
+                in: RoundedRectangle(cornerRadius: 11, style: .continuous)
             )
             .overlay {
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .stroke(configuration.isPressed ? palette.terminalBarControlForeground.opacity(0.32) : palette.terminalBarStroke, lineWidth: 0.7)
+                RoundedRectangle(cornerRadius: 11, style: .continuous)
+                    .stroke(configuration.isPressed ? palette.terminalBarControlForeground.opacity(0.32) : palette.terminalBarStroke, lineWidth: 0.8)
             }
             .scaleEffect(configuration.isPressed ? 0.96 : 1)
             .animation(.easeOut(duration: 0.08), value: configuration.isPressed)
@@ -2530,7 +2499,7 @@ private struct TerminalThemePalette {
 
     /// Active/latching key fill.
     var terminalBarActiveBackground: SwiftUI.Color {
-        SwiftUI.Color(red: 0.02, green: 0.39, blue: 0.66).opacity(0.95)
+        SwiftUI.Color(red: 0.00, green: 0.50, blue: 0.88).opacity(0.98)
     }
 
     /// Primary cyan label/icon color.
@@ -2546,16 +2515,6 @@ private struct TerminalThemePalette {
     /// Subtle cyan outline, intentionally less visible than the old glass stroke.
     var terminalBarStroke: SwiftUI.Color {
         terminalBarControlForeground.opacity(0.20)
-    }
-
-    /// Quiet input field fill for the mirrored command row.
-    var terminalBarInputBackground: SwiftUI.Color {
-        SwiftUI.Color(red: 0.04, green: 0.10, blue: 0.18).opacity(0.88)
-    }
-
-    /// Dim placeholder text inside the compact input row.
-    var terminalBarPlaceholderForeground: SwiftUI.Color {
-        terminalBarControlForeground.opacity(0.34)
     }
 
     /// Normal fill — compact dark key, slightly lighter than the bar background.

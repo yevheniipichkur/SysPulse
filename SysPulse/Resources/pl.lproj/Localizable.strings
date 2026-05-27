@@ -293,7 +293,6 @@
 "New session" = "Nowa sesja";
 "Close session" = "Zamknij sesję";
 "Paste" = "Wklej";
-"Type a command" = "Wpisz polecenie";
 "SysPulse SSH" = "SysPulse SSH";
 "Commands are executed on the remote Linux server over SSH." = "Komendy są wykonywane na zdalnym serwerze Linux przez SSH.";
 "No server selected. Add a server profile first." = "Nie wybrano serwera. Najpierw dodaj profil serwera.";

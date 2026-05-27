@@ -31,6 +31,7 @@ targets:
           - Resources/**
           - Info.plist
           - SysPulse.entitlements
+          - SysPulse-Bridging-Header.h
       - path: SysPulse/Resources
         buildPhase: resources
       - path: Shared
@@ -69,6 +70,7 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.yevheniipichkur.syspulse
         PRODUCT_NAME: SysPulse
+        SWIFT_OBJC_BRIDGING_HEADER: $(SRCROOT)/SysPulse/SysPulse-Bridging-Header.h
         GENERATE_INFOPLIST_FILE: NO
         INFOPLIST_KEY_CFBundleDisplayName: SysPulse
         INFOPLIST_KEY_CFBundleIconName: AppIcon

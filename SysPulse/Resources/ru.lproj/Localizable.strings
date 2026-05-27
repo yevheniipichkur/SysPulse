@@ -295,7 +295,6 @@
 "New session" = "Новая сессия";
 "Close session" = "Закрыть сессию";
 "Paste" = "Вставить";
-"Type a command" = "Введите команду";
 "SysPulse SSH" = "SysPulse SSH";
 "Commands are executed on the remote Linux server over SSH." = "Команды выполняются на удалённом Linux-сервере через SSH.";
 "No server selected. Add a server profile first." = "Сервер не выбран. Сначала добавьте профиль сервера.";

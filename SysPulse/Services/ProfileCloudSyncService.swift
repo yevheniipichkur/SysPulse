@@ -53,8 +53,11 @@ struct ProfileCloudSyncService {
             throw ProfileCloudSyncError.unavailableInCurrentBuild(containerIdentifier)
         }
         // CKContainer can raise an Objective-C exception when the signed app is
-        // missing CloudKit entitlements, so only construct it after runtime checks.
-        self.container = CKContainer(identifier: containerIdentifier)
+        // missing CloudKit entitlements, so construct it through an @try/@catch bridge.
+        guard let safeContainer = SysPulseSafeCKContainer(containerIdentifier) else {
+            throw ProfileCloudSyncError.unavailableInCurrentBuild(containerIdentifier)
+        }
+        self.container = safeContainer
     }
 
     func preflight() async throws {
@@ -222,11 +225,11 @@ struct CloudKitEntitlementDiagnostic: Equatable {
     var hasCloudKitService: Bool
 
     var isReady: Bool {
-        verificationSource == .embeddedProvisioningProfile && hasContainerIdentifier && hasCloudKitService
+        verificationSource != .unavailable && hasContainerIdentifier && hasCloudKitService
     }
 
     var canAttemptSync: Bool {
-        isReady
+        isReady || verificationSource == .unavailable
     }
 
     var messageKey: String {
@@ -234,7 +237,7 @@ struct CloudKitEntitlementDiagnostic: Equatable {
             return "Signed build is ready for iCloud sync."
         }
         if verificationSource == .unavailable {
-            return "CloudKit entitlement could not be verified at runtime."
+            return "iCloud capability will be verified by iOS when sync starts."
         }
         if verificationSource == .embeddedProvisioningProfile && !hasEmbeddedProvisioningProfile {
             return "Provisioning profile is missing in this build."
