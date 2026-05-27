@@ -387,7 +387,17 @@
 "iCloud container is missing from the provisioning profile." = "iCloud container is missing from the provisioning profile.";
 "CloudKit service is missing from the provisioning profile." = "CloudKit service is missing from the provisioning profile.";
 "iCloud sync is not available in this build." = "iCloud sync is not available in this build.";
-"CloudKit entitlement could not be verified at runtime. Sync will try CloudKit." = "CloudKit entitlement could not be verified at runtime. Sync will try CloudKit.";
+"CloudKit entitlement could not be verified at runtime." = "CloudKit entitlement could not be verified at runtime.";
+"Checking iCloud account..." = "Checking iCloud account...";
+"Syncing profiles with iCloud..." = "Syncing profiles with iCloud...";
+"iCloud sync is idle." = "iCloud sync is idle.";
+"iCloud sync is up to date." = "iCloud sync is up to date.";
+"iCloud sync needs attention." = "iCloud sync needs attention.";
+"iCloud account is not available. Sign in to iCloud and try again." = "iCloud account is not available. Sign in to iCloud and try again.";
+"iCloud sync is restricted on this device." = "iCloud sync is restricted on this device.";
+"iCloud is temporarily unavailable. Try again later." = "iCloud is temporarily unavailable. Try again later.";
+"iCloud account status could not be verified." = "iCloud account status could not be verified.";
+"iCloud account is available." = "iCloud account is available.";
 
 "Purchase is pending approval." = "Purchase is pending approval.";
 "Purchase cancelled." = "Purchase cancelled.";

@@ -19,6 +19,8 @@ struct TerminalView: View {
     @State private var isTranscriptSearchPresented = false
     @State private var transcriptSearchSelection = 0
     @State private var sessionConnectionStates: [UUID: TerminalConnectionState] = [:]
+    @State private var pendingTranscriptOutput: [UUID: String] = [:]
+    @State private var transcriptFlushTasks: [UUID: Task<Void, Never>] = [:]
     @State private var pendingTerminalCommandConfirmation: TerminalCommandConfirmation?
     @State private var isTerminalCommandConfirmationPresented = false
     @StateObject private var terminalBridgeStore = TerminalBridgeStore()
@@ -347,6 +349,9 @@ struct TerminalView: View {
             .accessibilityLabel(Text("Search transcript"))
 
             Button {
+                if let id = activeSessionID {
+                    flushTranscriptOutput(for: id, appState: appState)
+                }
                 UIPasteboard.general.string = selectedSession?.transcript ?? ""
             } label: {
                 Image(systemName: "doc.on.doc")
@@ -1214,8 +1219,6 @@ struct TerminalView: View {
         let pty = PTYSession()
         let appStateRef = appState
         pty.onOutput = { [appStateRef] text in
-            guard let idx = appStateRef.terminalSessions.firstIndex(where: { $0.id == sessionID }) else { return }
-
             let controlResult = extractSysPulseControlMessages(from: text, sessionID: sessionID, server: server)
             var processed = sanitizeTerminalStream(controlResult.visibleText)
             processed = processed.replacingOccurrences(of: "\r\n", with: "\n")
@@ -1223,10 +1226,7 @@ struct TerminalView: View {
             guard !processed.isEmpty else { return }
 
             sessionConnectionStates[sessionID] = .connected
-            appStateRef.terminalSessions[idx].transcript = applyingBackspaces(
-                processed,
-                to: appStateRef.terminalSessions[idx].transcript
-            )
+            queueTranscriptOutput(processed, to: sessionID, appState: appStateRef)
         }
         let bridge = terminalBridgeStore.bridge(for: sessionID)
         let bridgeStore = terminalBridgeStore
@@ -1236,6 +1236,7 @@ struct TerminalView: View {
         }
         pty.onDisconnect = { [appStateRef] error in
             sessionConnectionStates[sessionID] = .disconnected
+            flushTranscriptOutput(for: sessionID, appState: appStateRef)
             guard let idx = appStateRef.terminalSessions.firstIndex(where: { $0.id == sessionID }) else { return }
             if let error {
                 let message = "\n[Disconnected: \(appStateRef.connectionErrorMessage(error, server: server))]\n"
@@ -1259,12 +1260,37 @@ struct TerminalView: View {
     private func append(_ text: String, to sessionID: UUID? = nil) {
         guard let id = sessionID ?? activeSessionID,
               let index = appState.terminalSessions.firstIndex(where: { $0.id == id }) else { return }
+        flushTranscriptOutput(for: id, appState: appState)
         appState.terminalSessions[index].transcript += text
+    }
+
+    private func queueTranscriptOutput(_ text: String, to sessionID: UUID, appState: AppState) {
+        pendingTranscriptOutput[sessionID, default: ""] += text
+        guard transcriptFlushTasks[sessionID] == nil else { return }
+
+        transcriptFlushTasks[sessionID] = Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(140))
+            flushTranscriptOutput(for: sessionID, appState: appState)
+        }
+    }
+
+    private func flushTranscriptOutput(for sessionID: UUID, appState: AppState) {
+        transcriptFlushTasks[sessionID]?.cancel()
+        transcriptFlushTasks[sessionID] = nil
+        guard let text = pendingTranscriptOutput.removeValue(forKey: sessionID),
+              !text.isEmpty,
+              let index = appState.terminalSessions.firstIndex(where: { $0.id == sessionID }) else { return }
+
+        appState.terminalSessions[index].transcript = applyingBackspaces(
+            text,
+            to: appState.terminalSessions[index].transcript
+        )
     }
 
     private func clearTranscript() {
         guard let id = activeSessionID,
               let index = appState.terminalSessions.firstIndex(where: { $0.id == id }) else { return }
+        flushTranscriptOutput(for: id, appState: appState)
         updateWithMotion {
             appState.terminalSessions[index].transcript = ""
         }
@@ -1277,10 +1303,14 @@ struct TerminalView: View {
     }
 
     private func closeSession(_ id: UUID) {
+        flushTranscriptOutput(for: id, appState: appState)
         ptySessions[id]?.disconnect()
         ptySessions.removeValue(forKey: id)
         terminalViewportSizes.removeValue(forKey: id)
         pendingPTYConnections.removeValue(forKey: id)
+        pendingTranscriptOutput.removeValue(forKey: id)
+        transcriptFlushTasks[id]?.cancel()
+        transcriptFlushTasks.removeValue(forKey: id)
         runtimeStates.removeValue(forKey: id)
         sessionConnectionStates.removeValue(forKey: id)
         terminalBridgeStore.remove(id)

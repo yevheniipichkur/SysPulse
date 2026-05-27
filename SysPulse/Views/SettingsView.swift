@@ -87,6 +87,7 @@ struct SettingsView: View {
                         settingsSection("Data", symbol: "externaldrive") {
                             Toggle("iCloud sync", isOn: iCloudSyncBinding)
                             ICloudEntitlementStatusRow(diagnostic: iCloudEntitlementDiagnostic)
+                            ICloudSyncActivityRow(activity: appState.profileCloudSyncActivity)
 
                             DisclosureGroup("Encrypted sharing", isExpanded: $isAdvancedDataExpanded) {
                                 VStack(alignment: .leading, spacing: 12) {
@@ -235,6 +236,7 @@ struct SettingsView: View {
 
             if isEnabled, !iCloudEntitlementDiagnostic.canAttemptSync {
                 appState.settings.iCloudSyncEnabled = false
+                appState.stopICloudProfileSync()
                 appState.lastCommandOutput = appState.localized(iCloudEntitlementDiagnostic.messageKey)
                 return
             }
@@ -244,6 +246,7 @@ struct SettingsView: View {
                 appState.lastCommandOutput = appState.localized("Starting iCloud profile sync...")
                 appState.syncProfilesWithICloud(mergeRemote: true)
             } else {
+                appState.stopICloudProfileSync()
                 appState.lastCommandOutput = appState.localized("iCloud sync disabled.")
             }
         }
@@ -360,13 +363,11 @@ private struct ICloudEntitlementStatusRow: View {
 
     private var statusColor: Color {
         if diagnostic.isReady { return .green }
-        if diagnostic.verificationSource == .unavailable { return .cyan }
         return .orange
     }
 
     private var statusSymbol: String {
         if diagnostic.isReady { return "checkmark.seal.fill" }
-        if diagnostic.verificationSource == .unavailable { return "info.circle.fill" }
         return "exclamationmark.triangle.fill"
     }
 
@@ -399,6 +400,73 @@ private struct ICloudEntitlementStatusRow: View {
         .overlay {
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .stroke(statusColor.opacity(0.22), lineWidth: 1)
+        }
+    }
+}
+
+private struct ICloudSyncActivityRow: View {
+    var activity: CloudProfileSyncActivity
+
+    private var tint: Color {
+        switch activity {
+        case .idle:
+            .secondary
+        case .checking, .syncing:
+            .cyan
+        case .synced:
+            .green
+        case .failed:
+            .orange
+        }
+    }
+
+    private var symbol: String {
+        switch activity {
+        case .idle:
+            "icloud"
+        case .checking:
+            "icloud"
+        case .syncing:
+            "arrow.triangle.2.circlepath"
+        case .synced:
+            "checkmark.seal.fill"
+        case .failed:
+            "exclamationmark.triangle.fill"
+        }
+    }
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            if activity.isBusy {
+                ProgressView()
+                    .controlSize(.small)
+                    .tint(tint)
+                    .frame(width: 24, height: 24)
+            } else {
+                Image(systemName: symbol)
+                    .font(.headline)
+                    .foregroundStyle(tint)
+                    .frame(width: 24)
+            }
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(LocalizedStringKey(activity.titleKey))
+                    .font(.caption.weight(.semibold))
+                if let detail = activity.detail {
+                    Text(detail)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(12)
+        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(tint.opacity(0.20), lineWidth: 1)
         }
     }
 }

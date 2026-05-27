@@ -52,6 +52,7 @@ final class AppState: ObservableObject {
     @Published var metricErrorByServer: [UUID: String] = [:]
     @Published var alertRules: [AlertRule] = []
     @Published var areNotificationsAuthorized = false
+    @Published var profileCloudSyncActivity: CloudProfileSyncActivity = .idle
 
     private var modelContext: ModelContext?
     private var profileRepository: ProfileRepository?
@@ -1140,6 +1141,7 @@ final class AppState: ObservableObject {
         }
         if settings.iCloudSyncEnabled {
             settings.iCloudSyncEnabled = false
+            stopICloudProfileSync()
         }
         metricsByServer = metricsByServer.mapValues(metricsWithoutPremiumSignals)
         dockerContainersByServer = [:]
@@ -1186,6 +1188,7 @@ final class AppState: ObservableObject {
         let localSnapshots = serverProfiles.map(CloudServerProfileSnapshot.init)
         let previousSyncTask = profileCloudSyncTask
         previousSyncTask?.cancel()
+        profileCloudSyncActivity = .checking
         profileCloudSyncTask = Task {
             do {
                 if let previousSyncTask {
@@ -1194,6 +1197,11 @@ final class AppState: ObservableObject {
                 try Task.checkCancellation()
 
                 let profileCloudSyncService = try ProfileCloudSyncService()
+                try await profileCloudSyncService.preflight()
+                try Task.checkCancellation()
+                guard settings.iCloudSyncEnabled else { return }
+                profileCloudSyncActivity = .syncing
+
                 if mergeRemote {
                     let syncedSnapshots = try await profileCloudSyncService.mergeAndUpload(localSnapshots: localSnapshots)
                     try Task.checkCancellation()
@@ -1203,11 +1211,13 @@ final class AppState: ObservableObject {
                     }
                     reloadProfilesFromRepository()
                     lastCommandOutput = localized("iCloud profile sync completed.")
+                    profileCloudSyncActivity = .synced(.now)
                 } else {
                     try await profileCloudSyncService.uploadSnapshot(localSnapshots)
                     try Task.checkCancellation()
                     guard settings.iCloudSyncEnabled else { return }
                     lastCommandOutput = localized("iCloud profile snapshot updated.")
+                    profileCloudSyncActivity = .synced(.now)
                 }
             } catch is CancellationError {
                 return
@@ -1216,8 +1226,10 @@ final class AppState: ObservableObject {
                     settings.iCloudSyncEnabled = false
                 }
                 lastCommandOutput = localized("iCloud sync failed: %@", error.localizedDescription)
+                profileCloudSyncActivity = .failed(error.localizedDescription)
             } catch {
                 lastCommandOutput = localized("iCloud sync failed: %@", error.localizedDescription)
+                profileCloudSyncActivity = .failed(error.localizedDescription)
             }
         }
     }
@@ -1227,8 +1239,55 @@ final class AppState: ObservableObject {
         syncProfilesWithICloud()
     }
 
+    func stopICloudProfileSync() {
+        profileCloudSyncTask?.cancel()
+        profileCloudSyncTask = nil
+        profileCloudSyncActivity = .idle
+    }
+
     func haptic(_ style: UIImpactFeedbackGenerator.FeedbackStyle) {
         guard !shouldReduceMotion else { return }
         UIImpactFeedbackGenerator(style: style).impactOccurred()
+    }
+}
+
+enum CloudProfileSyncActivity: Equatable {
+    case idle
+    case checking
+    case syncing
+    case synced(Date)
+    case failed(String)
+
+    var isBusy: Bool {
+        switch self {
+        case .checking, .syncing:
+            true
+        case .idle, .synced, .failed:
+            false
+        }
+    }
+
+    var titleKey: String {
+        switch self {
+        case .idle:
+            "iCloud sync is idle."
+        case .checking:
+            "Checking iCloud account..."
+        case .syncing:
+            "Syncing profiles with iCloud..."
+        case .synced:
+            "iCloud sync is up to date."
+        case .failed:
+            "iCloud sync needs attention."
+        }
+    }
+
+    var detail: String? {
+        switch self {
+        case .failed(let message):
+            message
+        default:
+            nil
+        }
     }
 }

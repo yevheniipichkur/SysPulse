@@ -387,7 +387,17 @@
 "iCloud container is missing from the provisioning profile." = "В provisioning profile нет iCloud container.";
 "CloudKit service is missing from the provisioning profile." = "В provisioning profile нет сервиса CloudKit.";
 "iCloud sync is not available in this build." = "Синхронизация iCloud недоступна в этой сборке.";
-"CloudKit entitlement could not be verified at runtime. Sync will try CloudKit." = "CloudKit entitlement не удалось проверить во время работы. Синхронизация попробует CloudKit.";
+"CloudKit entitlement could not be verified at runtime." = "CloudKit entitlement не удалось проверить во время работы.";
+"Checking iCloud account..." = "Проверка аккаунта iCloud...";
+"Syncing profiles with iCloud..." = "Синхронизация профилей с iCloud...";
+"iCloud sync is idle." = "Синхронизация iCloud ожидает.";
+"iCloud sync is up to date." = "Синхронизация iCloud актуальна.";
+"iCloud sync needs attention." = "Синхронизация iCloud требует внимания.";
+"iCloud account is not available. Sign in to iCloud and try again." = "Аккаунт iCloud недоступен. Войдите в iCloud и попробуйте ещё раз.";
+"iCloud sync is restricted on this device." = "Синхронизация iCloud ограничена на этом устройстве.";
+"iCloud is temporarily unavailable. Try again later." = "iCloud временно недоступен. Попробуйте позже.";
+"iCloud account status could not be verified." = "Не удалось проверить состояние аккаунта iCloud.";
+"iCloud account is available." = "Аккаунт iCloud доступен.";
 
 "Purchase is pending approval." = "Покупка ожидает подтверждения.";
 "Purchase cancelled." = "Покупка отменена.";
