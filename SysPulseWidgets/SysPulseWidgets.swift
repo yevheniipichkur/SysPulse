@@ -32,12 +32,15 @@ struct SysPulseWidgetView: View {
     var body: some View {
         if isLocked {
             locked
+                .widgetURL(URL(string: "syspulse://paywall"))
         } else {
             switch family {
             case .systemSmall:
                 small
+                    .widgetURL(URL(string: "syspulse://server/\(entry.primary.id)"))
             case .systemMedium:
                 medium
+                    .widgetURL(URL(string: "syspulse://server/\(entry.primary.id)"))
             default:
                 large
             }
@@ -45,7 +48,7 @@ struct SysPulseWidgetView: View {
     }
 
     private var isLocked: Bool {
-        entry.primary.status == "Pro" && entry.primary.name == "Unlock Pro"
+        entry.primary.status == "Pro"
     }
 
     private var locked: some View {
@@ -104,7 +107,7 @@ struct SysPulseWidgetView: View {
         VStack(alignment: .leading, spacing: 12) {
             Text("SysPulse")
                 .font(.title3.weight(.bold))
-            ForEach(entry.envelope.servers.prefix(5)) { server in
+            ForEach(Array(entry.envelope.servers.prefix(5))) { server in
                 HStack {
                     Image(systemName: "server.rack")
                         .foregroundStyle(statusColor(server.status))
@@ -143,7 +146,7 @@ struct SysPulseWidgetView: View {
     private func statusColor(_ status: String) -> Color {
         switch status.lowercased() {
         case "online": .green
-        case "warning": .orange
+        case "warning": .yellow
         case "offline": .red
         default: .secondary
         }
