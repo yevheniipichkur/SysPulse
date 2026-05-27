@@ -1,6 +1,5 @@
 import CloudKit
 import Foundation
-import Security
 
 enum ProfileCloudSyncError: LocalizedError {
     case missingSnapshotData
@@ -178,10 +177,6 @@ struct ProfileCloudSyncService {
     static func entitlementDiagnostic(
         containerIdentifier: String = SysPulseModelContainerFactory.iCloudContainerIdentifier
     ) -> CloudKitEntitlementDiagnostic {
-        if let runtimeDiagnostic = runtimeEntitlementDiagnostic(containerIdentifier: containerIdentifier) {
-            return runtimeDiagnostic
-        }
-
         guard let profile = embeddedProvisioningProfileText() else {
             return CloudKitEntitlementDiagnostic(
                 containerIdentifier: containerIdentifier,
@@ -201,38 +196,6 @@ struct ProfileCloudSyncService {
         )
     }
 
-    private static func runtimeEntitlementDiagnostic(containerIdentifier: String) -> CloudKitEntitlementDiagnostic? {
-        let containerIDs = entitlementStrings(for: "com.apple.developer.icloud-container-identifiers")
-        let services = entitlementStrings(for: "com.apple.developer.icloud-services")
-
-        guard containerIDs != nil || services != nil else {
-            return nil
-        }
-
-        return CloudKitEntitlementDiagnostic(
-            containerIdentifier: containerIdentifier,
-            verificationSource: .runtimeEntitlements,
-            hasEmbeddedProvisioningProfile: false,
-            hasContainerIdentifier: containerIDs?.contains(containerIdentifier) ?? false,
-            hasCloudKitService: services?.contains("CloudKit") ?? false
-        )
-    }
-
-    private static func entitlementStrings(for key: String) -> [String]? {
-        guard let task = SecTaskCreateFromSelf(kCFAllocatorDefault),
-              let value = SecTaskCopyValueForEntitlement(task, key as CFString, nil) else {
-            return nil
-        }
-
-        if let strings = value as? [String] {
-            return strings
-        }
-        if let string = value as? String {
-            return [string]
-        }
-        return nil
-    }
-
     private static func embeddedProvisioningProfileText() -> String? {
         guard let profileURL = Bundle.main.url(forResource: "embedded", withExtension: "mobileprovision"),
               let data = try? Data(contentsOf: profileURL),
@@ -246,7 +209,6 @@ struct ProfileCloudSyncService {
 
 struct CloudKitEntitlementDiagnostic: Equatable {
     enum VerificationSource: Equatable {
-        case runtimeEntitlements
         case embeddedProvisioningProfile
         case unavailable
     }
@@ -262,7 +224,7 @@ struct CloudKitEntitlementDiagnostic: Equatable {
     }
 
     var canAttemptSync: Bool {
-        isReady
+        isReady || verificationSource == .unavailable
     }
 
     var messageKey: String {
