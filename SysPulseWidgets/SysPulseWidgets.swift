@@ -30,25 +30,31 @@ struct SysPulseWidgetView: View {
     var entry: SysPulseWidgetEntry
 
     var body: some View {
-        if isLocked {
-            locked
-                .widgetURL(URL(string: "syspulse://paywall"))
-        } else {
-            switch family {
-            case .systemSmall:
-                small
-                    .widgetURL(URL(string: "syspulse://server/\(entry.primary.id)"))
-            case .systemMedium:
-                medium
-                    .widgetURL(URL(string: "syspulse://server/\(entry.primary.id)"))
-            default:
-                large
+        Group {
+            if isLocked {
+                locked
+            } else {
+                switch family {
+                case .systemSmall:
+                    small
+                case .systemMedium:
+                    medium
+                default:
+                    large
+                }
             }
         }
+        .widgetURL(deepLinkURL)
     }
 
     private var isLocked: Bool {
         entry.primary.status == "Pro"
+    }
+
+    private var deepLinkURL: URL? {
+        isLocked
+            ? URL(string: "syspulse://paywall")
+            : URL(string: "syspulse://server/\(entry.primary.id)")
     }
 
     private var locked: some View {
