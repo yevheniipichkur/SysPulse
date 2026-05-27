@@ -914,21 +914,21 @@ struct TerminalView: View {
         let palette = terminalPalette
 
         return ScrollView(.horizontal) {
-            HStack(spacing: 5) {
+            HStack(spacing: 6) {
                 ForEach(["esc", "tab", "ctrl", "alt", "/", "|", "~", "-", "^C", "^X", "^O", "↑", "↓", "←", "→"], id: \.self) { key in
                     Button {
                         insertAccessory(key)
                     } label: {
                         Text(key)
-                            .font(.caption.weight(.semibold))
                             .fixedSize()
                     }
                     .buttonStyle(TerminalKeyStyle(isActive: keyIsLatched(key), palette: palette))
                 }
             }
-            .padding(.horizontal, 4)
+            .padding(.horizontal, 6)
         }
         .scrollIndicators(.hidden)
+        .frame(height: 46)
     }
 
     // MARK: - Input handling
@@ -2288,18 +2288,22 @@ private struct TerminalKeyStyle: ButtonStyle {
             if configuration.isPressed { return palette.keyPressedBackground }
             return palette.keyBackground
         }()
+        let fg: SwiftUI.Color = isActive
+            ? .white
+            : (configuration.isPressed ? palette.keyPressedForeground : palette.keyForeground)
 
         configuration.label
-            .padding(.horizontal, 11)
-            .frame(minWidth: 32, minHeight: 32, maxHeight: 32)
-            .foregroundStyle(isActive ? SwiftUI.Color.white : palette.controlForeground)
+            .font(.system(size: 15, weight: .medium))
+            .padding(.horizontal, 10)
+            .frame(minWidth: 40, height: 38)
+            .foregroundStyle(fg)
             .background(
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                RoundedRectangle(cornerRadius: 9, style: .continuous)
                     .fill(fill)
             )
-            .scaleEffect(configuration.isPressed ? 0.90 : 1.0)
-            .animation(.easeOut(duration: 0.08), value: configuration.isPressed)
-            .animation(.spring(response: 0.18, dampingFraction: 0.72), value: isActive)
+            // instant press feedback — no delay
+            .animation(nil, value: configuration.isPressed)
+            .animation(.spring(response: 0.20, dampingFraction: 0.75), value: isActive)
     }
 }
 
@@ -2491,15 +2495,33 @@ private struct TerminalThemePalette {
         }
     }
 
+    // MARK: – Accessory key colours (Termius-style solid keys)
+
+    /// Normal fill — matches iOS keyboard secondary-key look
     var keyBackground: SwiftUI.Color {
         isLight
-            ? SwiftUI.Color.black.opacity(0.10)
-            : SwiftUI.Color.white.opacity(0.18)
+            ? SwiftUI.Color(white: 0.76)   // light-mode: medium-light gray
+            : SwiftUI.Color(white: 0.27)   // dark-mode: charcoal like iOS kbd special keys
     }
 
+    /// Pressed fill — immediately lighter so the tap is obvious
     var keyPressedBackground: SwiftUI.Color {
         isLight
-            ? SwiftUI.Color.black.opacity(0.22)
-            : SwiftUI.Color.white.opacity(0.36)
+            ? SwiftUI.Color(white: 0.54)
+            : SwiftUI.Color(white: 0.50)
+    }
+
+    /// Normal label colour
+    var keyForeground: SwiftUI.Color {
+        isLight
+            ? SwiftUI.Color(white: 0.08)
+            : SwiftUI.Color.white
+    }
+
+    /// Label colour while the key is being held down
+    var keyPressedForeground: SwiftUI.Color {
+        isLight
+            ? SwiftUI.Color(white: 0.08)
+            : SwiftUI.Color.white
     }
 }
