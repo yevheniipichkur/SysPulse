@@ -197,8 +197,15 @@ struct ProfileCloudSyncService {
             verificationSource: .embeddedProvisioningProfile,
             hasEmbeddedProvisioningProfile: true,
             hasContainerIdentifier: profile.contains(containerIdentifier),
-            hasCloudKitService: profile.contains("<string>CloudKit</string>")
+            hasCloudKitService: embeddedProvisioningProfileHasCloudKitService(profile)
         )
+    }
+
+    private static func embeddedProvisioningProfileHasCloudKitService(_ profile: String) -> Bool {
+        guard profile.contains("<key>com.apple.developer.icloud-services</key>") else {
+            return false
+        }
+        return profile.contains("<string>CloudKit</string>") || profile.contains("<string>*</string>")
     }
 
     private static func embeddedProvisioningProfileText() -> String? {
