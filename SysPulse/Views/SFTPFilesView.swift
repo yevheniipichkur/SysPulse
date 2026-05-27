@@ -198,7 +198,7 @@ struct SFTPFilesView: View {
 
     private func sftpHeader(server: ServerProfile) -> some View {
         let accent = Color(hex: server.accentHex)
-        GlassCard(cornerRadius: 28, padding: 16) {
+        return GlassCard(cornerRadius: 28, padding: 16) {
             HStack(spacing: 14) {
                 Image(systemName: server.displayIcon)
                     .font(.title2.weight(.semibold))
