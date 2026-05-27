@@ -28,10 +28,13 @@ struct LogBrowserView: View {
                 }
                 .padding(.horizontal, SysPulseDesign.pagePadding)
             } else {
-                HSplitLogLayout(
-                    sidebar: sidebarContent,
-                    detail: detailContent
-                )
+                VStack(spacing: 0) {
+                    sidebarContent
+                        .frame(maxHeight: 220)
+                    Divider().opacity(0.2)
+                    detailContent
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
             }
         }
         .onAppear { loadLogFiles() }
@@ -227,20 +230,3 @@ struct LogBrowserView: View {
     }
 }
 
-// MARK: - Layout helper (vertical split on large screen, list+detail on iPhone)
-
-private struct HSplitLogLayout<Sidebar: View, Detail: View>: View {
-    @ViewBuilder var sidebar: Sidebar
-    @ViewBuilder var detail: Detail
-    @Environment(\.horizontalSizeClass) private var hSizeClass
-
-    var body: some View {
-        VStack(spacing: 0) {
-            sidebar
-                .frame(maxHeight: 220)
-            Divider().opacity(0.2)
-            detail
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-        }
-    }
-}
