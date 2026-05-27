@@ -124,10 +124,6 @@ struct MainShellView: View {
                     .tabScreenMotion(tab: .servers, selectedTab: appState.selectedTab, disabled: appState.shouldReduceMotion)
                     .tabItem { tabLabel(for: .servers) }
                     .tag(AppTab.servers)
-                ServerDetailView()
-                    .tabScreenMotion(tab: .monitor, selectedTab: appState.selectedTab, disabled: appState.shouldReduceMotion)
-                    .tabItem { tabLabel(for: .monitor) }
-                    .tag(AppTab.monitor)
                 TerminalView()
                     .tabScreenMotion(tab: .terminal, selectedTab: appState.selectedTab, disabled: appState.shouldReduceMotion)
                     .tabItem { tabLabel(for: .terminal) }

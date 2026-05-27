@@ -4,7 +4,6 @@ import SwiftUI
 
 enum AppTab: String, CaseIterable, Identifiable, Hashable {
     case servers
-    case monitor
     case terminal
     case sftp
     case settings
@@ -15,8 +14,6 @@ enum AppTab: String, CaseIterable, Identifiable, Hashable {
         switch self {
         case .servers:
             "Servers"
-        case .monitor:
-            "Monitor"
         case .terminal:
             "Terminal"
         case .sftp:
@@ -31,7 +28,6 @@ enum AppTab: String, CaseIterable, Identifiable, Hashable {
     var symbol: String {
         switch self {
         case .servers: "server.rack"
-        case .monitor: "waveform.path.ecg"
         case .terminal: "terminal"
         case .sftp: "folder"
         case .settings: "gearshape"

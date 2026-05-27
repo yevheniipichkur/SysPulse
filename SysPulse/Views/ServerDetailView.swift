@@ -4,6 +4,7 @@ import UniformTypeIdentifiers
 
 struct ServerDetailView: View {
     @EnvironmentObject private var appState: AppState
+    @Environment(\.dismiss) private var dismiss
     @State private var selectedTab: DetailTab = .overview
     @State private var showingMissingTools = false
     @State private var confirmationMessage = ""
@@ -84,7 +85,7 @@ struct ServerDetailView: View {
                 )
             }
         }
-        .accessibilityIdentifier(AppTab.monitor.screenAccessibilityIdentifier)
+        .accessibilityIdentifier("screen_monitor")
         .sheet(isPresented: $showingMissingTools) {
             MissingToolsView()
                 .presentationDetents([.large])
@@ -155,7 +156,18 @@ struct ServerDetailView: View {
                     }
                     Spacer()
                     VStack(alignment: .trailing, spacing: 8) {
-                        StatusPill(status: server.status)
+                        HStack(spacing: 8) {
+                            StatusPill(status: server.status)
+                            Button {
+                                dismiss()
+                            } label: {
+                                Image(systemName: "xmark")
+                                    .font(.system(size: 13, weight: .bold))
+                                    .frame(width: 28, height: 28)
+                            }
+                            .buttonStyle(PressableGlassButtonStyle(cornerRadius: 14, verticalPadding: 0, horizontalPadding: 0))
+                            .accessibilityLabel("Close")
+                        }
                         Button {
                             appState.refreshMetrics(for: server)
                         } label: {

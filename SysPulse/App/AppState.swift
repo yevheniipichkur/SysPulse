@@ -498,7 +498,7 @@ final class AppState: ObservableObject {
         haptic(.rigid)
     }
 
-    func select(_ server: ServerProfile, tab: AppTab = .monitor) {
+    func select(_ server: ServerProfile, tab: AppTab = .servers) {
         selectedServer = server
         selectedTab = tab
         haptic(.light)

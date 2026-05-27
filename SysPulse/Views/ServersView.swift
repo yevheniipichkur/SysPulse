@@ -6,6 +6,7 @@ struct ServersView: View {
     @State private var isAddingServer = false
     @State private var editingServer: ServerProfile?
     @State private var selectedGroupName: String?
+    @State private var isShowingDetail = false
 
     private var allGroups: [String] {
         Array(Set(appState.serverProfiles.compactMap(\.groupName)))
@@ -31,6 +32,10 @@ struct ServersView: View {
             AddServerView()
                 .presentationDetents([.large])
                 .presentationCornerRadius(32)
+        }
+        .fullScreenCover(isPresented: $isShowingDetail) {
+            ServerDetailView()
+                .environmentObject(appState)
         }
         .sheet(item: $editingServer) { server in
             AddServerView(editingServer: server)
@@ -100,7 +105,9 @@ struct ServersView: View {
                         )
                             .listItemEntrance(index: index, disabled: appState.shouldReduceMotion)
                             .onTapGesture {
-                                appState.select(server, tab: .monitor)
+                                appState.selectedServer = server
+                                appState.haptic(.light)
+                                isShowingDetail = true
                             }
                             .contextMenu {
                                 Button {
@@ -109,9 +116,11 @@ struct ServersView: View {
                                     Label("Open Terminal", systemImage: "terminal")
                                 }
                                 Button {
-                                    appState.select(server, tab: .monitor)
+                                    appState.selectedServer = server
+                                    appState.haptic(.light)
+                                    isShowingDetail = true
                                 } label: {
-                                    Label("Open Monitor", systemImage: "waveform.path.ecg")
+                                    Label("Open Detail", systemImage: "waveform.path.ecg")
                                 }
                                 Button {
                                     editingServer = server
