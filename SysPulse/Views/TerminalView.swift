@@ -7,6 +7,8 @@ struct TerminalView: View {
     @State private var selectedSessionID: UUID?
     @State private var currentInput: String = ""
     @State private var commandHistory: [String] = []
+    @State private var historyNavigationIndex: Int? = nil
+    @State private var inputBeforeHistoryNav: String = ""
     @State private var keyboardActive: Bool = false
     @State private var controlModifierActive: Bool = false
     @State private var altModifierActive: Bool = false
@@ -682,6 +684,7 @@ struct TerminalView: View {
                     Button("Clear terminal history", role: .destructive) {
                         updateWithMotion {
                             commandHistory.removeAll()
+                            historyNavigationIndex = nil
                         }
                     }
                 } label: {
@@ -942,12 +945,45 @@ struct TerminalView: View {
     private func insertAccessory(_ key: String) {
         switch key {
         case "↑":
-            if let previous = commandHistory.last {
-                applySuggestion(previous)
+            if historyNavigationIndex == nil {
+                guard !commandHistory.isEmpty else { break }
+                inputBeforeHistoryNav = currentInput
+                historyNavigationIndex = commandHistory.count - 1
+            } else if historyNavigationIndex! > 0 {
+                historyNavigationIndex! -= 1
+            } else {
+                break
             }
+            guard let navIdx = historyNavigationIndex, commandHistory.indices.contains(navIdx) else {
+                historyNavigationIndex = nil
+                break
+            }
+            applySuggestion(commandHistory[navIdx])
         case "↓":
-            sendRawToActivePTY([0x15], mirrorInput: false)
-            currentInput = ""
+            guard let idx = historyNavigationIndex else {
+                sendRawToActivePTY([0x15], mirrorInput: false)
+                currentInput = ""
+                break
+            }
+            guard commandHistory.indices.contains(idx) else {
+                historyNavigationIndex = nil
+                sendRawToActivePTY([0x15], mirrorInput: false)
+                currentInput = ""
+                break
+            }
+            if idx < commandHistory.count - 1 {
+                historyNavigationIndex! += 1
+                applySuggestion(commandHistory[historyNavigationIndex!])
+            } else {
+                historyNavigationIndex = nil
+                let restored = inputBeforeHistoryNav
+                if restored.isEmpty {
+                    sendRawToActivePTY([0x15], mirrorInput: false)
+                    currentInput = ""
+                } else {
+                    applySuggestion(restored)
+                }
+            }
         case "←":
             sendRawToActivePTY(Array("\u{1B}[D".utf8), mirrorInput: false)
         case "→":
@@ -955,6 +991,7 @@ struct TerminalView: View {
         case "^C":
             sendRawToActivePTY([0x03], mirrorInput: true)
             currentInput = ""
+            historyNavigationIndex = nil
             controlModifierActive = false
             altModifierActive = false
         case "^X":
@@ -987,7 +1024,9 @@ struct TerminalView: View {
     }
 
     private func keyIsLatched(_ key: String) -> Bool {
-        (key == "ctrl" && controlModifierActive) || (key == "alt" && altModifierActive)
+        (key == "ctrl" && controlModifierActive) ||
+        (key == "alt" && altModifierActive) ||
+        (key == "↑" && historyNavigationIndex != nil)
     }
 
     private func applyPendingModifier(to text: String) -> Bool {
@@ -1462,6 +1501,7 @@ struct TerminalView: View {
 
     private func resetTerminalInputState() {
         currentInput = ""
+        historyNavigationIndex = nil
         controlModifierActive = false
         altModifierActive = false
         transcriptSearchSelection = 0
@@ -1477,12 +1517,15 @@ struct TerminalView: View {
                     commandHistory.append(cmd)
                 }
                 currentInput = ""
+                historyNavigationIndex = nil
             case 3, 21:
                 currentInput = ""
+                historyNavigationIndex = nil
             case 8, 127:
                 if !currentInput.isEmpty { currentInput.removeLast() }
             case 32...126:
                 currentInput.append(Character(UnicodeScalar(byte)))
+                historyNavigationIndex = nil
             default:
                 break
             }
