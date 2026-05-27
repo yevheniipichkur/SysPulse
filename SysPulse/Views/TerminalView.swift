@@ -132,6 +132,7 @@ struct TerminalView: View {
             bottomConsole
         }
         .onAppear {
+            terminalBridgeStore.setActiveSession(activeSessionID)
             setTerminalSurfaceVisible(true)
             ensureSessionForSelectedServer()
             guard !appState.isScreenshotMode else { return }
@@ -141,19 +142,43 @@ struct TerminalView: View {
                 focusActiveTerminal()
             }
         }
+        .onChange(of: activeSessionID) { _, newID in
+            terminalBridgeStore.setActiveSession(newID)
+            guard newID != nil,
+                  appState.selectedTab == .terminal,
+                  !appState.isScreenshotMode else { return }
+            keyboardActive = true
+            Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(90))
+                focusActiveTerminal()
+            }
+        }
         .onChange(of: appState.selectedServer?.id) {
             ensureSessionForSelectedServer()
         }
         .onChange(of: appState.selectedTab) { _, newTab in
             guard newTab == .terminal else {
+                terminalBridgeStore.setActiveSession(nil)
+                keyboardActive = false
                 setTerminalSurfaceVisible(false)
                 return
             }
+            terminalBridgeStore.setActiveSession(activeSessionID)
             setTerminalSurfaceVisible(true)
             guard !appState.isScreenshotMode else { return }
             Task { @MainActor in
                 try? await Task.sleep(for: .seconds(appState.shouldReduceMotion ? 0.05 : 0.35))
                 keyboardActive = true
+                focusActiveTerminal()
+            }
+        }
+        .onChange(of: activeConnectionState) { _, newState in
+            guard newState == .connected,
+                  appState.selectedTab == .terminal,
+                  !appState.isScreenshotMode else { return }
+            keyboardActive = true
+            Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(120))
                 focusActiveTerminal()
             }
         }
@@ -224,24 +249,16 @@ struct TerminalView: View {
                 }
                 .padding(.horizontal, 28)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if let session = selectedSession {
-                SwiftTermTerminalSurface(
-                    bridge: terminalBridgeStore.bridge(for: session.id),
-                    fontSize: CGFloat(appState.settings.terminalFontSize),
-                    palette: palette,
-                    onInput: { bytes in
-                        let outboundBytes = transformedTerminalInput(bytes)
-                        handleTerminalInput(outboundBytes)
-                    },
-                    onResize: { cols, rows in
-                        handleTerminalResize(sessionID: session.id, cols: cols, rows: rows)
+            } else {
+                ZStack {
+                    ForEach(appState.terminalSessions) { session in
+                        terminalSurface(for: session, palette: palette)
                     }
-                )
+                }
                 .padding(.horizontal, 10)
                 .padding(.top, 8)
                 .padding(.bottom, 6)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .id(session.id)
                 .contentShape(Rectangle())
                 .onTapGesture {
                     keyboardActive = true
@@ -255,6 +272,29 @@ struct TerminalView: View {
                 .ignoresSafeArea()
         )
         .animation(SysPulseMotion.softSpring(disabled: appState.shouldReduceMotion), value: isTranscriptSearchPresented)
+    }
+
+    private func terminalSurface(for session: TerminalSession, palette: TerminalThemePalette) -> some View {
+        let isActive = session.id == activeSessionID
+        let shouldFocus = isActive && appState.selectedTab == .terminal && !isTranscriptSearchPresented
+
+        return SwiftTermTerminalSurface(
+            bridge: terminalBridgeStore.bridge(for: session.id),
+            fontSize: CGFloat(appState.settings.terminalFontSize),
+            palette: palette,
+            isActive: shouldFocus,
+            onInput: { bytes in
+                let outboundBytes = transformedTerminalInput(bytes)
+                handleTerminalInput(outboundBytes, from: session.id)
+            },
+            onResize: { cols, rows in
+                handleTerminalResize(sessionID: session.id, cols: cols, rows: rows)
+            }
+        )
+        .opacity(isActive ? 1 : 0)
+        .allowsHitTesting(isActive)
+        .accessibilityHidden(!isActive)
+        .zIndex(isActive ? 1 : 0)
     }
 
     private func topChrome(palette: TerminalThemePalette) -> some View {
@@ -284,6 +324,10 @@ struct TerminalView: View {
                     if !isTranscriptSearchPresented {
                         terminalSearchText = ""
                         isTranscriptSearchFieldFocused = false
+                        Task { @MainActor in
+                            try? await Task.sleep(for: .milliseconds(80))
+                            focusActiveTerminal()
+                        }
                     } else {
                         transcriptSearchSelection = 0
                     }
@@ -945,8 +989,11 @@ struct TerminalView: View {
         return bytes
     }
 
-    private func handleTerminalInput(_ bytes: [UInt8]) {
+    private func handleTerminalInput(_ bytes: [UInt8], from sessionID: UUID? = nil) {
         guard !bytes.isEmpty else { return }
+        if let sessionID, sessionID != activeSessionID {
+            return
+        }
         if let confirmation = terminalCommandConfirmation(for: bytes) {
             pendingTerminalCommandConfirmation = confirmation
             isTerminalCommandConfirmationPresented = true
@@ -1056,7 +1103,10 @@ struct TerminalView: View {
     }
 
     private func focusActiveTerminal() {
-        guard let id = activeSessionID else { return }
+        guard appState.selectedTab == .terminal,
+              !isTranscriptSearchPresented,
+              let id = activeSessionID else { return }
+        terminalBridgeStore.setActiveSession(id)
         terminalBridgeStore.bridge(for: id).focus()
     }
 
@@ -1179,9 +1229,10 @@ struct TerminalView: View {
             )
         }
         let bridge = terminalBridgeStore.bridge(for: sessionID)
-        pty.onData = { [weak bridge] bytes in
+        let bridgeStore = terminalBridgeStore
+        pty.onData = { [weak bridge, weak bridgeStore] bytes in
             bridge?.feed(bytes)
-            bridge?.focus()
+            bridgeStore?.focusIfActive(sessionID)
         }
         pty.onDisconnect = { [appStateRef] error in
             sessionConnectionStates[sessionID] = .disconnected
@@ -1261,6 +1312,7 @@ struct TerminalView: View {
                 appState.selectedServer = server
             }
         }
+        terminalBridgeStore.setActiveSession(session.id)
         if let serverID = session.serverID,
            let server = appState.serverProfiles.first(where: { $0.id == serverID }),
            runtimeStates[session.id] == nil {
@@ -1269,11 +1321,18 @@ struct TerminalView: View {
         if didChangeSession {
             resetTerminalInputState()
         }
+        keyboardActive = true
         refreshVisibleTerminal(for: session)
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(80))
+            focusActiveTerminal()
+        }
     }
 
-    private func refreshVisibleTerminal(for session: TerminalSession) {
-        terminalBridgeStore.bridge(for: session.id).replaceVisibleContent(with: Array(session.transcript.utf8))
+    private func refreshVisibleTerminal(for session: TerminalSession, force: Bool = false) {
+        let bridge = terminalBridgeStore.bridge(for: session.id)
+        guard force || !bridge.hasLiveVisibleContent else { return }
+        bridge.replaceVisibleContent(with: Array(session.transcript.utf8))
     }
 
     private func reconnectCurrentSession() {
@@ -1529,6 +1588,7 @@ private struct TerminalSearchIconButton: View {
 
 private final class TerminalBridgeStore: ObservableObject {
     private var bridges: [UUID: TerminalFeedBridge] = [:]
+    private var activeSessionID: UUID?
 
     func bridge(for id: UUID) -> TerminalFeedBridge {
         if let bridge = bridges[id] { return bridge }
@@ -1537,9 +1597,21 @@ private final class TerminalBridgeStore: ObservableObject {
         return bridge
     }
 
+    func setActiveSession(_ id: UUID?) {
+        activeSessionID = id
+    }
+
+    func focusIfActive(_ id: UUID) {
+        guard activeSessionID == id else { return }
+        bridge(for: id).focus()
+    }
+
     func remove(_ id: UUID) {
         bridges[id]?.reset()
         bridges.removeValue(forKey: id)
+        if activeSessionID == id {
+            activeSessionID = nil
+        }
     }
 }
 
@@ -1549,24 +1621,45 @@ private final class TerminalFeedBridge: ObservableObject {
     private var feedHandler: (([UInt8]) -> Void)?
     private var resetHandler: (() -> Void)?
     private var focusHandler: (() -> Void)?
+    private var boundToken: ObjectIdentifier?
     private var pending: [[UInt8]] = []
     private var pendingReplacement: [UInt8]?
     private var pendingFocus = false
     private var isReadyForOutput = false
+    private var hasRenderedContent = false
+
+    var hasLiveVisibleContent: Bool {
+        feedHandler != nil && hasRenderedContent
+    }
 
     func bind(
+        token: ObjectIdentifier,
         feed: @escaping ([UInt8]) -> Void,
         reset: @escaping () -> Void,
         focus: @escaping () -> Void
     ) {
+        let isNewBinding = boundToken != token || feedHandler == nil
+        boundToken = token
         feedHandler = feed
         resetHandler = reset
         focusHandler = focus
-        isReadyForOutput = false
+        if isNewBinding {
+            isReadyForOutput = false
+        }
         if pendingFocus {
             pendingFocus = false
             focus()
         }
+    }
+
+    func unbind(token: ObjectIdentifier) {
+        guard boundToken == token else { return }
+        feedHandler = nil
+        resetHandler = nil
+        focusHandler = nil
+        boundToken = nil
+        isReadyForOutput = false
+        hasRenderedContent = false
     }
 
     func markReadyForOutput() {
@@ -1578,6 +1671,7 @@ private final class TerminalFeedBridge: ObservableObject {
         guard !bytes.isEmpty else { return }
         if isReadyForOutput, let feedHandler {
             feedHandler(bytes)
+            hasRenderedContent = true
         } else {
             pending.append(bytes)
         }
@@ -1589,12 +1683,19 @@ private final class TerminalFeedBridge: ObservableObject {
     }
 
     func reset() {
-        pendingReplacement = nil
         pending.removeAll()
         if let resetHandler {
+            pendingReplacement = nil
             resetHandler()
+            hasRenderedContent = false
+        } else if let feedHandler {
+            pendingReplacement = nil
+            feedHandler(Array(terminalReplayResetSequence.utf8))
+            hasRenderedContent = false
         } else {
-            feedHandler?(Array(terminalReplayResetSequence.utf8))
+            pendingReplacement = []
+            isReadyForOutput = false
+            hasRenderedContent = false
         }
     }
 
@@ -1614,15 +1715,61 @@ private final class TerminalFeedBridge: ObservableObject {
             } else {
                 feedHandler(Array(terminalReplayResetSequence.utf8))
             }
+            hasRenderedContent = false
             if !pendingReplacement.isEmpty {
                 feedHandler(pendingReplacement)
             }
+            hasRenderedContent = true
             self.pendingReplacement = nil
         }
         guard !pending.isEmpty else { return }
         let buffered = pending
         pending.removeAll(keepingCapacity: true)
         buffered.forEach(feedHandler)
+        hasRenderedContent = true
+    }
+}
+
+private final class SysPulseTerminalUIKitView: SwiftTerm.TerminalView {
+    private(set) var wantsKeyboardFocus = false
+    private var focusToken = 0
+
+    override func didMoveToWindow() {
+        super.didMoveToWindow()
+        if wantsKeyboardFocus {
+            requestKeyboardFocus(token: focusToken)
+        }
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        if wantsKeyboardFocus && !isFirstResponder {
+            requestKeyboardFocus(token: focusToken)
+        }
+    }
+
+    @discardableResult
+    func beginKeyboardFocusRequest() -> Int {
+        setWantsKeyboardFocus(true)
+        return focusToken
+    }
+
+    func setWantsKeyboardFocus(_ wantsFocus: Bool) {
+        if wantsKeyboardFocus != wantsFocus {
+            wantsKeyboardFocus = wantsFocus
+            focusToken += 1
+        }
+        if wantsFocus {
+            requestKeyboardFocus(token: focusToken)
+        }
+    }
+
+    func requestKeyboardFocus(token: Int? = nil) {
+        guard wantsKeyboardFocus, window != nil else { return }
+        if let token, token != focusToken { return }
+        inputAccessoryView = nil
+        reloadInputViews()
+        _ = becomeFirstResponder()
     }
 }
 
@@ -1630,6 +1777,7 @@ private struct SwiftTermTerminalSurface: UIViewRepresentable {
     @ObservedObject var bridge: TerminalFeedBridge
     var fontSize: CGFloat
     var palette: TerminalThemePalette
+    var isActive: Bool
     var onInput: ([UInt8]) -> Void
     var onResize: (Int, Int) -> Void
 
@@ -1638,7 +1786,7 @@ private struct SwiftTermTerminalSurface: UIViewRepresentable {
     }
 
     func makeUIView(context: Context) -> SwiftTerm.TerminalView {
-        let view = SwiftTerm.TerminalView(
+        let view = SysPulseTerminalUIKitView(
             frame: .zero,
             font: UIFont.monospacedSystemFont(ofSize: fontSize, weight: .regular)
         )
@@ -1654,7 +1802,11 @@ private struct SwiftTermTerminalSurface: UIViewRepresentable {
         view.smartDashesType = .no
         view.inputAccessoryView = nil
         view.changeScrollback(5000)
+        view.setWantsKeyboardFocus(isActive)
         bindBridge(to: view)
+        if isActive {
+            focusTerminalView(view)
+        }
         return view
     }
 
@@ -1667,11 +1819,22 @@ private struct SwiftTermTerminalSurface: UIViewRepresentable {
         uiView.nativeBackgroundColor = .clear
         uiView.backgroundColor = .clear
         uiView.inputAccessoryView = nil
+        if let sysPulseView = uiView as? SysPulseTerminalUIKitView {
+            sysPulseView.setWantsKeyboardFocus(isActive)
+        }
         bindBridge(to: uiView)
+        if isActive {
+            focusTerminalView(uiView)
+        }
+    }
+
+    static func dismantleUIView(_ uiView: SwiftTerm.TerminalView, coordinator: Coordinator) {
+        coordinator.bridge?.unbind(token: ObjectIdentifier(uiView))
     }
 
     private func bindBridge(to terminalView: SwiftTerm.TerminalView) {
         bridge.bind(
+            token: ObjectIdentifier(terminalView),
             feed: { [weak terminalView] bytes in
                 terminalView?.feed(byteArray: ArraySlice(bytes))
             },
@@ -1679,6 +1842,7 @@ private struct SwiftTermTerminalSurface: UIViewRepresentable {
                 terminalView?.feed(text: terminalReplayResetSequence)
             },
             focus: { [weak terminalView] in
+                guard isActive else { return }
                 focusTerminalView(terminalView)
             }
         )
@@ -1686,14 +1850,19 @@ private struct SwiftTermTerminalSurface: UIViewRepresentable {
     }
 
     private func focusTerminalView(_ terminalView: SwiftTerm.TerminalView?) {
-        DispatchQueue.main.async { [weak terminalView] in
-            _ = terminalView?.becomeFirstResponder()
-        }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) { [weak terminalView] in
-            _ = terminalView?.becomeFirstResponder()
-        }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.48) { [weak terminalView] in
-            _ = terminalView?.becomeFirstResponder()
+        guard isActive else { return }
+        let focusToken = (terminalView as? SysPulseTerminalUIKitView)?.beginKeyboardFocusRequest()
+        [0.0, 0.08, 0.22, 0.52, 0.92].forEach { delay in
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak terminalView] in
+                guard let terminalView else { return }
+                terminalView.inputAccessoryView = nil
+                terminalView.reloadInputViews()
+                if let sysPulseView = terminalView as? SysPulseTerminalUIKitView {
+                    sysPulseView.requestKeyboardFocus(token: focusToken)
+                } else if terminalView.window != nil {
+                    _ = terminalView.becomeFirstResponder()
+                }
+            }
         }
     }
 
