@@ -52,7 +52,12 @@ struct ProfileCloudSyncService {
         guard diagnostic.canAttemptSync else {
             throw ProfileCloudSyncError.unavailableInCurrentBuild(containerIdentifier)
         }
-        self.container = CKContainer(identifier: containerIdentifier)
+        // Use ObjC @try/@catch bridge: on iOS 26+ CKContainer(identifier:) throws an
+        // NSException (not a Swift error) when the container isn't in signed entitlements.
+        guard let safeContainer = SysPulseSafeCKContainer(containerIdentifier) else {
+            throw ProfileCloudSyncError.unavailableInCurrentBuild(containerIdentifier)
+        }
+        self.container = safeContainer
     }
 
     func preflight() async throws {

@@ -25,6 +25,9 @@ targets:
   SysPulse:
     type: application
     platform: iOS
+    settings:
+      base:
+        SWIFT_OBJC_BRIDGING_HEADER: SysPulse/SysPulse-Bridging-Header.h
     sources:
       - path: SysPulse
         excludes:
