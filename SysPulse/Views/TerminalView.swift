@@ -328,7 +328,7 @@ struct TerminalView: View {
 
     private func activeServerBar(server: ServerProfile, palette: TerminalThemePalette) -> some View {
         let serverAccent = Color(hex: server.accentHex)
-        HStack(spacing: 10) {
+        return HStack(spacing: 10) {
             Image(systemName: server.displayIcon)
                 .font(.headline.weight(.semibold))
                 .foregroundStyle(serverAccent)
@@ -386,7 +386,7 @@ struct TerminalView: View {
         let matches = transcriptSearchMatches
         let selectedMatch = selectedTranscriptSearchMatch
 
-        GlassCard(cornerRadius: 18, padding: 12) {
+        return GlassCard(cornerRadius: 18, padding: 12) {
             VStack(alignment: .leading, spacing: 10) {
                 HStack(spacing: 9) {
                     Image(systemName: "magnifyingglass")
