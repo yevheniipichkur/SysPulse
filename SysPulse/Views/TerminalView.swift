@@ -210,6 +210,15 @@ struct TerminalView: View {
                 Text(terminalSafetyMessage(for: confirmation))
             }
         }
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 30, coordinateSpace: .local)
+                .onEnded { value in
+                    guard value.startLocation.x < 44,
+                          value.translation.width > 80,
+                          abs(value.translation.height) < 60 else { return }
+                    leaveTerminal(to: .servers)
+                }
+        )
         .accessibilityIdentifier(AppTab.terminal.screenAccessibilityIdentifier)
     }
 

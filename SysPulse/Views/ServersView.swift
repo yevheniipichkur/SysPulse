@@ -147,6 +147,9 @@ struct ServersView: View {
             .padding(.top, 8)
         }
         .scrollIndicators(.hidden)
+        .refreshable {
+            appState.refreshAllServers()
+        }
     }
 
     private var screenshotServersBody: some View {

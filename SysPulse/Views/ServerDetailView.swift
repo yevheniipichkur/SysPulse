@@ -77,6 +77,9 @@ struct ServerDetailView: View {
                     .animation(SysPulseMotion.softSpring(disabled: appState.shouldReduceMotion), value: appState.lastCommandOutput.isEmpty)
                 }
                 .scrollIndicators(.hidden)
+                .refreshable {
+                    appState.refreshMetrics(for: server)
+                }
             } else {
                 EmptyStateView(
                     title: "No server selected",
@@ -84,6 +87,10 @@ struct ServerDetailView: View {
                     symbol: "server.rack"
                 )
             }
+        }
+        .overlay(alignment: .top) {
+            dismissHandle
+                .padding(.top, 6)
         }
         .accessibilityIdentifier("screen_monitor")
         .sheet(isPresented: $showingMissingTools) {
@@ -155,31 +162,17 @@ struct ServerDetailView: View {
                             .foregroundStyle(.secondary)
                     }
                     Spacer()
-                    VStack(alignment: .trailing, spacing: 8) {
-                        HStack(spacing: 8) {
-                            StatusPill(status: server.status)
-                            Button {
-                                dismiss()
-                            } label: {
-                                Image(systemName: "xmark")
-                                    .font(.system(size: 13, weight: .bold))
-                                    .frame(width: 28, height: 28)
-                            }
-                            .buttonStyle(PressableGlassButtonStyle(cornerRadius: 14, verticalPadding: 0, horizontalPadding: 0))
-                            .accessibilityLabel("Close")
-                        }
+                    HStack(spacing: 8) {
+                        StatusPill(status: server.status)
                         Button {
-                            appState.refreshMetrics(for: server)
+                            dismiss()
                         } label: {
-                            RefreshGlyph(
-                                isRefreshing: appState.isRefreshingMetrics(for: server),
-                                disabled: appState.shouldReduceMotion
-                            )
-                            .font(.headline.weight(.semibold))
-                            .frame(width: 34, height: 34)
+                            Image(systemName: "xmark")
+                                .font(.system(size: 13, weight: .bold))
+                                .frame(width: 28, height: 28)
                         }
-                        .buttonStyle(PressableGlassButtonStyle(cornerRadius: 17, verticalPadding: 0, horizontalPadding: 0))
-                        .accessibilityLabel("Refresh metrics")
+                        .buttonStyle(PressableGlassButtonStyle(cornerRadius: 14, verticalPadding: 0, horizontalPadding: 0))
+                        .accessibilityLabel("Close")
                     }
                 }
 
@@ -206,12 +199,11 @@ struct ServerDetailView: View {
             HStack(spacing: 10) {
                 MonitorActionChip(title: "Terminal", symbol: "terminal", tint: .green) {
                     appState.select(server, tab: .terminal)
+                    dismiss()
                 }
                 MonitorActionChip(title: "Files", symbol: "folder", tint: .blue) {
                     appState.select(server, tab: .sftp)
-                }
-                MonitorActionChip(title: "Refresh", symbol: "arrow.clockwise", tint: .cyan) {
-                    appState.refreshMetrics(for: server)
+                    dismiss()
                 }
                 MonitorActionChip(title: "Diagnostics", symbol: "stethoscope", tint: .purple) {
                     selectedTab = .actions
@@ -224,8 +216,11 @@ struct ServerDetailView: View {
     }
 
     private var detailTabs: some View {
-        ScrollView(.horizontal) {
-            HStack(spacing: 8) {
+        GlassCard(cornerRadius: 22, padding: 12) {
+            LazyVGrid(
+                columns: Array(repeating: GridItem(.flexible(), spacing: 6), count: 5),
+                spacing: 8
+            ) {
                 ForEach(DetailTab.allCases) { tab in
                     Button {
                         if appState.shouldReduceMotion {
@@ -236,30 +231,55 @@ struct ServerDetailView: View {
                             }
                         }
                     } label: {
-                        Label(tab.titleKey, systemImage: tab.symbol)
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(selectedTab == tab ? .cyan : .secondary)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 10)
-                            .background(.ultraThinMaterial, in: Capsule())
-                            .overlay {
-                                if selectedTab == tab {
-                                    Capsule().fill(.cyan.opacity(0.13))
-                                }
-                            }
-                            .overlay {
-                                Capsule().stroke(
-                                    selectedTab == tab ? Color.cyan.opacity(0.45) : Color.white.opacity(0.08),
-                                    lineWidth: 1
+                        VStack(spacing: 3) {
+                            Image(systemName: tab.symbol)
+                                .font(.system(size: 15, weight: .semibold))
+                                .frame(width: 38, height: 38)
+                                .foregroundStyle(selectedTab == tab ? .cyan : .secondary)
+                                .background(
+                                    selectedTab == tab ? Color.cyan.opacity(0.15) : Color.primary.opacity(0.055),
+                                    in: RoundedRectangle(cornerRadius: 12, style: .continuous)
                                 )
-                            }
+                                .overlay {
+                                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                        .stroke(
+                                            selectedTab == tab ? Color.cyan.opacity(0.42) : Color.clear,
+                                            lineWidth: 1
+                                        )
+                                }
+                            Text(tab.shortTitle)
+                                .font(.system(size: 9, weight: .semibold))
+                                .foregroundStyle(selectedTab == tab ? .cyan : .secondary)
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.72)
+                        }
+                        .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.plain)
+                    .accessibilityLabel(tab.titleKey)
                 }
             }
-            .padding(.vertical, 2)
         }
-        .scrollIndicators(.hidden)
+    }
+
+    private var dismissHandle: some View {
+        ZStack {
+            Color.clear
+                .frame(height: 44)
+            Capsule()
+                .fill(Color.primary.opacity(0.20))
+                .frame(width: 44, height: 4)
+        }
+        .frame(maxWidth: .infinity)
+        .contentShape(Rectangle())
+        .gesture(
+            DragGesture(minimumDistance: 20)
+                .onEnded { value in
+                    guard value.translation.height > 50 else { return }
+                    appState.haptic(.light)
+                    dismiss()
+                }
+        )
     }
 
     private func overview(server: ServerProfile, metrics: ServerMetrics) -> some View {
@@ -1001,6 +1021,21 @@ private enum DetailTab: String, CaseIterable, Identifiable {
         case .tunnels: "network.badge.shield.half.filled"
         case .commands: "bolt.horizontal"
         case .actions: "square.grid.2x2"
+        }
+    }
+
+    var shortTitle: String {
+        switch self {
+        case .overview: "Overview"
+        case .processes: "Procs"
+        case .disks: "Disks"
+        case .docker: "Docker"
+        case .services: "Services"
+        case .logs: "Logs"
+        case .logBrowser: "Logs FS"
+        case .tunnels: "Tunnels"
+        case .commands: "Cmds"
+        case .actions: "Actions"
         }
     }
 }
