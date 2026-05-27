@@ -200,27 +200,62 @@ struct SFTPFilesView: View {
         let accent = Color(hex: server.accentHex)
         return GlassCard(cornerRadius: 28, padding: 16) {
             HStack(spacing: 14) {
-                Image(systemName: server.displayIcon)
-                    .font(.title2.weight(.semibold))
-                    .foregroundStyle(accent)
-                    .frame(width: 50, height: 50)
-                    .background(accent.opacity(0.14), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-
-                VStack(alignment: .leading, spacing: 5) {
-                    Text(server.name)
-                        .font(.title3.weight(.bold))
-                        .lineLimit(1)
-                    HStack(spacing: 5) {
-                        Text("SFTP Files")
-                        Text(verbatim: "·")
-                        Text("\(server.username)@\(server.host)")
-                            .font(.caption.monospaced())
+                Menu {
+                    Section("Switch Server") {
+                        ForEach(appState.serverProfiles) { profile in
+                            Button {
+                                guard profile.id != server.id else { return }
+                                appState.selectedServer = profile
+                                appState.haptic(.light)
+                                appState.refreshSFTPDirectory(for: profile)
+                            } label: {
+                                Label {
+                                    Text(profile.name)
+                                } icon: {
+                                    Image(systemName: profile.id == server.id
+                                          ? "checkmark.circle.fill"
+                                          : profile.displayIcon)
+                                }
+                            }
+                            .disabled(profile.id == server.id)
+                        }
                     }
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
+                } label: {
+                    HStack(spacing: 14) {
+                        Image(systemName: server.displayIcon)
+                            .font(.title2.weight(.semibold))
+                            .foregroundStyle(accent)
+                            .frame(width: 50, height: 50)
+                            .background(accent.opacity(0.14), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+
+                        VStack(alignment: .leading, spacing: 5) {
+                            HStack(spacing: 5) {
+                                Text(server.name)
+                                    .font(.title3.weight(.bold))
+                                    .lineLimit(1)
+                                    .foregroundStyle(.primary)
+                                if appState.serverProfiles.count > 1 {
+                                    Image(systemName: "chevron.up.chevron.down")
+                                        .font(.caption2.weight(.semibold))
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                            HStack(spacing: 5) {
+                                Text("SFTP Files")
+                                Text(verbatim: "·")
+                                Text("\(server.username)@\(server.host)")
+                                    .font(.caption.monospaced())
+                            }
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                        }
+                        .layoutPriority(1)
+                    }
+                    .contentShape(Rectangle())
                 }
-                .layoutPriority(1)
+                .buttonStyle(.plain)
+                .disabled(appState.serverProfiles.count <= 1)
 
                 Spacer()
 
