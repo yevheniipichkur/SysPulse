@@ -27,13 +27,14 @@ targets:
     platform: iOS
     settings:
       base:
-        SWIFT_OBJC_BRIDGING_HEADER: SysPulse/SysPulse-Bridging-Header.h
+        SWIFT_OBJC_BRIDGING_HEADER: $(SRCROOT)/SysPulse/SysPulse-Bridging-Header.h
     sources:
       - path: SysPulse
         excludes:
           - Resources/**
           - Info.plist
           - SysPulse.entitlements
+          - SysPulse-Bridging-Header.h
       - path: SysPulse/Resources
         buildPhase: resources
       - path: Shared
