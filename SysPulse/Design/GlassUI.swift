@@ -320,6 +320,10 @@ struct Sparkline: View {
 struct PageHeader: View {
     var title: LocalizedStringKey
     var subtitle: LocalizedStringKey?
+    /// Leading accessory button (shown to the left of the primary action).
+    var leadingActionSymbol: String? = nil
+    var leadingActionActive: Bool = false
+    var leadingAction: (() -> Void)? = nil
     var actionSymbol: String?
     var action: (() -> Void)?
 
@@ -338,14 +342,30 @@ struct PageHeader: View {
                 }
             }
             Spacer()
-            if let actionSymbol, let action {
-                Button(action: action) {
-                    Image(systemName: actionSymbol)
-                        .font(.headline)
-                        .frame(width: 44, height: 44)
-                        .background(.ultraThinMaterial, in: Circle())
+            HStack(spacing: 8) {
+                if let leadingActionSymbol, let leadingAction {
+                    Button(action: leadingAction) {
+                        Image(systemName: leadingActionSymbol)
+                            .font(.headline)
+                            .frame(width: 44, height: 44)
+                            .foregroundStyle(leadingActionActive ? Color.cyan : Color.primary)
+                            .background(
+                                leadingActionActive ? Color.cyan.opacity(0.14) : Color.clear,
+                                in: Circle()
+                            )
+                            .background(.ultraThinMaterial, in: Circle())
+                    }
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
+                if let actionSymbol, let action {
+                    Button(action: action) {
+                        Image(systemName: actionSymbol)
+                            .font(.headline)
+                            .frame(width: 44, height: 44)
+                            .background(.ultraThinMaterial, in: Circle())
+                    }
+                    .buttonStyle(.plain)
+                }
             }
         }
     }

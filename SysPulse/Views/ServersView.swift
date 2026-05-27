@@ -3,6 +3,7 @@ import UIKit
 
 struct ServersView: View {
     @EnvironmentObject private var appState: AppState
+    @AppStorage("serversCompactMode") private var isCompactMode = false
     @State private var isAddingServer = false
     @State private var editingServer: ServerProfile?
     @State private var selectedGroupName: String?
@@ -50,6 +51,14 @@ struct ServersView: View {
                 PageHeader(
                     title: "Servers",
                     subtitle: "Monitor · SSH · Files",
+                    leadingActionSymbol: "list.bullet",
+                    leadingActionActive: isCompactMode,
+                    leadingAction: {
+                        withAnimation(.spring(response: 0.28, dampingFraction: 0.86)) {
+                            isCompactMode.toggle()
+                        }
+                        appState.haptic(.light)
+                    },
                     actionSymbol: "plus"
                 ) {
                     isAddingServer = true
@@ -101,7 +110,8 @@ struct ServersView: View {
                             server: server,
                             metrics: appState.metric(for: server),
                             isRefreshing: appState.isRefreshingMetrics(for: server),
-                            metricError: appState.metricError(for: server)
+                            metricError: appState.metricError(for: server),
+                            isCompact: isCompactMode
                         )
                             .listItemEntrance(index: index, disabled: appState.shouldReduceMotion)
                             .onTapGesture {
@@ -225,6 +235,7 @@ struct ServerCardView: View {
     var metrics: ServerMetrics
     var isRefreshing = false
     var metricError: String?
+    var isCompact: Bool = false
 
     private var accent: Color { Color(hex: server.accentHex) }
     private var healthRating: HealthRating { .rating(for: metrics.healthScore) }
@@ -251,6 +262,67 @@ struct ServerCardView: View {
     }
 
     var body: some View {
+        if isCompact {
+            compactBody
+        } else {
+            fullBody
+        }
+    }
+
+    // MARK: Compact layout
+
+    private var compactBody: some View {
+        GlassCard(cornerRadius: 20, padding: 14) {
+            HStack(spacing: 12) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .fill(accent.opacity(0.16))
+                        .frame(width: 44, height: 44)
+                        .shadow(color: accent.opacity(0.20), radius: 8)
+                    Image(systemName: server.displayIcon)
+                        .font(.headline.weight(.semibold))
+                        .foregroundStyle(accent)
+                }
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(server.name)
+                        .font(.headline.weight(.bold))
+                        .lineLimit(1)
+                    HStack(spacing: 3) {
+                        Text(localizedMetricText(metrics.osName))
+                            .lineLimit(1)
+                        Text(verbatim: "·")
+                        Text(verbatim: "\(server.username)@\(server.host)")
+                            .lineLimit(1)
+                    }
+                    .font(.caption.monospaced())
+                    .foregroundStyle(.secondary)
+                }
+                .layoutPriority(1)
+
+                Spacer(minLength: 8)
+
+                VStack(alignment: .trailing, spacing: 5) {
+                    StatusPill(status: server.status)
+                    HStack(spacing: 6) {
+                        Text("CPU \(Int(metrics.cpuUsage))%")
+                        Text("RAM \(Int(metrics.ramUsage))%")
+                    }
+                    .font(.caption2.monospacedDigit())
+                    .foregroundStyle(.secondary)
+                }
+            }
+        }
+        .overlay {
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .stroke(attentionColor.opacity(needsAttention ? (colorScheme == .dark ? 0.42 : 0.34) : 0), lineWidth: needsAttention ? 1.5 : 0)
+        }
+        .animation(.spring(response: 0.24, dampingFraction: 0.86), value: isRefreshing)
+    }
+
+    // MARK: Full layout
+
+    private var fullBody: some View {
         GlassCard(cornerRadius: 28, padding: 18) {
             VStack(alignment: .leading, spacing: 16) {
                 HStack(alignment: .top, spacing: 14) {
