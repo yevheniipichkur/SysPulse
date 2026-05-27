@@ -627,6 +627,7 @@ final class QuickCommand: Identifiable {
     var safetyRaw: String = "Safe"
     var isPremium: Bool = false
     var variablesCSV: String = ""
+    var isUserDefined: Bool = false
 
     init(
         id: UUID = UUID(),
@@ -635,7 +636,8 @@ final class QuickCommand: Identifiable {
         command: String,
         safety: CommandSafetyLevel,
         isPremium: Bool = false,
-        variables: [String] = []
+        variables: [String] = [],
+        isUserDefined: Bool = false
     ) {
         self.id = id
         self.title = title
@@ -644,6 +646,7 @@ final class QuickCommand: Identifiable {
         self.safetyRaw = safety.rawValue
         self.isPremium = isPremium
         self.variablesCSV = variables.joined(separator: ",")
+        self.isUserDefined = isUserDefined
     }
 
     var safety: CommandSafetyLevel {

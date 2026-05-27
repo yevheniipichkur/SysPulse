@@ -10,7 +10,10 @@ enum SysPulseModelContainerFactory {
         CommandExecution.self,
         ServerGroup.self,
         AlertRule.self,
-        ServerEvent.self
+        ServerEvent.self,
+        SSHTunnel.self,
+        CommandSnippet.self,
+        SSHKeyPair.self
     ])
 
     static func makeContainer() throws -> ModelContainer {

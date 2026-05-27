@@ -5,6 +5,18 @@ struct ServersView: View {
     @EnvironmentObject private var appState: AppState
     @State private var isAddingServer = false
     @State private var editingServer: ServerProfile?
+    @State private var selectedGroupName: String?
+
+    private var allGroups: [String] {
+        Array(Set(appState.serverProfiles.compactMap(\.groupName)))
+            .filter { !$0.isEmpty }
+            .sorted()
+    }
+
+    private var filteredProfiles: [ServerProfile] {
+        guard let group = selectedGroupName else { return appState.serverProfiles }
+        return appState.serverProfiles.filter { $0.groupName == group }
+    }
 
     var body: some View {
         Group {
@@ -43,19 +55,43 @@ struct ServersView: View {
                     FreePlanBanner()
                 }
 
-                if appState.serverProfiles.isEmpty {
-                    ActionEmptyStateView(
-                        title: "No saved servers",
-                        message: "Add your first SSH profile to start monitoring, terminal sessions and SFTP.",
-                        symbol: "server.rack",
-                        actionTitle: "Add Server",
-                        actionSymbol: "plus"
-                    ) {
-                        isAddingServer = true
+                if !allGroups.isEmpty && appState.isProUnlocked {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 8) {
+                            FilterChip(label: "All", isSelected: selectedGroupName == nil) {
+                                selectedGroupName = nil
+                            }
+                            ForEach(allGroups, id: \.self) { group in
+                                FilterChip(label: group, isSelected: selectedGroupName == group) {
+                                    selectedGroupName = selectedGroupName == group ? nil : group
+                                }
+                            }
+                        }
                     }
-                    .listItemEntrance(index: 0, disabled: appState.shouldReduceMotion)
+                }
+
+                if filteredProfiles.isEmpty {
+                    if appState.serverProfiles.isEmpty {
+                        ActionEmptyStateView(
+                            title: "No saved servers",
+                            message: "Add your first SSH profile to start monitoring, terminal sessions and SFTP.",
+                            symbol: "server.rack",
+                            actionTitle: "Add Server",
+                            actionSymbol: "plus"
+                        ) { isAddingServer = true }
+                        .listItemEntrance(index: 0, disabled: appState.shouldReduceMotion)
+                    } else {
+                        ActionEmptyStateView(
+                            title: "No servers in this group",
+                            message: "Add servers to this group in the server profile editor.",
+                            symbol: "server.rack",
+                            actionTitle: "Clear Filter",
+                            actionSymbol: "xmark"
+                        ) { selectedGroupName = nil }
+                        .listItemEntrance(index: 0, disabled: appState.shouldReduceMotion)
+                    }
                 } else {
-                    ForEach(Array(appState.serverProfiles.enumerated()), id: \.element.id) { index, server in
+                    ForEach(Array(filteredProfiles.enumerated()), id: \.element.id) { index, server in
                         ServerCardView(
                             server: server,
                             metrics: appState.metric(for: server),

@@ -11,6 +11,7 @@ struct SettingsView: View {
     @State private var isRemoteMonitoringExpanded = false
     @State private var isRestoringPurchases = false
     @State private var storeKitSettingsMessage: String?
+    @State private var isSSHKeyManagerPresented = false
     private let buildInfo = GitBuildInfoService()
 
     var body: some View {
@@ -117,6 +118,37 @@ struct SettingsView: View {
                         }
                         .listItemEntrance(index: 4, disabled: appState.shouldReduceMotion)
 
+                        settingsSection("SSH Keys", symbol: "key.fill") {
+                            Button {
+                                isSSHKeyManagerPresented = true
+                            } label: {
+                                HStack {
+                                    Text("Manage SSH Key Pairs")
+                                    Spacer()
+                                    Image(systemName: "chevron.right")
+                                        .font(.caption.weight(.semibold))
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                            .buttonStyle(.plain)
+                            Text("Generate ED25519 key pairs and install them on your servers for passwordless authentication.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        .listItemEntrance(index: 6, disabled: appState.shouldReduceMotion)
+                        .sheet(isPresented: $isSSHKeyManagerPresented) {
+                            NavigationStack {
+                                SSHKeyManagerView()
+                                    .toolbar {
+                                        ToolbarItem(placement: .cancellationAction) {
+                                            Button("Done") { isSSHKeyManagerPresented = false }
+                                        }
+                                    }
+                            }
+                            .presentationDetents([.large])
+                            .presentationCornerRadius(32)
+                        }
+
                         settingsSection("Alerts", symbol: "bell.badge") {
                             Text("Metric alerts are checked after manual refreshes and auto-refresh.")
                                 .font(.caption)
@@ -137,7 +169,7 @@ struct SettingsView: View {
                                 AlertRuleToggleRow(rule: rule)
                             }
                         }
-                        .listItemEntrance(index: 5, disabled: appState.shouldReduceMotion)
+                        .listItemEntrance(index: 7, disabled: appState.shouldReduceMotion)
 
                         settingsSection("Remote Monitoring", symbol: "antenna.radiowaves.left.and.right") {
                             Toggle("Backend monitoring", isOn: $appState.settings.backendMonitoringEnabled)
@@ -169,7 +201,7 @@ struct SettingsView: View {
                                 }
                             }
                         }
-                        .listItemEntrance(index: 6, disabled: appState.shouldReduceMotion)
+                        .listItemEntrance(index: 8, disabled: appState.shouldReduceMotion)
 
                         settingsSection("About", symbol: "info.circle") {
                             SettingsRow(title: "Version") {
@@ -179,7 +211,7 @@ struct SettingsView: View {
                             Link("Terms", destination: URL(string: "https://github.com/yevheniipichkur/SysPulse/blob/main/TERMS.md")!)
                             Link("Contact support", destination: URL(string: "https://github.com/yevheniipichkur/SysPulse/issues")!)
                         }
-                        .listItemEntrance(index: 7, disabled: appState.shouldReduceMotion)
+                        .listItemEntrance(index: 9, disabled: appState.shouldReduceMotion)
                 }
                 .padding(.horizontal, SysPulseDesign.pagePadding)
                 .padding(.top, 8)

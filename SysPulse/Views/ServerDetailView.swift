@@ -52,6 +52,10 @@ struct ServerDetailView: View {
                                 services(server: server)
                             case .logs:
                                 logs(server: server)
+                            case .logBrowser:
+                                LogBrowserView(server: server)
+                            case .tunnels:
+                                SSHTunnelsView(server: server)
                             case .commands:
                                 inlineCommands(server: server)
                             case .actions:
@@ -965,6 +969,8 @@ private enum DetailTab: String, CaseIterable, Identifiable {
     case docker = "Docker"
     case services = "Services"
     case logs = "Logs"
+    case logBrowser = "Log Browser"
+    case tunnels = "Tunnels"
     case commands = "Commands"
     case actions = "Actions"
 
@@ -979,6 +985,8 @@ private enum DetailTab: String, CaseIterable, Identifiable {
         case .docker: "shippingbox"
         case .services: "gearshape.2"
         case .logs: "doc.text.magnifyingglass"
+        case .logBrowser: "folder.badge.magnifyingglass"
+        case .tunnels: "network.badge.shield.half.filled"
         case .commands: "bolt.horizontal"
         case .actions: "square.grid.2x2"
         }

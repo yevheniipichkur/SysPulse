@@ -36,22 +36,17 @@
 - [x] StoreKit product configuration in App Store Connect.
 - [x] Real server profile persistence through SwiftData UI.
 - [x] App icon.
-- [x] App Store screenshot automation.
+- [ ] App Store screenshots.
 - [x] App Group entitlements for app and WidgetKit extension.
 - [x] Enable App Group capability in Apple Developer and provisioning profiles.
 - [x] Parse real Docker/systemd/process/log command output into structured SwiftUI lists.
-- [x] Lightweight app-wide motion polish for tabs, terminal, refresh actions and cards.
-- [x] Terminal polish v2 with reconnect, transcript search and command history menu.
-- [x] SFTP v2 selection mode with bulk delete and clearer file manager controls.
-- [x] Server detail redesign with quick actions, health summary and resource trends.
-- [x] Full app-wide interface polish for empty states, server cards, terminal sessions, SFTP navigation, Settings and Paywall.
-- [x] App Store/TestFlight polish for StoreKit empty states, restore feedback, onboarding, screenshots and policy links.
 
 ## Future
 
-- [x] Optional backend webhook client for push monitoring snapshots.
+- [ ] Optional backend for push monitoring.
 - [ ] Team accounts.
 - [ ] Web dashboard.
-- [x] Encrypted profile sharing.
-- [x] Alert rules and notification scheduling.
+- [ ] Encrypted profile sharing.
+- [ ] Alert rules and notification scheduling.2
 - [ ] Cloud-based status history.
+
