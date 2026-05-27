@@ -914,19 +914,19 @@ struct TerminalView: View {
         let palette = terminalPalette
 
         return ScrollView(.horizontal) {
-            HStack(spacing: 6) {
+            HStack(spacing: 5) {
                 ForEach(["esc", "tab", "ctrl", "alt", "/", "|", "~", "-", "^C", "^X", "^O", "↑", "↓", "←", "→"], id: \.self) { key in
                     Button {
                         insertAccessory(key)
                     } label: {
                         Text(key)
-                            .font(.caption.weight(.bold))
-                            .frame(width: key.count > 2 ? 44 : 34)
+                            .font(.caption.weight(.semibold))
+                            .fixedSize()
                     }
                     .buttonStyle(TerminalKeyStyle(isActive: keyIsLatched(key), palette: palette))
                 }
             }
-            .padding(.horizontal, 2)
+            .padding(.horizontal, 4)
         }
         .scrollIndicators(.hidden)
     }
@@ -2283,24 +2283,23 @@ private struct TerminalKeyStyle: ButtonStyle {
     var palette: TerminalThemePalette
 
     func makeBody(configuration: Configuration) -> some View {
+        let fill: SwiftUI.Color = {
+            if isActive { return palette.accent }
+            if configuration.isPressed { return palette.keyPressedBackground }
+            return palette.keyBackground
+        }()
+
         configuration.label
-            .frame(height: 30)
-            .padding(.horizontal, 5)
-            .foregroundStyle(isActive ? palette.accent : palette.controlForeground)
+            .padding(.horizontal, 11)
+            .frame(minWidth: 32, height: 32)
+            .foregroundStyle(isActive ? SwiftUI.Color.white : palette.controlForeground)
             .background(
-                RoundedRectangle(cornerRadius: 9, style: .continuous)
-                    .fill(palette.controlBackground)
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 9, style: .continuous)
-                            .fill(palette.accent.opacity(configuration.isPressed ? 0.22 : isActive ? 0.16 : 0.05))
-                    }
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 9, style: .continuous)
-                            .stroke(configuration.isPressed || isActive ? palette.accent.opacity(0.38) : palette.controlStroke, lineWidth: 1)
-                    }
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(fill)
             )
-            .scaleEffect(configuration.isPressed ? 0.91 : 1.0)
-            .animation(.easeOut(duration: 0.07), value: configuration.isPressed)
+            .scaleEffect(configuration.isPressed ? 0.90 : 1.0)
+            .animation(.easeOut(duration: 0.08), value: configuration.isPressed)
+            .animation(.spring(response: 0.18, dampingFraction: 0.72), value: isActive)
     }
 }
 
@@ -2490,5 +2489,17 @@ private struct TerminalThemePalette {
         case .neon, .cyberGlass: .purple
         default: .cyan
         }
+    }
+
+    var keyBackground: SwiftUI.Color {
+        isLight
+            ? SwiftUI.Color.black.opacity(0.10)
+            : SwiftUI.Color.white.opacity(0.18)
+    }
+
+    var keyPressedBackground: SwiftUI.Color {
+        isLight
+            ? SwiftUI.Color.black.opacity(0.22)
+            : SwiftUI.Color.white.opacity(0.36)
     }
 }
