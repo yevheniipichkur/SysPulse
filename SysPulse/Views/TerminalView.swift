@@ -2295,7 +2295,7 @@ private struct TerminalKeyStyle: ButtonStyle {
         configuration.label
             .font(.system(size: 15, weight: .medium))
             .padding(.horizontal, 10)
-            .frame(minWidth: 40, height: 38)
+            .frame(minWidth: 40, minHeight: 38, maxHeight: 38)
             .foregroundStyle(fg)
             .background(
                 RoundedRectangle(cornerRadius: 9, style: .continuous)
