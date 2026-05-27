@@ -624,3 +624,6 @@
 "Changes packages or system state." = "Changes packages or system state.";
 "Unknown Linux" = "Unknown Linux";
 "%@ · load %@" = "%@ · load %@";
+"Stale" = "Stale";
+"Active server" = "Active server";
+"Session" = "Session";

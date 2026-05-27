@@ -189,13 +189,20 @@ struct SFTPFilesView: View {
                     .background(.blue.opacity(0.14), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
 
                 VStack(alignment: .leading, spacing: 5) {
-                    Text("SFTP Files")
+                    Text(server.name)
                         .font(.title3.weight(.bold))
-                    Text("\(server.username)@\(server.host)")
-                        .font(.caption.monospaced())
-                        .foregroundStyle(.secondary)
                         .lineLimit(1)
+                    HStack(spacing: 5) {
+                        Text("SFTP Files")
+                        Text(verbatim: "·")
+                        Text("\(server.username)@\(server.host)")
+                            .font(.caption.monospaced())
+                    }
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
                 }
+                .layoutPriority(1)
 
                 Spacer()
 

@@ -624,3 +624,6 @@
 "Changes packages or system state." = "Изменяет пакеты или состояние системы.";
 "Unknown Linux" = "Неизвестный Linux";
 "%@ · load %@" = "%@ · нагрузка %@";
+"Stale" = "Устарело";
+"Active server" = "Активный сервер";
+"Session" = "Сессия";

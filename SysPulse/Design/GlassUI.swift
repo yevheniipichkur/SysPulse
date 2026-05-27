@@ -125,15 +125,16 @@ struct AppBackground: View {
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
-            .blendMode(.screen)
+            .opacity(colorScheme == .dark ? 1 : 0.46)
+            .blendMode(colorScheme == .dark ? .screen : .normal)
             .ignoresSafeArea()
 
             LinearGradient(
-                colors: [.clear, .purple.opacity(colorScheme == .dark ? 0.16 : 0.08), .clear],
+                colors: [.clear, .purple.opacity(colorScheme == .dark ? 0.16 : 0.035), .clear],
                 startPoint: .topTrailing,
                 endPoint: .bottomLeading
             )
-            .blendMode(.screen)
+            .blendMode(colorScheme == .dark ? .screen : .normal)
             .ignoresSafeArea()
         }
     }
@@ -153,14 +154,14 @@ struct GlassCard<Content: View>: View {
                     .fill(.regularMaterial)
                     .overlay {
                         RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                            .fill(colorScheme == .dark ? Color.white.opacity(0.035) : Color.white.opacity(0.72))
+                            .fill(colorScheme == .dark ? Color.white.opacity(0.035) : Color.white.opacity(0.88))
                     }
                     .overlay {
                         RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                            .stroke(colorScheme == .dark ? Color.white.opacity(0.16) : Color.black.opacity(0.08), lineWidth: 1)
+                            .stroke(colorScheme == .dark ? Color.white.opacity(0.16) : Color.black.opacity(0.12), lineWidth: 1)
                     }
             }
-            .shadow(color: .black.opacity(colorScheme == .dark ? 0.16 : 0.08), radius: 22, x: 0, y: 12)
+            .shadow(color: .black.opacity(colorScheme == .dark ? 0.16 : 0.10), radius: colorScheme == .dark ? 22 : 18, x: 0, y: 10)
     }
 }
 
@@ -380,7 +381,7 @@ struct PressableGlassButtonStyle: ButtonStyle {
 
     func makeBody(configuration: Configuration) -> some View {
         let idleTintOpacity = colorScheme == .dark ? 0.08 : 0.10
-        let idleStroke = colorScheme == .dark ? Color.white.opacity(0.16) : Color.black.opacity(0.10)
+        let idleStroke = colorScheme == .dark ? Color.white.opacity(0.16) : Color.black.opacity(0.14)
 
         return configuration.label
             .padding(.vertical, verticalPadding)
@@ -391,7 +392,7 @@ struct PressableGlassButtonStyle: ButtonStyle {
                     .fill(.regularMaterial)
                     .overlay {
                         RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                            .fill(colorScheme == .dark ? Color.white.opacity(0.025) : Color.white.opacity(0.58))
+                            .fill(colorScheme == .dark ? Color.white.opacity(0.025) : Color.white.opacity(0.82))
                     }
                     .overlay {
                         RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)

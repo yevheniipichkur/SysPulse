@@ -148,6 +148,13 @@ struct TerminalView: View {
         return VStack(spacing: 0) {
             topChrome(palette: palette)
 
+            if let server = sessionServer {
+                activeServerBar(server: server, palette: palette)
+                    .padding(.horizontal, 10)
+                    .padding(.top, 8)
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+
             if isTranscriptSearchPresented {
                 transcriptSearchPanel(palette: palette)
                     .padding(.horizontal, 10)
@@ -269,6 +276,59 @@ struct TerminalView: View {
         .background(palette.chromeBackground)
     }
 
+    private func activeServerBar(server: ServerProfile, palette: TerminalThemePalette) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: server.serverType.symbol)
+                .font(.headline.weight(.semibold))
+                .foregroundStyle(palette.accent)
+                .frame(width: 34, height: 34)
+                .background(palette.accent.opacity(palette.isLight ? 0.12 : 0.16), in: RoundedRectangle(cornerRadius: 11, style: .continuous))
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Active server")
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(palette.secondaryControlForeground)
+                Text(server.name)
+                    .font(.subheadline.weight(.bold))
+                    .foregroundStyle(palette.controlForeground)
+                    .lineLimit(1)
+                Text("\(server.username)@\(server.host)")
+                    .font(.caption2.monospaced())
+                    .foregroundStyle(palette.secondaryControlForeground)
+                    .lineLimit(1)
+            }
+
+            Spacer(minLength: 8)
+
+            VStack(alignment: .trailing, spacing: 5) {
+                HStack(spacing: 5) {
+                    Circle()
+                        .fill(activeConnectionState.color)
+                        .frame(width: 7, height: 7)
+                    Text(activeConnectionState.title)
+                        .font(.caption2.weight(.bold))
+                }
+                .foregroundStyle(palette.controlForeground)
+
+                HStack(spacing: 4) {
+                    Text("Session")
+                    Text(selectedSession?.title ?? server.name)
+                        .lineLimit(1)
+                }
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(palette.secondaryControlForeground)
+            }
+            .frame(maxWidth: 118, alignment: .trailing)
+        }
+        .padding(.horizontal, 11)
+        .padding(.vertical, 10)
+        .background(palette.activeControlBackground, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(palette.accent.opacity(palette.isLight ? 0.34 : 0.30), lineWidth: 1)
+        }
+    }
+
     private func transcriptSearchPanel(palette: TerminalThemePalette) -> some View {
         GlassCard(cornerRadius: 18, padding: 12) {
             VStack(alignment: .leading, spacing: 10) {
@@ -359,15 +419,28 @@ struct TerminalView: View {
             } label: {
                 HStack(spacing: 8) {
                     Image(systemName: "network")
-                    Text(sessionServer?.host ?? appState.localized("No saved servers"))
-                        .lineLimit(1)
+                    if let sessionServer {
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(sessionServer.name)
+                                .font(.caption.weight(.bold))
+                                .lineLimit(1)
+                            Text(sessionServer.host)
+                                .font(.caption2.monospaced())
+                                .foregroundStyle(palette.secondaryControlForeground)
+                                .lineLimit(1)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    } else {
+                        Text(appState.localized("No saved servers"))
+                            .lineLimit(1)
+                    }
                     Spacer(minLength: 0)
                     Image(systemName: "chevron.down.circle.fill")
                         .foregroundStyle(.secondary)
                 }
                 .font(.callout.weight(.semibold))
                 .padding(.horizontal, 12)
-                .frame(height: 38)
+                .frame(height: 44)
                 .background(palette.controlBackground, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
                 .overlay {
                     RoundedRectangle(cornerRadius: 12, style: .continuous)
@@ -1463,10 +1536,10 @@ private struct TerminalSessionPill: View {
         .padding(.leading, 11)
         .padding(.trailing, 7)
         .frame(height: 32)
-        .background(palette.controlBackground, in: Capsule())
+        .background(isActive ? palette.activeControlBackground : palette.controlBackground, in: Capsule())
         .overlay {
             Capsule()
-                .stroke(isActive ? palette.accent.opacity(0.50) : palette.controlStroke, lineWidth: 1)
+                .stroke(isActive ? palette.accent.opacity(0.68) : palette.controlStroke, lineWidth: isActive ? 1.4 : 1)
         }
         .overlay(alignment: .bottom) {
             if isActive {
@@ -1615,6 +1688,10 @@ private struct TerminalThemePalette {
 
     var controlBackground: SwiftUI.Color {
         isLight ? SwiftUI.Color.white.opacity(0.90) : SwiftUI.Color.white.opacity(0.09)
+    }
+
+    var activeControlBackground: SwiftUI.Color {
+        isLight ? SwiftUI.Color.white.opacity(0.98) : accent.opacity(0.16)
     }
 
     var inputBackground: SwiftUI.Color {

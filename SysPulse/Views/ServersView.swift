@@ -169,12 +169,26 @@ private struct FreePlanBanner: View {
 }
 
 struct ServerCardView: View {
+    @Environment(\.colorScheme) private var colorScheme
     @EnvironmentObject private var appState: AppState
     var server: ServerProfile
     var metrics: ServerMetrics
     var isRefreshing = false
 
     private var accent: Color { Color(hex: server.accentHex) }
+    private var healthRating: HealthRating { .rating(for: metrics.healthScore) }
+    private var isMetricsStale: Bool { Date().timeIntervalSince(metrics.timestamp) > 900 }
+    private var needsAttention: Bool {
+        isMetricsStale || server.status == .offline || server.status == .warning || metrics.healthScore < 70 || metrics.failedServices > 0
+    }
+    private var attentionColor: Color {
+        if isMetricsStale { return .orange }
+        if server.status == .offline { return .red }
+        if server.status == .warning { return .orange }
+        if metrics.healthScore < 70 { return healthRating.color }
+        if metrics.failedServices > 0 { return .orange }
+        return .clear
+    }
 
     private func localizedMetricText(_ value: String) -> String {
         switch value {
@@ -220,20 +234,24 @@ struct ServerCardView: View {
                     Spacer()
                     VStack(alignment: .trailing, spacing: 7) {
                         StatusPill(status: server.status)
-                        Text(metrics.timestamp, style: .relative)
-                            .font(.caption2.monospacedDigit())
-                            .foregroundStyle(.secondary)
+                        MetricFreshnessBadge(date: metrics.timestamp, isStale: isMetricsStale)
                     }
                 }
 
+                ServerHealthSummary(
+                    score: metrics.healthScore,
+                    rating: healthRating,
+                    failedServices: metrics.failedServices,
+                    colorScheme: colorScheme
+                )
+
                 LazyVGrid(
-                    columns: Array(repeating: GridItem(.flexible(minimum: 0), spacing: 10), count: 4),
+                    columns: Array(repeating: GridItem(.flexible(minimum: 0), spacing: 10), count: 3),
                     spacing: 10
                 ) {
                     CompactMetric(title: "CPU", value: metrics.cpuUsage, color: .cyan)
                     CompactMetric(title: "RAM", value: metrics.ramUsage, color: .green)
                     CompactMetric(title: "Disk", value: metrics.diskUsage, color: metrics.diskUsage > 80 ? .orange : .blue)
-                    HealthScoreView(score: metrics.healthScore)
                 }
 
                 Sparkline(values: metrics.cpuHistory, color: accent)
@@ -267,7 +285,76 @@ struct ServerCardView: View {
             }
         }
         .scaleEffect(isRefreshing ? 0.995 : 1)
+        .overlay {
+            RoundedRectangle(cornerRadius: 28, style: .continuous)
+                .stroke(attentionColor.opacity(needsAttention ? (colorScheme == .dark ? 0.42 : 0.34) : 0), lineWidth: needsAttention ? 1.5 : 0)
+        }
         .animation(.spring(response: 0.24, dampingFraction: 0.86), value: isRefreshing)
+    }
+}
+
+private struct MetricFreshnessBadge: View {
+    var date: Date
+    var isStale: Bool
+
+    var body: some View {
+        HStack(spacing: 5) {
+            Image(systemName: isStale ? "clock.badge.exclamationmark" : "clock")
+            if isStale {
+                Text("Stale")
+            }
+            Text(date, style: .relative)
+                .monospacedDigit()
+        }
+        .font(.caption2.weight(.semibold))
+        .foregroundStyle(isStale ? .orange : .secondary)
+        .lineLimit(1)
+        .minimumScaleFactor(0.78)
+    }
+}
+
+private struct ServerHealthSummary: View {
+    var score: Int
+    var rating: HealthRating
+    var failedServices: Int
+    var colorScheme: ColorScheme
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "heart.text.square.fill")
+                .font(.title3.weight(.semibold))
+                .foregroundStyle(rating.color)
+                .frame(width: 34, height: 34)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Health")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                HStack(spacing: 6) {
+                    Text("\(score)")
+                        .font(.headline.weight(.black))
+                        .monospacedDigit()
+                    Text(rating.titleKey)
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(rating.color)
+                }
+            }
+
+            Spacer(minLength: 8)
+
+            if failedServices > 0 {
+                Label("\(failedServices)", systemImage: "exclamationmark.triangle.fill")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(.orange)
+            }
+        }
+        .padding(.horizontal, 11)
+        .padding(.vertical, 9)
+        .background(rating.color.opacity(colorScheme == .dark ? 0.10 : 0.12), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(rating.color.opacity(colorScheme == .dark ? 0.18 : 0.24), lineWidth: 1)
+        }
     }
 }
 
