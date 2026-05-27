@@ -853,8 +853,8 @@ struct TerminalView: View {
         }
     }
 
-    private func commandSuggestionBackground(palette: TerminalThemePalette) -> Color {
-        palette.isLight ? Color.white.opacity(0.96) : Color.black.opacity(0.74)
+    private func commandSuggestionBackground(palette: TerminalThemePalette) -> SwiftUI.Color {
+        palette.isLight ? SwiftUI.Color.white.opacity(0.96) : SwiftUI.Color.black.opacity(0.74)
     }
 
     // Replaces the old TextField — shows a local mirror of what's being typed
@@ -2244,10 +2244,10 @@ private struct TerminalKeyStyle: ButtonStyle {
             .foregroundStyle(isActive ? palette.controlForeground : palette.searchAccent)
             .background(
                 Capsule()
-                    .fill(configuration.isPressed || isActive ? palette.accent.opacity(isActive ? 0.24 : 0.13) : Color.clear)
+                    .fill(configuration.isPressed || isActive ? palette.accent.opacity(isActive ? 0.24 : 0.13) : SwiftUI.Color.clear)
                     .overlay {
                         Capsule()
-                            .stroke(configuration.isPressed || isActive ? palette.accent.opacity(0.34) : Color.clear, lineWidth: 1)
+                            .stroke(configuration.isPressed || isActive ? palette.accent.opacity(0.34) : SwiftUI.Color.clear, lineWidth: 1)
                     }
             )
             .scaleEffect(configuration.isPressed ? 0.96 : 1.0)
