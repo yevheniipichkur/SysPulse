@@ -2291,7 +2291,7 @@ private struct TerminalKeyStyle: ButtonStyle {
 
         configuration.label
             .padding(.horizontal, 11)
-            .frame(minWidth: 32, height: 32)
+            .frame(minWidth: 32, minHeight: 32, maxHeight: 32)
             .foregroundStyle(isActive ? SwiftUI.Color.white : palette.controlForeground)
             .background(
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
