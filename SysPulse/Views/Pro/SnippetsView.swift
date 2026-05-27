@@ -229,7 +229,7 @@ private struct SnippetFormView: View {
     var editingSnippet: CommandSnippet?
 
     @State private var title = ""
-    @State private var body = ""
+    @State private var commandBody = ""
     @State private var category = ""
 
     var body: some View {
@@ -244,7 +244,7 @@ private struct SnippetFormView: View {
                         .autocorrectionDisabled()
                 }
                 Section("Command") {
-                    TextEditor(text: $body)
+                    TextEditor(text: $commandBody)
                         .font(.caption.monospaced())
                         .frame(minHeight: 120)
                         .autocorrectionDisabled()
@@ -259,14 +259,14 @@ private struct SnippetFormView: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") { save() }
-                        .disabled(title.trimmingCharacters(in: .whitespaces).isEmpty || body.trimmingCharacters(in: .whitespaces).isEmpty)
+                        .disabled(title.trimmingCharacters(in: .whitespaces).isEmpty || commandBody.trimmingCharacters(in: .whitespaces).isEmpty)
                 }
             }
         }
         .onAppear {
             if let s = editingSnippet {
                 title = s.title
-                body = s.body
+                commandBody = s.body
                 category = s.category
             }
         }
@@ -275,13 +275,13 @@ private struct SnippetFormView: View {
     private func save() {
         if let snippet = editingSnippet {
             snippet.title = title
-            snippet.body = body
+            snippet.body = commandBody
             snippet.category = category
             snippet.updatedAt = .now
         } else {
             let snippet = CommandSnippet(
                 title: title,
-                body: body,
+                body: commandBody,
                 category: category.trimmingCharacters(in: .whitespaces)
             )
             modelContext.insert(snippet)
