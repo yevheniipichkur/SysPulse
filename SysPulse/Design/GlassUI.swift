@@ -68,14 +68,19 @@ private struct ListItemEntranceModifier: ViewModifier {
     var index: Int
     var disabled: Bool
     @State private var isVisible = false
+    private let animatedItemLimit = 10
+
+    private var shouldAnimate: Bool {
+        !disabled && index <= animatedItemLimit
+    }
 
     func body(content: Content) -> some View {
         content
-            .opacity(disabled || isVisible ? 1 : 0)
-            .scaleEffect(disabled || isVisible ? 1 : 0.985)
-            .offset(y: disabled || isVisible ? 0 : 12)
+            .opacity(shouldAnimate ? (isVisible ? 1 : 0) : 1)
+            .scaleEffect(shouldAnimate ? (isVisible ? 1 : 0.985) : 1)
+            .offset(y: shouldAnimate ? (isVisible ? 0 : 12) : 0)
             .onAppear {
-                guard !disabled else {
+                guard shouldAnimate else {
                     isVisible = true
                     return
                 }
@@ -161,7 +166,7 @@ struct GlassCard<Content: View>: View {
                             .stroke(colorScheme == .dark ? Color.white.opacity(0.16) : Color.black.opacity(0.12), lineWidth: 1)
                     }
             }
-            .shadow(color: .black.opacity(colorScheme == .dark ? 0.16 : 0.10), radius: colorScheme == .dark ? 22 : 18, x: 0, y: 10)
+            .shadow(color: .black.opacity(colorScheme == .dark ? 0.13 : 0.08), radius: colorScheme == .dark ? 14 : 10, x: 0, y: 6)
     }
 }
 

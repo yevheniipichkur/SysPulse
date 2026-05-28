@@ -47,7 +47,7 @@ struct ServersView: View {
 
     private var serversListBody: some View {
         ScrollView {
-            VStack(spacing: 18) {
+            LazyVStack(spacing: 18) {
                 PageHeader(
                     title: "Servers",
                     subtitle: "Monitor · SSH · Files",
@@ -272,49 +272,62 @@ struct ServerCardView: View {
     // MARK: Compact layout
 
     private var compactBody: some View {
-        GlassCard(cornerRadius: 20, padding: 14) {
-            HStack(spacing: 12) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .fill(accent.opacity(0.16))
-                        .frame(width: 44, height: 44)
-                        .shadow(color: accent.opacity(0.20), radius: 8)
-                    Image(systemName: server.displayIcon)
-                        .font(.headline.weight(.semibold))
-                        .foregroundStyle(accent)
-                }
+        GlassCard(cornerRadius: 24, padding: 15) {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(alignment: .top, spacing: 12) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            .fill(accent.opacity(0.16))
+                            .frame(width: 48, height: 48)
+                            .shadow(color: accent.opacity(0.18), radius: 10)
+                        Image(systemName: server.displayIcon)
+                            .font(.title3.weight(.semibold))
+                            .foregroundStyle(accent)
+                    }
 
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(server.name)
-                        .font(.headline.weight(.bold))
+                    VStack(alignment: .leading, spacing: 5) {
+                        Text(server.name)
+                            .font(.headline.weight(.bold))
+                            .lineLimit(1)
+
+                        HStack(spacing: 0) {
+                            Text(server.serverType.titleKey)
+                            Text(" • \(server.host)")
+                        }
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                         .lineLimit(1)
-                    HStack(spacing: 3) {
+
                         Text(localizedMetricText(metrics.osName))
-                            .lineLimit(1)
-                        Text(verbatim: "·")
-                        Text(verbatim: "\(server.username)@\(server.host)")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
                             .lineLimit(1)
                     }
-                    .font(.caption.monospaced())
-                    .foregroundStyle(.secondary)
+                    .layoutPriority(1)
+
+                    Spacer(minLength: 6)
+
+                    VStack(alignment: .trailing, spacing: 7) {
+                        StatusPill(status: server.status)
+                        MetricFreshnessBadge(date: metrics.timestamp, isStale: isMetricsStale)
+                    }
+                    .fixedSize(horizontal: true, vertical: false)
                 }
-                .layoutPriority(1)
 
-                Spacer(minLength: 8)
+                if let metricError, !metricError.isEmpty {
+                    ServerConnectionIssueBanner(message: metricError)
+                }
 
-                VStack(alignment: .trailing, spacing: 5) {
-                    StatusPill(status: server.status)
-                    HStack(spacing: 6) {
-                        Text("CPU \(Int(metrics.cpuUsage))%")
-                        Text("RAM \(Int(metrics.ramUsage))%")
-                    }
-                    .font(.caption2.monospacedDigit())
-                    .foregroundStyle(.secondary)
+                HStack(spacing: 10) {
+                    CompactMetric(title: "CPU", value: metrics.cpuUsage, color: .cyan)
+                    CompactMetric(title: "RAM", value: metrics.ramUsage, color: .green)
+                    CompactMetric(title: "Disk", value: metrics.diskUsage, color: metrics.diskUsage > 80 ? .orange : .blue)
                 }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
         .overlay {
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
                 .stroke(attentionColor.opacity(needsAttention ? (colorScheme == .dark ? 0.42 : 0.34) : 0), lineWidth: needsAttention ? 1.5 : 0)
         }
         .animation(.spring(response: 0.24, dampingFraction: 0.86), value: isRefreshing)
@@ -372,10 +385,7 @@ struct ServerCardView: View {
                     ServerConnectionIssueBanner(message: metricError)
                 }
 
-                LazyVGrid(
-                    columns: Array(repeating: GridItem(.flexible(minimum: 0), spacing: 10), count: 3),
-                    spacing: 10
-                ) {
+                HStack(spacing: 10) {
                     CompactMetric(title: "CPU", value: metrics.cpuUsage, color: .cyan)
                     CompactMetric(title: "RAM", value: metrics.ramUsage, color: .green)
                     CompactMetric(title: "Disk", value: metrics.diskUsage, color: metrics.diskUsage > 80 ? .orange : .blue)

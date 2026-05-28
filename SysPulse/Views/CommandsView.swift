@@ -62,7 +62,7 @@ struct CommandsView: View {
 
     private var catalogContent: some View {
         ScrollView {
-            VStack(spacing: 16) {
+            LazyVStack(spacing: 16) {
                 PageHeader(
                     title: "Commands",
                     subtitle: "Safe snippets for routine Linux checks.",
@@ -185,7 +185,7 @@ private struct CustomCommandsContent: View {
 
     var body: some View {
         ScrollView {
-            VStack(spacing: 16) {
+            LazyVStack(spacing: 16) {
                 PageHeader(
                     title: "My Commands",
                     subtitle: "Custom SSH commands",

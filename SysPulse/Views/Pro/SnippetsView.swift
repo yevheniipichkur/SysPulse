@@ -19,7 +19,7 @@ struct SnippetsView: View {
             AppBackground()
 
             ScrollView {
-                VStack(spacing: 16) {
+                LazyVStack(spacing: 16) {
                     PageHeader(
                         title: "Snippets",
                         subtitle: "Reusable command templates",

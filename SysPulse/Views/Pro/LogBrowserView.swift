@@ -69,7 +69,7 @@ struct LogBrowserView: View {
                     .padding()
             } else {
                 ScrollView {
-                    VStack(spacing: 2) {
+                    LazyVStack(spacing: 2) {
                         ForEach(logFiles, id: \.self) { file in
                             Button {
                                 selectedFile = file

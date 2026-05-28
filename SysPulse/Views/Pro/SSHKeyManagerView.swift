@@ -21,7 +21,7 @@ struct SSHKeyManagerView: View {
             AppBackground()
 
             ScrollView {
-                VStack(spacing: 16) {
+                LazyVStack(spacing: 16) {
                     PageHeader(
                         title: "SSH Keys",
                         subtitle: "Manage ED25519 key pairs",

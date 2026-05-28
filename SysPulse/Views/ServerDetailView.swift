@@ -31,7 +31,7 @@ struct ServerDetailView: View {
 
             if let server = appState.selectedServer {
                 ScrollView {
-                    VStack(spacing: 16) {
+                    LazyVStack(spacing: 16) {
                         detailHeader(server: server)
                             .listItemEntrance(index: 0, disabled: appState.shouldReduceMotion)
                         monitorQuickActions(server: server)
@@ -416,7 +416,7 @@ struct ServerDetailView: View {
 
     private func processes(server: ServerProfile) -> some View {
         let items = appState.processes(for: server)
-        return VStack(spacing: 12) {
+        return LazyVStack(spacing: 12) {
             monitorRefreshHeader(
                 title: "Top Processes",
                 message: "Live process snapshot from ps on the selected server.",
@@ -449,7 +449,7 @@ struct ServerDetailView: View {
 
     private func disks(server: ServerProfile) -> some View {
         let disks = appState.disks(for: server)
-        return VStack(spacing: 12) {
+        return LazyVStack(spacing: 12) {
             monitorRefreshHeader(
                 title: "Disk usage",
                 message: "Mounted filesystems parsed from df with warning levels.",
@@ -478,7 +478,7 @@ struct ServerDetailView: View {
 
     private func docker(server: ServerProfile) -> some View {
         let containers = appState.dockerContainers(for: server)
-        return VStack(spacing: 12) {
+        return LazyVStack(spacing: 12) {
             if !appState.isProUnlocked {
                 PremiumLockedCard(title: "Docker monitoring is Pro", message: "Unlock live container stats, logs and restart actions.")
             } else {
@@ -510,7 +510,7 @@ struct ServerDetailView: View {
 
     private func services(server: ServerProfile) -> some View {
         let services = appState.systemdServices(for: server)
-        return VStack(spacing: 12) {
+        return LazyVStack(spacing: 12) {
             if !appState.isProUnlocked {
                 PremiumLockedCard(title: "Advanced systemd is Pro", message: "Unlock restart/start/stop actions and failed service diagnostics.")
             } else {
@@ -543,7 +543,7 @@ struct ServerDetailView: View {
 
     private func logs(server: ServerProfile) -> some View {
         let entries = appState.logEntries(for: server)
-        return VStack(spacing: 12) {
+        return LazyVStack(spacing: 12) {
             if !appState.isProUnlocked {
                 PremiumLockedCard(title: "Logs viewer is Pro", message: "Unlock journalctl, dmesg, nginx and Docker logs.")
             } else {
@@ -837,7 +837,7 @@ struct ServerDetailView: View {
                 $0.command.localizedCaseInsensitiveContains(commandSearchText)
             }
 
-        return VStack(spacing: 12) {
+        return LazyVStack(spacing: 12) {
             GlassCard(cornerRadius: 20, padding: 14) {
                 TextField("Search commands", text: $commandSearchText)
                     .textInputAutocapitalization(.never)

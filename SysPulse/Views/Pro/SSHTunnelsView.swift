@@ -20,7 +20,7 @@ struct SSHTunnelsView: View {
             AppBackground()
 
             ScrollView {
-                VStack(spacing: 16) {
+                LazyVStack(spacing: 16) {
                     PageHeader(
                         title: "SSH Tunnels",
                         subtitle: "Port forwarding rules for \(server.name)",
