@@ -725,7 +725,7 @@
 "Copy SSH" = "Kopiuj SSH";
 "New Snippet" = "Nowy snippet";
 "Edit Snippet" = "Edytuj snippet";
-"No results for "%@"" = "Brak wyników dla „%@”";
+"No results for \"%@\"" = "Brak wyników dla „%@”";
 "Every %lld min" = "Co %lld min";
 "Next: %@" = "Następny: %@";
 "Unknown server" = "Nieznany serwer";
