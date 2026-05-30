@@ -356,6 +356,8 @@ final class ServerProfile: Identifiable {
     var accentHex: String = "#33C2EA"
     var serverTypeRaw: String = "Custom"
     var statusRaw: String = "unknown"
+    /// Optional bastion/jump server profile used for SSH command proxying.
+    var jumpServerID: UUID?
     var createdAt: Date = Date.now
     var updatedAt: Date = Date.now
 
@@ -372,7 +374,8 @@ final class ServerProfile: Identifiable {
         icon: String = "server.rack",
         accentHex: String = "#33C2EA",
         serverType: ServerType = .custom,
-        status: ServerStatus = .unknown
+        status: ServerStatus = .unknown,
+        jumpServerID: UUID? = nil
     ) {
         self.id = id
         self.name = name
@@ -387,6 +390,7 @@ final class ServerProfile: Identifiable {
         self.accentHex = accentHex
         self.serverTypeRaw = serverType.rawValue
         self.statusRaw = status.rawValue
+        self.jumpServerID = jumpServerID
         self.createdAt = .now
         self.updatedAt = .now
     }
@@ -721,6 +725,8 @@ struct AppSettings: Codable, Hashable {
     var forceProOverride: Bool = false
     var metricsAutoRefreshEnabled: Bool = false
     var metricsAutoRefreshIntervalSeconds: Int = 60
+    var alertWebhookEnabled: Bool = false
+    var alertWebhookEndpoint: String = ""
 
     init() {}
 
@@ -741,6 +747,8 @@ struct AppSettings: Codable, Hashable {
         case forceProOverride
         case metricsAutoRefreshEnabled
         case metricsAutoRefreshIntervalSeconds
+        case alertWebhookEnabled
+        case alertWebhookEndpoint
     }
 
     init(from decoder: Decoder) throws {
@@ -761,6 +769,41 @@ struct AppSettings: Codable, Hashable {
         forceProOverride = try container.decodeIfPresent(Bool.self, forKey: .forceProOverride) ?? false
         metricsAutoRefreshEnabled = try container.decodeIfPresent(Bool.self, forKey: .metricsAutoRefreshEnabled) ?? false
         metricsAutoRefreshIntervalSeconds = try container.decodeIfPresent(Int.self, forKey: .metricsAutoRefreshIntervalSeconds) ?? 60
+        alertWebhookEnabled = try container.decodeIfPresent(Bool.self, forKey: .alertWebhookEnabled) ?? false
+        alertWebhookEndpoint = try container.decodeIfPresent(String.self, forKey: .alertWebhookEndpoint) ?? ""
+    }
+}
+
+@Model
+final class ScheduledCommand: Identifiable {
+    var id: UUID = UUID()
+    var serverID: UUID = UUID()
+    var title: String = ""
+    var command: String = ""
+    var intervalMinutes: Int = 60
+    var isEnabled: Bool = true
+    var nextRunAt: Date = Date.now
+    var lastRunAt: Date?
+    var lastOutput: String = ""
+    var createdAt: Date = Date.now
+
+    init(
+        id: UUID = UUID(),
+        serverID: UUID,
+        title: String,
+        command: String,
+        intervalMinutes: Int = 60,
+        isEnabled: Bool = true,
+        nextRunAt: Date = .now
+    ) {
+        self.id = id
+        self.serverID = serverID
+        self.title = title
+        self.command = command
+        self.intervalMinutes = max(intervalMinutes, 15)
+        self.isEnabled = isEnabled
+        self.nextRunAt = nextRunAt
+        self.createdAt = .now
     }
 }
 

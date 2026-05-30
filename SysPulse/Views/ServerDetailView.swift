@@ -11,6 +11,8 @@ struct ServerDetailView: View {
     @State private var showingConfirmation = false
     @State private var pendingRemoteCommand: String?
     @State private var commandSearchText = ""
+    @State private var diagnosticResult: DiagnosticPackResult?
+    @State private var isRunningDiagnostics = false
     private let metricsExporter = MetricsExportService()
 
     private let dockerService = DockerService()
@@ -91,6 +93,12 @@ struct ServerDetailView: View {
             MissingToolsView()
                 .presentationDetents([.large])
                 .presentationCornerRadius(32)
+        }
+        .sheet(item: $diagnosticResult) { result in
+            if let server = appState.selectedServer {
+                DiagnosticPackView(server: server, result: result)
+                    .environmentObject(appState)
+            }
         }
         .alert("Confirmation required", isPresented: $showingConfirmation) {
             Button("Cancel", role: .cancel) {
@@ -294,6 +302,20 @@ struct ServerDetailView: View {
             }
 
             if appState.isProUnlocked {
+                Button {
+                    runDiagnostics(for: server)
+                } label: {
+                    Label(
+                        isRunningDiagnostics ? "Running diagnostics..." : "Run diagnostic pack",
+                        systemImage: "stethoscope"
+                    )
+                    .font(.subheadline.weight(.semibold))
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+                }
+                .buttonStyle(PressableGlassButtonStyle(cornerRadius: 16))
+                .disabled(isRunningDiagnostics)
+
                 healthTimeline(server: server)
 
                 ShareLink(
@@ -998,6 +1020,19 @@ struct ServerDetailView: View {
             return
         }
         appState.runRemoteCommand(command, on: server)
+    }
+
+    private func runDiagnostics(for server: ServerProfile) {
+        guard !isRunningDiagnostics else { return }
+        isRunningDiagnostics = true
+        Task {
+            defer { isRunningDiagnostics = false }
+            do {
+                diagnosticResult = try await appState.runDiagnosticPack(for: server)
+            } catch {
+                appState.postStatus(error.localizedDescription, style: .error)
+            }
+        }
     }
 
     private func percent(_ value: Double) -> String {

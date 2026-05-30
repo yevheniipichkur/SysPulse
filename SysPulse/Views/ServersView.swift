@@ -8,6 +8,7 @@ struct ServersView: View {
     @State private var editingServer: ServerProfile?
     @State private var selectedGroupName: String?
     @State private var isShowingDetail = false
+    @State private var isShowingCompare = false
 
     private var allGroups: [String] {
         Array(Set(appState.serverProfiles.compactMap(\.groupName)))
@@ -54,6 +55,10 @@ struct ServersView: View {
                     ServerDetailView()
                         .environmentObject(appState)
                 }
+                .navigationDestination(isPresented: $isShowingCompare) {
+                    ServersCompareView()
+                        .environmentObject(appState)
+                }
         }
     }
 
@@ -71,6 +76,10 @@ struct ServersView: View {
                         }
                         appState.haptic(.light)
                     },
+                    secondaryActionSymbol: appState.serverProfiles.count > 1 ? "chart.bar" : nil,
+                    secondaryAction: appState.serverProfiles.count > 1 ? {
+                        isShowingCompare = true
+                    } : nil,
                     actionSymbol: "plus"
                 ) {
                     isAddingServer = true
@@ -660,6 +669,7 @@ struct AddServerView: View {
     @State private var accentHex = "#33C2EA"
     @State private var serverType: ServerType = .vps
     @State private var statusMessage = ""
+    @State private var jumpServerID: UUID?
 
     init(editingServer: ServerProfile? = nil) {
         self.editingServer = editingServer
@@ -673,6 +683,7 @@ struct AddServerView: View {
         _icon = State(initialValue: editingServer?.icon ?? "server.rack")
         _accentHex = State(initialValue: editingServer?.accentHex ?? "#33C2EA")
         _serverType = State(initialValue: editingServer?.serverType ?? .vps)
+        _jumpServerID = State(initialValue: editingServer?.jumpServerID)
     }
 
     var body: some View {
@@ -741,6 +752,8 @@ struct AddServerView: View {
                             }
                             ServerFormDivider()
                             credentialInput
+                            ServerFormDivider()
+                            jumpHostPicker
                         }
                         .listItemEntrance(index: 2, disabled: appState.shouldReduceMotion)
 
@@ -932,6 +945,25 @@ struct AddServerView: View {
         }
     }
 
+    private var jumpHostPicker: some View {
+        let candidates = appState.serverProfiles.filter { $0.id != editingServer?.id }
+        return Group {
+            if !candidates.isEmpty {
+                ServerPickerRow(title: "Jump host", symbol: "arrowshape.turn.up.right") {
+                    Picker("Jump host", selection: $jumpServerID) {
+                        Text("None").tag(Optional<UUID>.none)
+                        ForEach(candidates) { server in
+                            Text(server.name).tag(Optional(server.id))
+                        }
+                    }
+                }
+                Text("Commands and metrics use the bastion via SSH. Terminal/SFTP need a direct connection.")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
     private var keychainSecretValue: String {
         switch authType {
         case .password, .privateKey:
@@ -969,6 +1001,7 @@ struct AddServerView: View {
             editingServer.icon = icon
             editingServer.accentHex = accentHex
             editingServer.serverType = serverType
+            editingServer.jumpServerID = jumpServerID
             appState.updateServer(editingServer)
             if connectAfterSave {
                 appState.select(editingServer, tab: .terminal)
@@ -991,7 +1024,8 @@ struct AddServerView: View {
             icon: icon,
             accentHex: accentHex,
             serverType: serverType,
-            status: .unknown
+            status: .unknown,
+            jumpServerID: jumpServerID
         )
         guard appState.addServer(server) else {
             return
@@ -1033,7 +1067,8 @@ struct AddServerView: View {
             icon: icon,
             accentHex: accentHex,
             serverType: serverType,
-            status: .unknown
+            status: .unknown,
+            jumpServerID: jumpServerID
         )
 
         statusMessage = appState.localized("Connecting to %@...", host)

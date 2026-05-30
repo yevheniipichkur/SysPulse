@@ -13,6 +13,7 @@ struct SettingsView: View {
     @State private var storeKitSettingsMessage: String?
     @State private var isSSHKeyManagerPresented = false
     @State private var isSecurityInfoPresented = false
+    @State private var isScheduledCommandsPresented = false
     private let buildInfo = GitBuildInfoService()
 
     var body: some View {
@@ -199,8 +200,29 @@ struct SettingsView: View {
                             Button("Silence alerts for 1 hour") {
                                 appState.silenceMetricAlerts(for: 1)
                             }
+
+                            if appState.isProUnlocked {
+                                Toggle("Webhook alerts", isOn: $appState.settings.alertWebhookEnabled)
+                                TextField("Webhook URL (Slack, Discord, etc.)", text: $appState.settings.alertWebhookEndpoint)
+                                    .keyboardType(.URL)
+                                    .textInputAutocapitalization(.never)
+                                    .autocorrectionDisabled()
+                                Text("POST JSON when a metric threshold is crossed.")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
                         }
                         .listItemEntrance(index: 7, disabled: appState.shouldReduceMotion)
+
+                        settingsSection("Automation", symbol: "clock.arrow.circlepath") {
+                            Text("Schedule safe commands that run while SysPulse is active.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            Button("Scheduled commands") {
+                                isScheduledCommandsPresented = true
+                            }
+                        }
+                        .listItemEntrance(index: 8, disabled: appState.shouldReduceMotion)
 
                         settingsSection("Remote Monitoring", symbol: "antenna.radiowaves.left.and.right") {
                             Toggle("Backend monitoring", isOn: $appState.settings.backendMonitoringEnabled)
@@ -232,7 +254,7 @@ struct SettingsView: View {
                                 }
                             }
                         }
-                        .listItemEntrance(index: 8, disabled: appState.shouldReduceMotion)
+                        .listItemEntrance(index: 9, disabled: appState.shouldReduceMotion)
 
                         settingsSection("About", symbol: "info.circle") {
                             SettingsRow(title: "Version") {
@@ -261,6 +283,10 @@ struct SettingsView: View {
         }
         .sheet(isPresented: $isSecurityInfoPresented) {
             SecurityPrivacyView()
+                .environmentObject(appState)
+        }
+        .sheet(isPresented: $isScheduledCommandsPresented) {
+            ScheduledCommandsView()
                 .environmentObject(appState)
         }
         .accessibilityIdentifier(AppTab.settings.screenAccessibilityIdentifier)

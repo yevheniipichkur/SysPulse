@@ -16,6 +16,7 @@ final class AppState: ObservableObject {
     @Published var serverProfiles: [ServerProfile] {
         didSet {
             scheduleWidgetSnapshotPublish()
+            configureSSHProfileLookup()
         }
     }
     @Published var metricsByServer: [UUID: ServerMetrics] {
@@ -159,8 +160,10 @@ final class AppState: ObservableObject {
         reloadProfilesFromRepository()
         reloadAlertRules()
         refreshAlertNotificationAuthorization()
+        configureSSHProfileLookup()
         restartAutoRefreshIfNeeded()
         loadPersistedMetricsHistory()
+        runDueScheduledCommands()
     }
 
     func serverEvents(for server: ServerProfile?) -> [ServerEvent] {
@@ -289,6 +292,7 @@ final class AppState: ObservableObject {
 
         switch phase {
         case .active:
+            runDueScheduledCommands()
             Task {
                 await unlockAppIfNeeded()
             }

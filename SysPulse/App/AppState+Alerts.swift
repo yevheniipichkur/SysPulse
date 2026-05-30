@@ -54,10 +54,11 @@ extension AppState {
     }
 
     func evaluateAlertRules(for server: ServerProfile, metrics: ServerMetrics) {
-        guard areNotificationsAuthorized, !areMetricAlertsSilenced else { return }
+        guard !areMetricAlertsSilenced else { return }
         let evaluations = alertEvaluationService.evaluations(for: alertRules, server: server, metrics: metrics)
         guard !evaluations.isEmpty else { return }
 
+        let webhookService = AlertWebhookService()
         let now = Date()
         for evaluation in evaluations {
             let cooldownKey = evaluation.id
@@ -75,12 +76,40 @@ extension AppState {
                 details: body,
                 severity: "Warning"
             )
-            Task {
-                try? await notificationService.scheduleAlert(
-                    title: title,
-                    body: body,
-                    identifier: "syspulse.\(cooldownKey)"
+
+            if areNotificationsAuthorized {
+                Task {
+                    try? await notificationService.scheduleAlert(
+                        title: title,
+                        body: body,
+                        identifier: "syspulse.\(cooldownKey)"
+                    )
+                }
+            }
+
+            if isProUnlocked,
+               settings.alertWebhookEnabled,
+               !settings.alertWebhookEndpoint.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                let payload = AlertWebhookPayload(
+                    serverName: server.name,
+                    serverHost: server.host,
+                    metricKey: evaluation.metric.rawValue,
+                    metricTitle: evaluation.rule.title,
+                    value: evaluation.value,
+                    threshold: evaluation.rule.threshold,
+                    message: body,
+                    firedAt: now
                 )
+                let endpoint = settings.alertWebhookEndpoint
+                Task {
+                    do {
+                        try await webhookService.send(payload: payload, to: endpoint)
+                    } catch {
+                        await MainActor.run {
+                            postStatus(localized("Alert webhook failed: %@", error.localizedDescription), style: .error)
+                        }
+                    }
+                }
             }
         }
     }

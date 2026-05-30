@@ -37,18 +37,33 @@ extension SSHClientProtocol {
 struct RealSSHClient: SSHClientProtocol {
     private let keychain: KeychainService
     private let sessionPool: SSHSessionPool
+    var profileLookup: ((UUID) -> ServerProfile?)?
 
     init(keychain: KeychainService = .shared, sessionPool: SSHSessionPool = SSHSessionPool()) {
         self.keychain = keychain
         self.sessionPool = sessionPool
     }
 
+    private func jumpProfile(for server: ServerProfile) -> ServerProfile? {
+        guard let jumpID = server.jumpServerID, jumpID != server.id else { return nil }
+        return profileLookup?(jumpID)
+    }
+
     func connect(to server: ServerProfile) async throws {
+        if jumpProfile(for: server) != nil {
+            _ = try await run("echo ok", on: server)
+            return
+        }
         let client = try await connectCitadelClient(for: server)
         try await client.close()
     }
 
     func run(_ command: String, on server: ServerProfile) async throws -> String {
+        if let jump = jumpProfile(for: server) {
+            let proxied = SSHJumpHost.proxiedCommand(command, target: server)
+            return try await run(proxied, on: jump)
+        }
+
         let client = try await sessionPool.acquire(for: server) {
             try await self.connectCitadelClient(for: server)
         }
@@ -64,7 +79,12 @@ struct RealSSHClient: SSHClientProtocol {
     }
 
     func makeCitadelClient(for server: ServerProfile) async throws -> SSHClient {
-        try await sessionPool.acquire(for: server) {
+        if jumpProfile(for: server) != nil {
+            throw SSHClientError.unsupportedAuthentication(
+                L10n.string("Direct SFTP/terminal sessions are not available through a jump host yet. Use command-based tools or connect directly.")
+            )
+        }
+        return try await sessionPool.acquire(for: server) {
             try await self.connectCitadelClient(for: server)
         }
     }
@@ -74,6 +94,11 @@ struct RealSSHClient: SSHClientProtocol {
     }
 
     private func connectCitadelClient(for server: ServerProfile) async throws -> SSHClient {
+        if jumpProfile(for: server) != nil {
+            throw SSHClientError.unsupportedAuthentication(
+                L10n.string("Use proxied commands through the configured jump host for this server.")
+            )
+        }
         let authentication = try authenticationMethod(for: server)
         return try await SSHClient.connect(
             host: server.host,

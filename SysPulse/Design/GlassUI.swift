@@ -359,6 +359,8 @@ struct PageHeader: View {
     var leadingActionSymbol: String? = nil
     var leadingActionActive: Bool = false
     var leadingAction: (() -> Void)? = nil
+    var secondaryActionSymbol: String? = nil
+    var secondaryAction: (() -> Void)? = nil
     var actionSymbol: String?
     var action: (() -> Void)?
 
@@ -388,6 +390,15 @@ struct PageHeader: View {
                                 leadingActionActive ? Color.cyan.opacity(0.14) : Color.clear,
                                 in: Circle()
                             )
+                            .background(.ultraThinMaterial, in: Circle())
+                    }
+                    .buttonStyle(.plain)
+                }
+                if let secondaryActionSymbol, let secondaryAction {
+                    Button(action: secondaryAction) {
+                        Image(systemName: secondaryActionSymbol)
+                            .font(.headline)
+                            .frame(width: 44, height: 44)
                             .background(.ultraThinMaterial, in: Circle())
                     }
                     .buttonStyle(.plain)
