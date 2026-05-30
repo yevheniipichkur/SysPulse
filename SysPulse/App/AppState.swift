@@ -69,7 +69,7 @@ final class AppState: ObservableObject {
     @Published var profileCloudSyncActivity: CloudProfileSyncActivity = .idle
 
     var modelContext: ModelContext?
-    private var profileRepository: ProfileRepository?
+    var profileRepository: ProfileRepository?
     private let settingsStorage = SettingsStorageService()
     private let widgetDataService = WidgetDataService()
     private let liveActivityService = LiveActivityService()
@@ -874,7 +874,7 @@ final class AppState: ObservableObject {
     }
 
 
-    private func enforceSubscriptionBoundaries() {
+    func enforceSubscriptionBoundaries() {
         guard !subscription.isPro else {
             publishWidgetSnapshots()
             restartAutoRefreshIfNeeded()
