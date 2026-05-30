@@ -880,3 +880,9 @@
 "Shortcuts and iCloud sync" = "Shortcuts and iCloud sync";
 "Done." = "Done.";
 "Ran "%@" on %@." = "Ran \"%@\" on %@.";
+
+/* Paywall extras */
+"Unlock %@" = "Unlock %@";
+"systemd monitoring" = "systemd monitoring";
+"Free plan includes one server. Upgrade to add more." = "Free plan includes one server. Upgrade to add more.";
+"Show live CPU, RAM and health on the Lock Screen." = "Show live CPU, RAM and health on the Lock Screen.";

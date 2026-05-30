@@ -875,3 +875,9 @@
 "Ran "%@" on %@." = "Выполнено «%@» на %@.";
 "Scheduled command failed on %@: %@" = "Запланированная команда не выполнена на %@: %@";
 "active alert(s)" = "активных оповещений";
+
+/* Paywall extras */
+"Unlock %@" = "Открыть %@";
+"systemd monitoring" = "мониторинг systemd";
+"Free plan includes one server. Upgrade to add more." = "Бесплатный план включает один сервер. Обновитесь, чтобы добавить больше.";
+"Show live CPU, RAM and health on the Lock Screen." = "Показывайте CPU, RAM и health на экране блокировки.";
