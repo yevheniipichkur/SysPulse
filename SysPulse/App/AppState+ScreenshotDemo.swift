@@ -186,7 +186,7 @@ extension AppState {
                 transcript: screenshotTerminalTranscript(for: api)
             )
         ]
-        lastCommandOutput = """
+        remoteCommandOutput = """
         deploy@api.sys.example
         CPU 37%  RAM 58%  Disk 64%
         Docker: 12 running / 14 total

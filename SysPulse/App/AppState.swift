@@ -11,12 +11,12 @@ final class AppState: ObservableObject {
     @Published var selectedServer: ServerProfile?
     @Published var serverProfiles: [ServerProfile] {
         didSet {
-            publishWidgetSnapshots()
+            scheduleWidgetSnapshotPublish()
         }
     }
     @Published var metricsByServer: [UUID: ServerMetrics] {
         didSet {
-            publishWidgetSnapshots()
+            scheduleWidgetSnapshotPublish()
         }
     }
     @Published var quickCommands: [QuickCommand]
@@ -37,7 +37,8 @@ final class AppState: ObservableObject {
     @Published var isSecurityPromptInProgress = false
     @Published var isPrivacyShieldVisible = false
     @Published var securityLockMessage = ""
-    @Published var lastCommandOutput = ""
+    @Published var remoteCommandOutput = ""
+    @Published var statusToast: StatusToast?
     @Published var processItemsByServer: [UUID: [ProcessInfoItem]] = [:]
     @Published var diskInfoByServer: [UUID: [DiskInfo]] = [:]
     @Published var dockerContainersByServer: [UUID: [DockerContainer]] = [:]
@@ -84,8 +85,13 @@ final class AppState: ObservableObject {
     private var protectedBackgroundDate: Date?
     private var alertLastFiredAt: [String: Date] = [:]
     private var sftpLoadTokensByServer: [UUID: UUID] = [:]
+    private var statusToastDismissTask: Task<Void, Never>?
+    private var widgetPublishTask: Task<Void, Never>?
     private let alertCooldown: TimeInterval = 15 * 60
     private static let backendMonitoringTokenAccount = "backend-monitoring-token"
+    private static let metricsRefreshConcurrency = 2
+    private static let autoRefreshIntervalSeconds: UInt64 = 60
+    private static let backgroundServerRefreshIntervalSeconds: UInt64 = 120
 
     init() {
         let arguments = ProcessInfo.processInfo.arguments
@@ -282,12 +288,12 @@ final class AppState: ObservableObject {
             isSecurityUnlocked = true
             isPrivacyShieldVisible = false
             securityLockMessage = ""
-            lastCommandOutput = localized("Face ID lock enabled.")
+            postStatus(localized("Face ID lock enabled."))
         case .unavailable(let message), .failed(let message):
             isSecurityUnlocked = true
             isPrivacyShieldVisible = false
             securityLockMessage = message
-            lastCommandOutput = localized("Face ID lock was not enabled: %@", message)
+            postStatus(localized("Face ID lock was not enabled: %@", message))
         }
     }
 
@@ -296,7 +302,7 @@ final class AppState: ObservableObject {
         isSecurityUnlocked = true
         isPrivacyShieldVisible = false
         securityLockMessage = ""
-        lastCommandOutput = localized("Face ID lock disabled.")
+        postStatus(localized("Face ID lock disabled."))
     }
 
     private func authenticateForSecurityUnlock(reason: String) async {
@@ -318,7 +324,7 @@ final class AppState: ObservableObject {
             isSecurityUnlocked = true
             isPrivacyShieldVisible = false
             securityLockMessage = ""
-            lastCommandOutput = localized("Face ID lock is unavailable and was turned off: %@", message)
+            postStatus(localized("Face ID lock is unavailable and was turned off: %@", message))
         case .failed(let message):
             isSecurityUnlocked = false
             isPrivacyShieldVisible = true
@@ -416,14 +422,14 @@ final class AppState: ObservableObject {
         }
 
         guard let profileRepository else {
-            lastCommandOutput = localized("Profile database is not ready yet.")
+            postStatus(localized("Profile database is not ready yet."))
             return false
         }
 
         do {
             try profileRepository.saveProfile(server)
         } catch {
-            lastCommandOutput = localized("Failed to save profile: %@", error.localizedDescription)
+            postStatus(localized("Failed to save profile: %@", error.localizedDescription))
             return false
         }
 
@@ -437,7 +443,7 @@ final class AppState: ObservableObject {
 
     func updateServer(_ server: ServerProfile) {
         guard let profileRepository else {
-            lastCommandOutput = localized("Profile database is not ready yet.")
+            postStatus(localized("Profile database is not ready yet."))
             return
         }
 
@@ -445,7 +451,7 @@ final class AppState: ObservableObject {
         do {
             try profileRepository.saveProfile(server)
         } catch {
-            lastCommandOutput = localized("Failed to save profile: %@", error.localizedDescription)
+            postStatus(localized("Failed to save profile: %@", error.localizedDescription))
             return
         }
 
@@ -459,7 +465,7 @@ final class AppState: ObservableObject {
 
     func deleteServer(_ server: ServerProfile) {
         guard let profileRepository else {
-            lastCommandOutput = localized("Profile database is not ready yet.")
+            postStatus(localized("Profile database is not ready yet."))
             return
         }
 
@@ -468,7 +474,7 @@ final class AppState: ObservableObject {
         do {
             try profileRepository.deleteProfile(server)
         } catch {
-            lastCommandOutput = localized("Failed to delete profile: %@", error.localizedDescription)
+            postStatus(localized("Failed to delete profile: %@", error.localizedDescription))
             return
         }
 
@@ -491,6 +497,7 @@ final class AppState: ObservableObject {
         if let credentialIdentifier {
             try? KeychainService.shared.deleteSecret(account: credentialIdentifier)
         }
+        Task { await sshClient.disconnect(from: server) }
         if selectedServer?.id == serverID {
             selectedServer = serverProfiles.first
         }
@@ -510,56 +517,109 @@ final class AppState: ObservableObject {
     }
 
     func refreshAllServers() {
-        for server in serverProfiles {
-            refreshMetrics(for: server)
+        Task {
+            await refreshMetricsBatch(serverProfiles, announceStatus: true)
         }
     }
 
     private func startAutoRefresh() {
         autoRefreshTask?.cancel()
         autoRefreshTask = Task {
-            refreshAllServers()
+            await performScheduledMetricsRefresh()
             while !Task.isCancelled {
-                try? await Task.sleep(for: .seconds(60))
+                try? await Task.sleep(for: .seconds(Self.autoRefreshIntervalSeconds))
                 guard !Task.isCancelled else { break }
-                refreshAllServers()
+                await performScheduledMetricsRefresh()
             }
         }
     }
 
-    func refreshMetrics(for server: ServerProfile) {
-        lastCommandOutput = localized("Refreshing metrics for %@...", server.name)
-        metricRefreshingServerIDs.insert(server.id)
-        metricErrorByServer.removeValue(forKey: server.id)
+    private func performScheduledMetricsRefresh() async {
+        let profiles = serverProfiles
+        guard !profiles.isEmpty else { return }
+
+        if let selected = selectedServer {
+            await refreshMetricsAsync(for: selected, announceStatus: false)
+        }
+
+        let others = profiles.filter { $0.id != selectedServer?.id }
+        guard !others.isEmpty else { return }
+
+        for server in others {
+            let lastRefresh = metricsByServer[server.id]?.timestamp
+            if let lastRefresh,
+               Date.now.timeIntervalSince(lastRefresh) < TimeInterval(Self.backgroundServerRefreshIntervalSeconds) {
+                continue
+            }
+            await refreshMetricsAsync(for: server, announceStatus: false)
+        }
+    }
+
+    private func refreshMetricsBatch(_ servers: [ServerProfile], announceStatus: Bool) async {
+        guard !servers.isEmpty else { return }
+
+        var iterator = servers.makeIterator()
+        await withTaskGroup(of: Void.self) { group in
+            for _ in 0..<min(Self.metricsRefreshConcurrency, servers.count) {
+                guard let server = iterator.next() else { break }
+                group.addTask {
+                    await self.refreshMetricsAsync(for: server, announceStatus: announceStatus)
+                }
+            }
+
+            while let server = iterator.next() {
+                await group.next()
+                group.addTask {
+                    await self.refreshMetricsAsync(for: server, announceStatus: announceStatus)
+                }
+            }
+        }
+    }
+
+    func refreshMetrics(for server: ServerProfile, announceStatus: Bool = false) {
         Task {
-            do {
-                let previous = await MainActor.run {
-                    metricsByServer[server.id]
+            await refreshMetricsAsync(for: server, announceStatus: announceStatus)
+        }
+    }
+
+    private func refreshMetricsAsync(for server: ServerProfile, announceStatus: Bool) async {
+        await MainActor.run {
+            metricRefreshingServerIDs.insert(server.id)
+            metricErrorByServer.removeValue(forKey: server.id)
+            if announceStatus {
+                postStatus(localized("Refreshing metrics for %@...", server.name))
+            }
+        }
+
+        do {
+            let previous = await MainActor.run {
+                metricsByServer[server.id]
+            }
+            let metrics = try await metricsCollector.collect(server: server, using: sshClient, previous: previous)
+            await MainActor.run {
+                let visibleMetrics = isProUnlocked ? metrics : metricsWithoutPremiumSignals(metrics)
+                metricsByServer[server.id] = visibleMetrics
+                metricRefreshingServerIDs.remove(server.id)
+                metricErrorByServer.removeValue(forKey: server.id)
+                if selectedServer?.id == server.id {
+                    selectedServer?.status = .online
                 }
-                let metrics = try await metricsCollector.collect(server: server, using: sshClient, previous: previous)
-                await MainActor.run {
-                    let visibleMetrics = isProUnlocked ? metrics : metricsWithoutPremiumSignals(metrics)
-                    metricsByServer[server.id] = visibleMetrics
-                    metricRefreshingServerIDs.remove(server.id)
-                    metricErrorByServer.removeValue(forKey: server.id)
-                    if selectedServer?.id == server.id {
-                        selectedServer?.status = .online
-                    }
-                    lastCommandOutput = localized("Metrics refreshed for %@.", server.name)
-                    updateLiveActivity(message: localized("Metrics refreshed"))
-                    evaluateAlertRules(for: server, metrics: visibleMetrics)
-                    sendBackendMonitoringSnapshotIfEnabled(server: server, metrics: visibleMetrics)
+                if announceStatus {
+                    postStatus(localized("Metrics refreshed for %@.", server.name), style: .success)
                 }
-            } catch {
-                await MainActor.run {
-                    let message = connectionErrorMessage(error, server: server)
-                    metricRefreshingServerIDs.remove(server.id)
-                    metricErrorByServer[server.id] = message
-                    if selectedServer?.id == server.id {
-                        selectedServer?.status = .warning
-                    }
-                    lastCommandOutput = localized("Metrics refresh failed for %@: %@", server.name, message)
+                updateLiveActivity(message: localized("Metrics refreshed"))
+                evaluateAlertRules(for: server, metrics: visibleMetrics)
+                sendBackendMonitoringSnapshotIfEnabled(server: server, metrics: visibleMetrics)
+            }
+        } catch {
+            await MainActor.run {
+                let message = connectionErrorMessage(error, server: server)
+                metricRefreshingServerIDs.remove(server.id)
+                metricErrorByServer[server.id] = message
+                if selectedServer?.id == server.id {
+                    selectedServer?.status = .warning
                 }
+                postStatus(localized("Metrics refresh failed for %@: %@", server.name, message), style: .error)
             }
         }
     }
@@ -573,13 +633,13 @@ final class AppState: ObservableObject {
             let trimmedToken = token.trimmingCharacters(in: .whitespacesAndNewlines)
             if trimmedToken.isEmpty {
                 try KeychainService.shared.deleteSecret(account: Self.backendMonitoringTokenAccount)
-                lastCommandOutput = localized("Backend monitoring token cleared.")
+                postStatus(localized("Backend monitoring token cleared."))
             } else {
                 try KeychainService.shared.saveSecret(trimmedToken, account: Self.backendMonitoringTokenAccount)
-                lastCommandOutput = localized("Backend monitoring token saved.")
+                postStatus(localized("Backend monitoring token saved."))
             }
         } catch {
-            lastCommandOutput = error.localizedDescription
+            postStatus(error.localizedDescription, style: .error)
         }
     }
 
@@ -597,7 +657,7 @@ final class AppState: ObservableObject {
             } catch {
                 await MainActor.run {
                     guard let self else { return }
-                    self.lastCommandOutput = self.localized("Backend monitoring failed: %@", self.connectionErrorMessage(error))
+                    self.postStatus(self.localized("Backend monitoring failed: %@", self.connectionErrorMessage(error)), style: .error)
                 }
             }
         }
@@ -605,20 +665,20 @@ final class AppState: ObservableObject {
 
     func runRemoteCommand(_ command: String, on server: ServerProfile? = nil) {
         guard let targetServer = server ?? selectedServer else {
-            lastCommandOutput = localized("Select a server before running commands.")
+            postStatus(localized("Select a server before running commands."))
             return
         }
 
-        lastCommandOutput = localized("Running on %@:\n%@", targetServer.name, command)
+        postStatus(localized("Running command on %@...", targetServer.name))
         Task {
             do {
                 let output = try await sshClient.run(command, on: targetServer)
                 await MainActor.run {
-                    lastCommandOutput = output.isEmpty ? localized("Command completed with no output.") : output
+                    setRemoteCommandOutput(output.isEmpty ? localized("Command completed with no output.") : output)
                 }
             } catch {
                 await MainActor.run {
-                    lastCommandOutput = connectionErrorMessage(error, server: targetServer)
+                    setRemoteCommandOutput(connectionErrorMessage(error, server: targetServer))
                 }
             }
         }
@@ -626,23 +686,23 @@ final class AppState: ObservableObject {
 
     func refreshProcesses(for server: ServerProfile? = nil, sortedByMemory: Bool = false) {
         guard let targetServer = server ?? selectedServer else {
-            lastCommandOutput = localized("Select a server before running commands.")
+            postStatus(localized("Select a server before running commands."))
             return
         }
 
         let command = sortedByMemory ? processService.topMemoryCommand() : processService.topCPUCommand()
-        lastCommandOutput = localized("Loading processes from %@...", targetServer.name)
+        postStatus(localized("Loading processes from %@...", targetServer.name))
         Task {
             do {
                 let output = try await sshClient.run(command, on: targetServer)
                 let processes = processService.parseProcesses(output)
                 await MainActor.run {
                     processItemsByServer[targetServer.id] = processes
-                    lastCommandOutput = output.isEmpty ? localized("Command completed with no output.") : output
+                    setRemoteCommandOutput(output.isEmpty ? localized("Command completed with no output.") : output)
                 }
             } catch {
                 await MainActor.run {
-                    lastCommandOutput = connectionErrorMessage(error, server: targetServer)
+                    setRemoteCommandOutput(connectionErrorMessage(error, server: targetServer))
                 }
             }
         }
@@ -650,23 +710,23 @@ final class AppState: ObservableObject {
 
     func refreshDisks(for server: ServerProfile? = nil) {
         guard let targetServer = server ?? selectedServer else {
-            lastCommandOutput = localized("Select a server before running commands.")
+            postStatus(localized("Select a server before running commands."))
             return
         }
 
         let command = diskService.usageCommand()
-        lastCommandOutput = localized("Loading disks from %@...", targetServer.name)
+        postStatus(localized("Loading disks from %@...", targetServer.name))
         Task {
             do {
                 let output = try await sshClient.run(command, on: targetServer)
                 let disks = diskService.parseDisks(output)
                 await MainActor.run {
                     diskInfoByServer[targetServer.id] = disks
-                    lastCommandOutput = output.isEmpty ? localized("Command completed with no output.") : output
+                    setRemoteCommandOutput(output.isEmpty ? localized("Command completed with no output.") : output)
                 }
             } catch {
                 await MainActor.run {
-                    lastCommandOutput = connectionErrorMessage(error, server: targetServer)
+                    setRemoteCommandOutput(connectionErrorMessage(error, server: targetServer))
                 }
             }
         }
@@ -675,23 +735,23 @@ final class AppState: ObservableObject {
     func refreshDockerContainers(for server: ServerProfile? = nil) {
         guard requireProFeature() else { return }
         guard let targetServer = server ?? selectedServer else {
-            lastCommandOutput = localized("Select a server before running commands.")
+            postStatus(localized("Select a server before running commands."))
             return
         }
 
         let command = dockerService.inventoryCommand()
-        lastCommandOutput = localized("Loading Docker containers from %@...", targetServer.name)
+        postStatus(localized("Loading Docker containers from %@...", targetServer.name))
         Task {
             do {
                 let output = try await sshClient.run(command, on: targetServer)
                 let containers = dockerService.parseContainers(output)
                 await MainActor.run {
                     dockerContainersByServer[targetServer.id] = containers
-                    lastCommandOutput = output.isEmpty ? localized("Command completed with no output.") : output
+                    setRemoteCommandOutput(output.isEmpty ? localized("Command completed with no output.") : output)
                 }
             } catch {
                 await MainActor.run {
-                    lastCommandOutput = connectionErrorMessage(error, server: targetServer)
+                    setRemoteCommandOutput(connectionErrorMessage(error, server: targetServer))
                 }
             }
         }
@@ -700,23 +760,23 @@ final class AppState: ObservableObject {
     func refreshSystemdServices(for server: ServerProfile? = nil) {
         guard requireProFeature() else { return }
         guard let targetServer = server ?? selectedServer else {
-            lastCommandOutput = localized("Select a server before running commands.")
+            postStatus(localized("Select a server before running commands."))
             return
         }
 
         let command = systemdService.unitsCommand()
-        lastCommandOutput = localized("Loading systemd services from %@...", targetServer.name)
+        postStatus(localized("Loading systemd services from %@...", targetServer.name))
         Task {
             do {
                 let output = try await sshClient.run(command, on: targetServer)
                 let services = systemdService.parseServices(output)
                 await MainActor.run {
                     systemdServicesByServer[targetServer.id] = services
-                    lastCommandOutput = output.isEmpty ? localized("Command completed with no output.") : output
+                    setRemoteCommandOutput(output.isEmpty ? localized("Command completed with no output.") : output)
                 }
             } catch {
                 await MainActor.run {
-                    lastCommandOutput = connectionErrorMessage(error, server: targetServer)
+                    setRemoteCommandOutput(connectionErrorMessage(error, server: targetServer))
                 }
             }
         }
@@ -725,23 +785,23 @@ final class AppState: ObservableObject {
     func refreshLogEntries(for server: ServerProfile? = nil) {
         guard requireProFeature() else { return }
         guard let targetServer = server ?? selectedServer else {
-            lastCommandOutput = localized("Select a server before running commands.")
+            postStatus(localized("Select a server before running commands."))
             return
         }
 
         let command = logsService.structuredJournalCommand()
-        lastCommandOutput = localized("Loading logs from %@...", targetServer.name)
+        postStatus(localized("Loading logs from %@...", targetServer.name))
         Task {
             do {
                 let output = try await sshClient.run(command, on: targetServer)
                 let logs = logsService.parseLogEntries(output)
                 await MainActor.run {
                     logEntriesByServer[targetServer.id] = logs
-                    lastCommandOutput = output.isEmpty ? localized("Command completed with no output.") : output
+                    setRemoteCommandOutput(output.isEmpty ? localized("Command completed with no output.") : output)
                 }
             } catch {
                 await MainActor.run {
-                    lastCommandOutput = connectionErrorMessage(error, server: targetServer)
+                    setRemoteCommandOutput(connectionErrorMessage(error, server: targetServer))
                 }
             }
         }
@@ -749,22 +809,22 @@ final class AppState: ObservableObject {
 
     func refreshPackageStatuses(for server: ServerProfile? = nil) {
         guard let targetServer = server ?? selectedServer else {
-            lastCommandOutput = localized("Select a server before checking packages.")
+            postStatus(localized("Select a server before checking packages."))
             return
         }
 
-        lastCommandOutput = localized("Checking packages on %@...", targetServer.name)
+        postStatus(localized("Checking packages on %@...", targetServer.name))
         Task {
             do {
                 let output = try await sshClient.run(packageDetector.detectionCommand(), on: targetServer)
                 let statuses = packageDetector.parseStatuses(output)
                 await MainActor.run {
                     packageStatuses = statuses
-                    lastCommandOutput = output
+                    setRemoteCommandOutput(output)
                 }
             } catch {
                 await MainActor.run {
-                    lastCommandOutput = connectionErrorMessage(error, server: targetServer)
+                    setRemoteCommandOutput(connectionErrorMessage(error, server: targetServer))
                 }
             }
         }
@@ -776,17 +836,17 @@ final class AppState: ObservableObject {
                 profiles: serverProfiles,
                 passphrase: passphrase
             )
-            lastCommandOutput = localized("Encrypted profile export is ready.")
+            postStatus(localized("Encrypted profile export is ready."))
             return url
         } catch {
-            lastCommandOutput = error.localizedDescription
+            postStatus(error.localizedDescription, style: .error)
             return nil
         }
     }
 
     func importEncryptedProfiles(from url: URL, passphrase: String) {
         guard let profileRepository else {
-            lastCommandOutput = localized("Profile database is not ready yet.")
+            postStatus(localized("Profile database is not ready yet."))
             return
         }
 
@@ -796,7 +856,7 @@ final class AppState: ObservableObject {
             let newProfileCount = importedProfiles.filter { !existingIDs.contains($0.id) }.count
             if !isProUnlocked && serverProfiles.count + newProfileCount > 1 {
                 isPaywallPresented = true
-                lastCommandOutput = localized("Encrypted import needs Pro for multiple servers.")
+                postStatus(localized("Encrypted import needs Pro for multiple servers."))
                 return
             }
 
@@ -808,9 +868,9 @@ final class AppState: ObservableObject {
             }
             reloadProfilesFromRepository()
             uploadProfilesToICloudIfEnabled()
-            lastCommandOutput = localized("Imported %d encrypted profiles.", importedProfiles.count)
+            postStatus(localized("Imported %d encrypted profiles.", importedProfiles.count))
         } catch {
-            lastCommandOutput = error.localizedDescription
+            postStatus(error.localizedDescription, style: .error)
         }
     }
 
@@ -853,12 +913,12 @@ final class AppState: ObservableObject {
 
     func refreshSFTPDirectory(for server: ServerProfile? = nil, path: String? = nil) {
         guard let targetServer = server ?? selectedServer else {
-            lastCommandOutput = localized("Select a server before running commands.")
+            postStatus(localized("Select a server before running commands."))
             return
         }
 
         let targetPath = path ?? sftpPath(for: targetServer)
-        lastCommandOutput = localized("Loading SFTP directory %@...", targetPath)
+        postStatus(localized("Loading SFTP directory %@...", targetPath))
         sftpErrorByServer.removeValue(forKey: targetServer.id)
         if path != nil {
             sftpPathByServer[targetServer.id] = targetPath
@@ -877,7 +937,7 @@ final class AppState: ObservableObject {
                     sftpLoadTokensByServer.removeValue(forKey: targetServer.id)
                     sftpLoadingServerIDs.remove(targetServer.id)
                     sftpErrorByServer.removeValue(forKey: targetServer.id)
-                    lastCommandOutput = localized("Loaded %d SFTP items from %@.", listing.items.count, listing.path)
+                    postStatus(localized("Loaded %d SFTP items from %@.", listing.items.count, listing.path))
                 }
             } catch {
                 await MainActor.run {
@@ -886,7 +946,7 @@ final class AppState: ObservableObject {
                     sftpLoadTokensByServer.removeValue(forKey: targetServer.id)
                     sftpLoadingServerIDs.remove(targetServer.id)
                     sftpErrorByServer[targetServer.id] = message
-                    lastCommandOutput = localized("SFTP failed for %@: %@", targetServer.name, message)
+                    postStatus(localized("SFTP failed for %@: %@", targetServer.name, message))
                 }
             }
         }
@@ -907,13 +967,13 @@ final class AppState: ObservableObject {
         } catch {
             let message = localized("Could not read the local file: %@", error.localizedDescription)
             finishSFTPOperation(operationID, serverID: server.id, status: .failed, message: message)
-            lastCommandOutput = message
+            postStatus(message, style: .error)
             if didStartAccess { url.stopAccessingSecurityScopedResource() }
             return
         }
         if didStartAccess { url.stopAccessingSecurityScopedResource() }
 
-        lastCommandOutput = localized("Uploading %@ via SFTP...", fileName)
+        postStatus(localized("Uploading %@ via SFTP...", fileName))
         finishSFTPOperation(operationID, serverID: server.id, status: .running, message: localized("Uploading to %@...", directory))
         sftpErrorByServer.removeValue(forKey: server.id)
         Task {
@@ -922,7 +982,7 @@ final class AppState: ObservableObject {
                 await MainActor.run {
                     sftpErrorByServer.removeValue(forKey: server.id)
                     finishSFTPOperation(operationID, serverID: server.id, status: .succeeded, message: localized("Uploaded %@.", fileName))
-                    lastCommandOutput = localized("Uploaded %@ via SFTP.", fileName)
+                    postStatus(localized("Uploaded %@ via SFTP.", fileName))
                     refreshSFTPDirectory(for: server)
                 }
             } catch {
@@ -930,7 +990,7 @@ final class AppState: ObservableObject {
                     let message = connectionErrorMessage(error, server: server)
                     sftpErrorByServer[server.id] = message
                     finishSFTPOperation(operationID, serverID: server.id, status: .failed, message: message)
-                    lastCommandOutput = localized("SFTP failed for %@: %@", server.name, message)
+                    postStatus(localized("SFTP failed for %@: %@", server.name, message))
                 }
             }
         }
@@ -938,7 +998,7 @@ final class AppState: ObservableObject {
 
     func downloadSFTPFile(_ item: SFTPRemoteItem, from server: ServerProfile) async -> URL? {
         let operationID = beginSFTPOperation(kind: .download, fileName: item.name, server: server, remotePath: item.path)
-        lastCommandOutput = localized("Downloading %@ via SFTP...", item.name)
+        postStatus(localized("Downloading %@ via SFTP...", item.name))
         finishSFTPOperation(operationID, serverID: server.id, status: .running, message: localized("Downloading from %@...", item.path))
         sftpErrorByServer.removeValue(forKey: server.id)
         do {
@@ -947,20 +1007,20 @@ final class AppState: ObservableObject {
             try data.write(to: url, options: .atomic)
             sftpErrorByServer.removeValue(forKey: server.id)
             finishSFTPOperation(operationID, serverID: server.id, status: .succeeded, message: localized("Download ready."))
-            lastCommandOutput = localized("Downloaded %@ via SFTP.", item.name)
+            postStatus(localized("Downloaded %@ via SFTP.", item.name))
             return url
         } catch {
             let message = connectionErrorMessage(error, server: server)
             sftpErrorByServer[server.id] = message
             finishSFTPOperation(operationID, serverID: server.id, status: .failed, message: message)
-            lastCommandOutput = localized("SFTP failed for %@: %@", server.name, message)
+            postStatus(localized("SFTP failed for %@: %@", server.name, message))
             return nil
         }
     }
 
     func deleteSFTPItem(_ item: SFTPRemoteItem, from server: ServerProfile) {
         let operationID = beginSFTPOperation(kind: .delete, fileName: item.name, server: server, remotePath: item.path)
-        lastCommandOutput = localized("Deleting %@ via SFTP...", item.name)
+        postStatus(localized("Deleting %@ via SFTP...", item.name))
         finishSFTPOperation(operationID, serverID: server.id, status: .running, message: localized("Deleting from %@...", item.path))
         sftpErrorByServer.removeValue(forKey: server.id)
         Task {
@@ -969,7 +1029,7 @@ final class AppState: ObservableObject {
                 await MainActor.run {
                     sftpErrorByServer.removeValue(forKey: server.id)
                     finishSFTPOperation(operationID, serverID: server.id, status: .succeeded, message: localized("Deleted %@.", item.name))
-                    lastCommandOutput = localized("Deleted %@ via SFTP.", item.name)
+                    postStatus(localized("Deleted %@ via SFTP.", item.name))
                     refreshSFTPDirectory(for: server)
                 }
             } catch {
@@ -977,7 +1037,7 @@ final class AppState: ObservableObject {
                     let message = connectionErrorMessage(error, server: server)
                     sftpErrorByServer[server.id] = message
                     finishSFTPOperation(operationID, serverID: server.id, status: .failed, message: message)
-                    lastCommandOutput = localized("SFTP failed for %@: %@", server.name, message)
+                    postStatus(localized("SFTP failed for %@: %@", server.name, message))
                 }
             }
         }
@@ -987,7 +1047,7 @@ final class AppState: ObservableObject {
         guard !items.isEmpty else { return }
         let operationTitle = localized("%d items", items.count)
         let operationID = beginSFTPOperation(kind: .delete, fileName: operationTitle, server: server, remotePath: sftpPath(for: server))
-        lastCommandOutput = localized("Deleting %d SFTP items...", items.count)
+        postStatus(localized("Deleting %d SFTP items...", items.count))
         finishSFTPOperation(operationID, serverID: server.id, status: .running, message: localized("Deleting %d items...", items.count))
         sftpErrorByServer.removeValue(forKey: server.id)
         Task {
@@ -998,7 +1058,7 @@ final class AppState: ObservableObject {
                 await MainActor.run {
                     sftpErrorByServer.removeValue(forKey: server.id)
                     finishSFTPOperation(operationID, serverID: server.id, status: .succeeded, message: localized("Deleted %d items.", items.count))
-                    lastCommandOutput = localized("Deleted %d SFTP items.", items.count)
+                    postStatus(localized("Deleted %d SFTP items.", items.count))
                     refreshSFTPDirectory(for: server)
                 }
             } catch {
@@ -1006,7 +1066,7 @@ final class AppState: ObservableObject {
                     let message = connectionErrorMessage(error, server: server)
                     sftpErrorByServer[server.id] = message
                     finishSFTPOperation(operationID, serverID: server.id, status: .failed, message: message)
-                    lastCommandOutput = localized("SFTP failed for %@: %@", server.name, message)
+                    postStatus(localized("SFTP failed for %@: %@", server.name, message))
                 }
             }
         }
@@ -1015,9 +1075,12 @@ final class AppState: ObservableObject {
     func requestAlertNotifications() async {
         let granted = await notificationService.requestPermission()
         areNotificationsAuthorized = granted
-        lastCommandOutput = granted
-            ? localized("Notifications enabled for metric alerts.")
-            : localized("Notifications are disabled in iOS Settings.")
+        postStatus(
+            granted
+                ? localized("Notifications enabled for metric alerts.")
+                : localized("Notifications are disabled in iOS Settings."),
+            style: granted ? .success : .info
+        )
     }
 
     func refreshAlertNotificationAuthorization() {
@@ -1048,7 +1111,7 @@ final class AppState: ObservableObject {
             }
             alertRules = rules
         } catch {
-            lastCommandOutput = localized("Failed to load alert rules: %@", error.localizedDescription)
+            postStatus(localized("Failed to load alert rules: %@", error.localizedDescription))
         }
     }
 
@@ -1056,7 +1119,7 @@ final class AppState: ObservableObject {
         do {
             try modelContext?.save()
         } catch {
-            lastCommandOutput = localized("Failed to save alert rules: %@", error.localizedDescription)
+            postStatus(localized("Failed to save alert rules: %@", error.localizedDescription))
         }
     }
 
@@ -1124,7 +1187,7 @@ final class AppState: ObservableObject {
 
     private func requireProFeature(message: String = "Unlock Pro to use this feature.") -> Bool {
         guard isProUnlocked else {
-            lastCommandOutput = localized(message)
+            postStatus(localized(message))
             isPaywallPresented = true
             return false
         }
@@ -1177,7 +1240,7 @@ final class AppState: ObservableObject {
             } ?? savedProfiles.first
             publishWidgetSnapshots()
         } catch {
-            lastCommandOutput = localized("Failed to load profiles: %@", error.localizedDescription)
+            postStatus(localized("Failed to load profiles: %@", error.localizedDescription))
         }
     }
 
@@ -1210,13 +1273,13 @@ final class AppState: ObservableObject {
                         try profileRepository.saveProfile(snapshot.makeServerProfile())
                     }
                     reloadProfilesFromRepository()
-                    lastCommandOutput = localized("iCloud profile sync completed.")
+                    postStatus(localized("iCloud profile sync completed."))
                     profileCloudSyncActivity = .synced(.now)
                 } else {
                     try await profileCloudSyncService.uploadSnapshot(localSnapshots)
                     try Task.checkCancellation()
                     guard settings.iCloudSyncEnabled else { return }
-                    lastCommandOutput = localized("iCloud profile snapshot updated.")
+                    postStatus(localized("iCloud profile snapshot updated."))
                     profileCloudSyncActivity = .synced(.now)
                 }
             } catch is CancellationError {
@@ -1225,10 +1288,10 @@ final class AppState: ObservableObject {
                 if error.shouldDisableSync {
                     settings.iCloudSyncEnabled = false
                 }
-                lastCommandOutput = localized("iCloud sync failed: %@", error.localizedDescription)
+                postStatus(localized("iCloud sync failed: %@", error.localizedDescription))
                 profileCloudSyncActivity = .failed(error.localizedDescription)
             } catch {
-                lastCommandOutput = localized("iCloud sync failed: %@", error.localizedDescription)
+                postStatus(localized("iCloud sync failed: %@", error.localizedDescription))
                 profileCloudSyncActivity = .failed(error.localizedDescription)
             }
         }

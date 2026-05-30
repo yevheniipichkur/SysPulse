@@ -63,22 +63,15 @@ struct ServerDetailView: View {
                                 actions(server: server)
                             }
                         }
-                        .id(selectedTab)
-                        .transition(.opacity.combined(with: .move(edge: .trailing)))
-
-                        if !appState.lastCommandOutput.isEmpty {
-                            remoteOutputCard
-                                .transition(.opacity.combined(with: .move(edge: .bottom)))
-                        }
+                        .transition(.opacity)
                     }
                     .padding(.horizontal, SysPulseDesign.pagePadding)
                     .padding(.top, 8)
-                    .animation(SysPulseMotion.softSpring(disabled: appState.shouldReduceMotion), value: selectedTab)
-                    .animation(SysPulseMotion.softSpring(disabled: appState.shouldReduceMotion), value: appState.lastCommandOutput.isEmpty)
+                    .animation(SysPulseMotion.fade(disabled: appState.shouldReduceMotion), value: selectedTab)
                 }
                 .scrollIndicators(.hidden)
                 .refreshable {
-                    appState.refreshMetrics(for: server)
+                    appState.refreshMetrics(for: server, announceStatus: true)
                 }
             } else {
                 EmptyStateView(
@@ -121,13 +114,13 @@ struct ServerDetailView: View {
                         .font(.headline)
                     Spacer()
                     Button {
-                        UIPasteboard.general.string = appState.lastCommandOutput
+                        UIPasteboard.general.string = appState.remoteCommandOutput
                     } label: {
                         Image(systemName: "doc.on.doc")
                     }
                     .buttonStyle(.plain)
                     Button {
-                        appState.lastCommandOutput = ""
+                        appState.clearRemoteCommandOutput()
                     } label: {
                         Image(systemName: "xmark.circle.fill")
                             .foregroundStyle(.secondary)
@@ -136,7 +129,7 @@ struct ServerDetailView: View {
                 }
 
                 ScrollView(.horizontal) {
-                    Text(appState.lastCommandOutput)
+                    Text(appState.remoteCommandOutput)
                         .font(.caption.monospaced())
                         .foregroundStyle(.secondary)
                         .textSelection(.enabled)
@@ -216,49 +209,22 @@ struct ServerDetailView: View {
     }
 
     private var detailTabs: some View {
-        GlassCard(cornerRadius: 22, padding: 12) {
-            LazyVGrid(
-                columns: Array(repeating: GridItem(.flexible(), spacing: 6), count: 5),
-                spacing: 8
-            ) {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
                 ForEach(DetailTab.allCases) { tab in
-                    Button {
+                    FilterChip(label: appState.localized(tab.shortTitleKey), isSelected: selectedTab == tab) {
                         if appState.shouldReduceMotion {
                             selectedTab = tab
                         } else {
-                            withAnimation(.spring(response: 0.28, dampingFraction: 0.86)) {
+                            withAnimation(.spring(response: 0.24, dampingFraction: 0.88)) {
                                 selectedTab = tab
                             }
                         }
-                    } label: {
-                        VStack(spacing: 3) {
-                            Image(systemName: tab.symbol)
-                                .font(.system(size: 15, weight: .semibold))
-                                .frame(width: 38, height: 38)
-                                .foregroundStyle(selectedTab == tab ? .cyan : .secondary)
-                                .background(
-                                    selectedTab == tab ? Color.cyan.opacity(0.15) : Color.primary.opacity(0.055),
-                                    in: RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                )
-                                .overlay {
-                                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                        .stroke(
-                                            selectedTab == tab ? Color.cyan.opacity(0.42) : Color.clear,
-                                            lineWidth: 1
-                                        )
-                                }
-                            Text(tab.shortTitle)
-                                .font(.system(size: 9, weight: .semibold))
-                                .foregroundStyle(selectedTab == tab ? .cyan : .secondary)
-                                .lineLimit(1)
-                                .minimumScaleFactor(0.72)
-                        }
-                        .frame(maxWidth: .infinity)
                     }
-                    .buttonStyle(.plain)
                     .accessibilityLabel(tab.titleKey)
                 }
             }
+            .padding(.vertical, 2)
         }
     }
 
@@ -289,12 +255,12 @@ struct ServerDetailView: View {
             resourceTrendCard(metrics: metrics)
 
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
-                MetricTile(title: "CPU", value: "\(Int(metrics.cpuUsage))%", symbol: "cpu", color: .cyan, progress: metrics.cpuUsage)
-                MetricTile(title: "RAM", value: "\(Int(metrics.ramUsage))%", symbol: "memorychip", color: .green, progress: metrics.ramUsage)
-                MetricTile(title: "Disk", value: "\(Int(metrics.diskUsage))%", symbol: "externaldrive", color: metrics.diskUsage > 80 ? .orange : .blue, progress: metrics.diskUsage)
-                MetricTile(title: "Network", value: "\(Int(metrics.networkInMB + metrics.networkOutMB)) MB", symbol: "network", color: .purple, progress: nil)
-                MetricTile(title: "Swap", value: "\(Int(metrics.swapUsage))%", symbol: "arrow.triangle.2.circlepath", color: .yellow, progress: metrics.swapUsage)
-                MetricTile(title: "Temp", value: metrics.temperatureCelsius.map { "\(Int($0))°C" } ?? "N/A", symbol: "thermometer.medium", color: .red, progress: metrics.temperatureCelsius)
+                MetricTile(title: "CPU", value: "\(Int(metrics.cpuUsage))%", symbol: "cpu", color: .cyan, progress: metrics.cpuUsage, usesGlass: false)
+                MetricTile(title: "RAM", value: "\(Int(metrics.ramUsage))%", symbol: "memorychip", color: .green, progress: metrics.ramUsage, usesGlass: false)
+                MetricTile(title: "Disk", value: "\(Int(metrics.diskUsage))%", symbol: "externaldrive", color: metrics.diskUsage > 80 ? .orange : .blue, progress: metrics.diskUsage, usesGlass: false)
+                MetricTile(title: "Network", value: "\(Int(metrics.networkInMB + metrics.networkOutMB)) MB", symbol: "network", color: .purple, progress: nil, usesGlass: false)
+                MetricTile(title: "Swap", value: "\(Int(metrics.swapUsage))%", symbol: "arrow.triangle.2.circlepath", color: .yellow, progress: metrics.swapUsage, usesGlass: false)
+                MetricTile(title: "Temp", value: metrics.temperatureCelsius.map { "\(Int($0))°C" } ?? "N/A", symbol: "thermometer.medium", color: .red, progress: metrics.temperatureCelsius, usesGlass: false)
             }
 
             GlassCard {
@@ -862,6 +828,10 @@ struct ServerDetailView: View {
                     symbol: "bolt.horizontal"
                 )
             }
+
+            if !appState.remoteCommandOutput.isEmpty {
+                remoteOutputCard
+            }
         }
     }
 
@@ -972,7 +942,7 @@ struct ServerDetailView: View {
 
     private func runRemote(_ command: String) {
         guard let server = appState.selectedServer else {
-            appState.lastCommandOutput = appState.localized("Select a server before running commands.")
+            appState.postStatus(appState.localized("Select a server before running commands."))
             return
         }
         appState.runRemoteCommand(command, on: server)
@@ -1024,7 +994,7 @@ private enum DetailTab: String, CaseIterable, Identifiable {
         }
     }
 
-    var shortTitle: String {
+    var shortTitleKey: String {
         switch self {
         case .overview: "Overview"
         case .processes: "Procs"

@@ -22,7 +22,7 @@ final class PTYSession {
             guard let self else { return }
             do {
                 let client = try await sshClient.makeCitadelClient(for: server)
-                defer { Task { try? await client.close() } }
+                defer { Task { await sshClient.releaseClient(for: server) } }
                 let ptySize = initialSize ?? Self.defaultSize
                 try await client.withPTY(Self.ptyRequest(size: ptySize)) { [weak self] ttyOutput, stdinWriter in
                     self?.stdinWriter = stdinWriter

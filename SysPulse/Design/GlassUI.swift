@@ -57,10 +57,8 @@ private struct TabScreenMotionModifier: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .opacity(disabled || isSelected ? 1 : 0.94)
-            .scaleEffect(disabled || isSelected ? 1 : 0.985)
-            .offset(y: disabled || isSelected ? 0 : 10)
-            .animation(SysPulseMotion.softSpring(disabled: disabled), value: isSelected)
+            .opacity(disabled || isSelected ? 1 : 0.97)
+            .animation(SysPulseMotion.fade(disabled: disabled), value: isSelected)
     }
 }
 
@@ -68,6 +66,7 @@ private struct ListItemEntranceModifier: ViewModifier {
     var index: Int
     var disabled: Bool
     @State private var isVisible = false
+    @State private var didPlayEntrance = false
     private let animatedItemLimit = 10
 
     private var shouldAnimate: Bool {
@@ -77,13 +76,14 @@ private struct ListItemEntranceModifier: ViewModifier {
     func body(content: Content) -> some View {
         content
             .opacity(shouldAnimate ? (isVisible ? 1 : 0) : 1)
-            .scaleEffect(shouldAnimate ? (isVisible ? 1 : 0.985) : 1)
-            .offset(y: shouldAnimate ? (isVisible ? 0 : 12) : 0)
+            .scaleEffect(shouldAnimate ? (isVisible ? 1 : 0.99) : 1)
+            .offset(y: shouldAnimate ? (isVisible ? 0 : 8) : 0)
             .onAppear {
-                guard shouldAnimate else {
+                guard shouldAnimate, !didPlayEntrance else {
                     isVisible = true
                     return
                 }
+                didPlayEntrance = true
                 let delay = min(Double(index) * 0.025, 0.18)
                 DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
                     withAnimation(.spring(response: 0.30, dampingFraction: 0.88)) {
@@ -142,6 +142,27 @@ struct AppBackground: View {
             .blendMode(colorScheme == .dark ? .screen : .normal)
             .ignoresSafeArea()
         }
+    }
+}
+
+/// Lighter list-row surface without UIKit blur material.
+struct LightCard<Content: View>: View {
+    @Environment(\.colorScheme) private var colorScheme
+    var cornerRadius: CGFloat = SysPulseDesign.cardRadius
+    var padding: CGFloat = 16
+    @ViewBuilder var content: Content
+
+    var body: some View {
+        content
+            .padding(padding)
+            .background {
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .fill(colorScheme == .dark ? Color.white.opacity(0.05) : Color.white.opacity(0.92))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                            .stroke(colorScheme == .dark ? Color.white.opacity(0.12) : Color.black.opacity(0.08), lineWidth: 1)
+                    }
+            }
     }
 }
 
@@ -243,9 +264,19 @@ struct MetricTile: View {
     var symbol: String
     var color: Color
     var progress: Double?
+    var usesGlass: Bool = true
 
     var body: some View {
-        GlassCard(cornerRadius: 20, padding: 14) {
+        Group {
+            if usesGlass {
+                GlassCard(cornerRadius: 20, padding: 14) { metricBody }
+            } else {
+                LightCard(cornerRadius: 20, padding: 14) { metricBody }
+            }
+        }
+    }
+
+    private var metricBody: some View {
             VStack(alignment: .leading, spacing: 12) {
                 HStack {
                     Image(systemName: symbol)
@@ -268,7 +299,6 @@ struct MetricTile: View {
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-        }
     }
 }
 

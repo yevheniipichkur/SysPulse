@@ -689,6 +689,10 @@
 "Line %d" = "Line %d";
 "Line %d: %@" = "Line %d: %@";
 "%d matches" = "%d matches";
+"Running command on %@..." = "Running command on %@...";
+"Procs" = "Procs";
+"Logs FS" = "Logs FS";
+"Cmds" = "Cmds";
 "Active server: %@" = "Active server: %@";
 "Back to servers" = "Back to servers";
 "Icon" = "Icon";

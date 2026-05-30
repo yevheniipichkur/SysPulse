@@ -41,6 +41,12 @@ struct HealthScoreService {
 }
 
 struct InsightsService {
+    private func uptimeDays(from uptime: String) -> Int? {
+        let pattern = /(\d+)\s+day/
+        guard let match = uptime.firstMatch(of: pattern) else { return nil }
+        return Int(match.1)
+    }
+
     func makeInsights(for metrics: ServerMetrics) -> [SmartInsight] {
         var insights: [SmartInsight] = []
 
@@ -88,7 +94,7 @@ struct InsightsService {
             )
         }
 
-        if metrics.uptime.contains("120") {
+        if uptimeDays(from: metrics.uptime).map({ $0 >= 120 }) == true {
             insights.append(
                 SmartInsight(
                     title: "Server has been online for 120 days",

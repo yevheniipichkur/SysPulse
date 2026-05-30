@@ -25,6 +25,16 @@ struct SFTPFilesView: View {
         SysPulseMotion.softSpring(disabled: appState.shouldReduceMotion)
     }
 
+    private var sftpSurfaceAnimationToken: String {
+        [
+            currentPath,
+            String(isLoading),
+            pendingNavigationPath ?? "",
+            String(visibleItems.count),
+            String(operations.count)
+        ].joined(separator: "|")
+    }
+
     private var visibleItems: [SFTPRemoteItem] {
         guard !searchText.isEmpty else { return allItems }
         return allItems.filter { $0.name.localizedCaseInsensitiveContains(searchText) }
@@ -177,11 +187,7 @@ struct SFTPFilesView: View {
             .padding(.horizontal, SysPulseDesign.pagePadding)
             .padding(.top, 8)
             .padding(.bottom, 26)
-            .animation(activeAnimation, value: currentPath)
-            .animation(activeAnimation, value: visibleItems)
-            .animation(activeAnimation, value: isLoading)
-            .animation(activeAnimation, value: pendingNavigationPath)
-            .animation(activeAnimation, value: operations)
+            .animation(activeAnimation, value: sftpSurfaceAnimationToken)
         }
         .refreshable {
             appState.refreshSFTPDirectory(for: server)
@@ -1054,7 +1060,7 @@ private struct SFTPShimmerBlock: View {
             .frame(width: width, height: height)
             .overlay {
                 if isAnimated {
-                    TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { context in
+                    TimelineView(.animation(minimumInterval: 1.0 / 20.0)) { context in
                         GeometryReader { proxy in
                             let phase = context.date.timeIntervalSinceReferenceDate
                                 .truncatingRemainder(dividingBy: 1.25) / 1.25

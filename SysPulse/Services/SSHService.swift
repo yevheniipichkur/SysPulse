@@ -27,34 +27,53 @@ protocol SSHClientProtocol {
     func run(_ command: String, on server: ServerProfile) async throws -> String
     func disconnect(from server: ServerProfile) async
     func makeCitadelClient(for server: ServerProfile) async throws -> SSHClient
+    func releaseClient(for server: ServerProfile) async
+}
+
+extension SSHClientProtocol {
+    func releaseClient(for server: ServerProfile) async {}
 }
 
 struct RealSSHClient: SSHClientProtocol {
     private let keychain: KeychainService
+    private let sessionPool: SSHSessionPool
 
-    init(keychain: KeychainService = .shared) {
+    init(keychain: KeychainService = .shared, sessionPool: SSHSessionPool = SSHSessionPool()) {
         self.keychain = keychain
+        self.sessionPool = sessionPool
     }
 
     func connect(to server: ServerProfile) async throws {
-        let client = try await makeCitadelClient(for: server)
+        let client = try await connectCitadelClient(for: server)
         try await client.close()
     }
 
     func run(_ command: String, on server: ServerProfile) async throws -> String {
-        let client = try await makeCitadelClient(for: server)
+        let client = try await sessionPool.acquire(for: server) {
+            try await self.connectCitadelClient(for: server)
+        }
         defer {
-            Task {
-                try? await client.close()
-            }
+            Task { await self.sessionPool.release(for: server.id) }
         }
         var buffer = try await client.executeCommand(command, maxResponseSize: 256 * 1024)
         return buffer.readString(length: buffer.readableBytes) ?? ""
     }
 
-    func disconnect(from server: ServerProfile) async {}
+    func disconnect(from server: ServerProfile) async {
+        await sessionPool.invalidate(for: server.id)
+    }
 
     func makeCitadelClient(for server: ServerProfile) async throws -> SSHClient {
+        try await sessionPool.acquire(for: server) {
+            try await self.connectCitadelClient(for: server)
+        }
+    }
+
+    func releaseClient(for server: ServerProfile) async {
+        await sessionPool.release(for: server.id)
+    }
+
+    private func connectCitadelClient(for server: ServerProfile) async throws -> SSHClient {
         let authentication = try authenticationMethod(for: server)
         return try await SSHClient.connect(
             host: server.host,

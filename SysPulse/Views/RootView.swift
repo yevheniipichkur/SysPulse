@@ -15,6 +15,16 @@ struct RootView: View {
                 OnboardingView()
             }
         }
+        .overlay(alignment: .top) {
+            if let toast = appState.statusToast {
+                StatusToastView(toast: toast)
+                    .padding(.horizontal, SysPulseDesign.pagePadding)
+                    .padding(.top, 8)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+                    .zIndex(2)
+            }
+        }
+        .animation(SysPulseMotion.fade(disabled: appState.shouldReduceMotion), value: appState.statusToast?.id)
         .overlay {
             if appState.shouldShowSecurityLock {
                 SecurityLockView(
@@ -81,6 +91,7 @@ private struct SecurityLockView: View {
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
                 }
+                .accessibilityElement(children: .combine)
 
                 if !message.isEmpty {
                     Text(message)
@@ -140,9 +151,6 @@ struct MainShellView: View {
             .tint(SysPulseDesign.accent)
         }
         .background(TabBarAccessibilityConfigurator())
-        .onChange(of: appState.selectedTab) {
-            appState.haptic(.light)
-        }
     }
 
     private func tabLabel(for tab: AppTab) -> some View {

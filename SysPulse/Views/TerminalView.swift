@@ -20,6 +20,8 @@ struct TerminalView: View {
     @State private var terminalSearchText = ""
     @State private var isTranscriptSearchPresented = false
     @State private var transcriptSearchSelection = 0
+    @State private var debouncedTerminalSearchText = ""
+    @State private var terminalSearchDebounceTask: Task<Void, Never>?
     @State private var sessionConnectionStates: [UUID: TerminalConnectionState] = [:]
     @State private var pendingTranscriptOutput: [UUID: String] = [:]
     @State private var transcriptFlushTasks: [UUID: Task<Void, Never>] = [:]
@@ -101,7 +103,7 @@ struct TerminalView: View {
     }
 
     private var transcriptSearchMatches: [TerminalSearchMatch] {
-        let query = terminalSearchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let query = debouncedTerminalSearchText
         guard !query.isEmpty,
               let transcript = selectedSession?.transcript else { return [] }
         let matches = transcript
@@ -121,17 +123,10 @@ struct TerminalView: View {
     }
 
     var body: some View {
-        ZStack {
-            AppBackground()
-                .ignoresSafeArea()
-
-            terminalCanvas
-                .opacity(appState.shouldReduceMotion || terminalSurfaceVisible ? 1 : 0.001)
-                .scaleEffect(appState.shouldReduceMotion || terminalSurfaceVisible ? 1 : 0.985, anchor: .bottom)
-                .offset(y: appState.shouldReduceMotion || terminalSurfaceVisible ? 0 : 14)
-                .blur(radius: appState.shouldReduceMotion || terminalSurfaceVisible ? 0 : 4)
-                .animation(SysPulseMotion.softSpring(disabled: appState.shouldReduceMotion), value: terminalSurfaceVisible)
-        }
+        terminalCanvas
+            .opacity(appState.shouldReduceMotion || terminalSurfaceVisible ? 1 : 0.02)
+            .offset(y: appState.shouldReduceMotion || terminalSurfaceVisible ? 0 : 10)
+            .animation(SysPulseMotion.fade(disabled: appState.shouldReduceMotion), value: terminalSurfaceVisible)
         .safeAreaInset(edge: .bottom, spacing: 0) {
             bottomConsole
         }
@@ -186,8 +181,19 @@ struct TerminalView: View {
                 focusActiveTerminal()
             }
         }
-        .onChange(of: terminalSearchText) { _, _ in
+        .onChange(of: terminalSearchText) { _, newValue in
             transcriptSearchSelection = 0
+            terminalSearchDebounceTask?.cancel()
+            let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmed.isEmpty {
+                debouncedTerminalSearchText = ""
+                return
+            }
+            terminalSearchDebounceTask = Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(150))
+                guard !Task.isCancelled else { return }
+                debouncedTerminalSearchText = trimmed
+            }
         }
         .onChange(of: transcriptSearchMatches.count) { _, count in
             if count == 0 {

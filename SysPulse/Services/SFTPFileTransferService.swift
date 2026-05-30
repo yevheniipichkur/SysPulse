@@ -26,7 +26,7 @@ struct SFTPFileTransferService {
 
     func listDirectory(at path: String, server: ServerProfile, via sshClient: SSHClientProtocol) async throws -> SFTPDirectoryListing {
         let client = try await sshClient.makeCitadelClient(for: server)
-        defer { Task { try? await client.close() } }
+        defer { Task { await sshClient.releaseClient(for: server) } }
         let sftp = try await client.openSFTP()
         defer { Task { try? await sftp.close() } }
 
@@ -57,7 +57,7 @@ struct SFTPFileTransferService {
         let remotePath = joinedPath(directory: directory.isEmpty ? "." : directory, name: safeFileName)
 
         let client = try await sshClient.makeCitadelClient(for: server)
-        defer { Task { try? await client.close() } }
+        defer { Task { await sshClient.releaseClient(for: server) } }
         let sftp = try await client.openSFTP()
         defer { Task { try? await sftp.close() } }
 
@@ -77,7 +77,7 @@ struct SFTPFileTransferService {
         guard !item.isDirectory else { throw SFTPFileTransferError.notAFile }
 
         let client = try await sshClient.makeCitadelClient(for: server)
-        defer { Task { try? await client.close() } }
+        defer { Task { await sshClient.releaseClient(for: server) } }
         let sftp = try await client.openSFTP()
         defer { Task { try? await sftp.close() } }
 
@@ -94,7 +94,7 @@ struct SFTPFileTransferService {
 
     func delete(_ item: SFTPRemoteItem, server: ServerProfile, via sshClient: SSHClientProtocol) async throws {
         let client = try await sshClient.makeCitadelClient(for: server)
-        defer { Task { try? await client.close() } }
+        defer { Task { await sshClient.releaseClient(for: server) } }
         let sftp = try await client.openSFTP()
         defer { Task { try? await sftp.close() } }
 

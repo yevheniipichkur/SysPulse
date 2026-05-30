@@ -269,17 +269,17 @@ struct SettingsView: View {
             if isEnabled, !iCloudEntitlementDiagnostic.canAttemptSync {
                 appState.settings.iCloudSyncEnabled = false
                 appState.stopICloudProfileSync()
-                appState.lastCommandOutput = appState.localized(iCloudEntitlementDiagnostic.messageKey)
+                appState.postStatus(appState.localized(iCloudEntitlementDiagnostic.messageKey))
                 return
             }
 
             appState.settings.iCloudSyncEnabled = isEnabled
             if isEnabled {
-                appState.lastCommandOutput = appState.localized("Starting iCloud profile sync...")
+                appState.postStatus(appState.localized("Starting iCloud profile sync..."))
                 appState.syncProfilesWithICloud(mergeRemote: true)
             } else {
                 appState.stopICloudProfileSync()
-                appState.lastCommandOutput = appState.localized("iCloud sync disabled.")
+                appState.postStatus(appState.localized("iCloud sync disabled."))
             }
         }
     }
@@ -324,7 +324,7 @@ struct SettingsView: View {
             }
             appState.importEncryptedProfiles(from: url, passphrase: sharingPassphrase)
         } catch {
-            appState.lastCommandOutput = error.localizedDescription
+            appState.postStatus(error.localizedDescription, style: .error)
         }
     }
 }

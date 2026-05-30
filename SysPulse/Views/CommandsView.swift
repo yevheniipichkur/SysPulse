@@ -84,12 +84,12 @@ struct CommandsView: View {
                     .listItemEntrance(index: index, disabled: appState.shouldReduceMotion)
                 }
 
-                if !appState.lastCommandOutput.isEmpty {
+                if !appState.remoteCommandOutput.isEmpty {
                     GlassCard {
                         VStack(alignment: .leading, spacing: 10) {
                             Label("Last Output", systemImage: "terminal")
                                 .font(.headline)
-                            Text(appState.lastCommandOutput)
+                            Text(appState.remoteCommandOutput)
                                 .font(.caption.monospaced())
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .foregroundStyle(.secondary)
@@ -101,7 +101,7 @@ struct CommandsView: View {
             .padding(.horizontal, SysPulseDesign.pagePadding)
             .padding(.top, 8)
             .animation(SysPulseMotion.softSpring(disabled: appState.shouldReduceMotion), value: filteredCommands.count)
-            .animation(SysPulseMotion.softSpring(disabled: appState.shouldReduceMotion), value: appState.lastCommandOutput.isEmpty)
+            .animation(SysPulseMotion.fade(disabled: appState.shouldReduceMotion), value: appState.remoteCommandOutput.isEmpty)
         }
         .scrollIndicators(.hidden)
     }
@@ -128,7 +128,7 @@ struct CommandsView: View {
 
     private func execute(_ command: QuickCommand) {
         guard let server = appState.selectedServer else {
-            appState.lastCommandOutput = appState.localized("Select a server before running commands.")
+            appState.postStatus(appState.localized("Select a server before running commands."))
             return
         }
 
@@ -136,11 +136,11 @@ struct CommandsView: View {
             do {
                 let output = try await appState.sshClient.run(command.command, on: server)
                 await MainActor.run {
-                    appState.lastCommandOutput = output
+                    appState.setRemoteCommandOutput(output)
                 }
             } catch {
                 await MainActor.run {
-                    appState.lastCommandOutput = appState.connectionErrorMessage(error, server: server)
+                    appState.setRemoteCommandOutput(appState.connectionErrorMessage(error, server: server))
                 }
             }
         }

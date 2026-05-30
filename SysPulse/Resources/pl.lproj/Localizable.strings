@@ -689,6 +689,10 @@
 "Line %d" = "Wiersz %d";
 "Line %d: %@" = "Wiersz %d: %@";
 "%d matches" = "Dopasowania: %d";
+"Running command on %@..." = "Uruchamianie polecenia na %@...";
+"Procs" = "Proc.";
+"Logs FS" = "Logi FS";
+"Cmds" = "Polec.";
 "Active server: %@" = "Aktywny serwer: %@";
 "Back to servers" = "Wróć do serwerów";
 "Icon" = "Ikona";
