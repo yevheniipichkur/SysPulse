@@ -7,7 +7,7 @@ enum SysPulseDesign {
     static let tileRadius: CGFloat = 20
     static let controlRadius: CGFloat = 16
     static let pagePadding: CGFloat = 18
-    static let floatingTabBarHeight: CGFloat = 54
+    static let floatingTabBarHeight: CGFloat = 68
     static let accent = Color(red: 0.20, green: 0.76, blue: 0.92)
     static let warning = Color(red: 0.96, green: 0.58, blue: 0.12)
     static let ink = Color(red: 0.04, green: 0.06, blue: 0.09)
@@ -134,32 +134,35 @@ struct AppBackground: View {
         ZStack {
             LinearGradient(
                 colors: colorScheme == .dark
-                    ? [Color(red: 0.02, green: 0.03, blue: 0.06), Color(red: 0.05, green: 0.08, blue: 0.11), Color(red: 0.02, green: 0.05, blue: 0.07)]
-                    : [Color(red: 0.93, green: 0.97, blue: 0.99), .white, Color(red: 0.90, green: 0.95, blue: 0.97)],
+                    ? [
+                        Color(red: 0.01, green: 0.02, blue: 0.05),
+                        Color(red: 0.04, green: 0.07, blue: 0.12),
+                        Color(red: 0.02, green: 0.04, blue: 0.08)
+                    ]
+                    : [
+                        Color(red: 0.94, green: 0.98, blue: 1.0),
+                        Color(red: 0.98, green: 0.99, blue: 1.0),
+                        Color(red: 0.88, green: 0.94, blue: 0.98)
+                    ],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
             .ignoresSafeArea()
 
-            LinearGradient(
-                colors: [
-                    SysPulseDesign.accent.opacity(colorScheme == .dark ? 0.18 : 0.10),
-                    .clear,
-                    Color.green.opacity(colorScheme == .dark ? 0.10 : 0.06)
-                ],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
+            RadialGradient(
+                colors: [SysPulseDesign.accent.opacity(colorScheme == .dark ? 0.14 : 0.08), .clear],
+                center: .topLeading,
+                startRadius: 20,
+                endRadius: 420
             )
-            .opacity(colorScheme == .dark ? 1 : 0.38)
-            .blendMode(colorScheme == .dark ? .screen : .normal)
             .ignoresSafeArea()
 
-            LinearGradient(
-                colors: [.clear, .purple.opacity(colorScheme == .dark ? 0.16 : 0.02), .clear],
-                startPoint: .topTrailing,
-                endPoint: .bottomLeading
+            RadialGradient(
+                colors: [SysPulseDesign.proEnd.opacity(colorScheme == .dark ? 0.10 : 0.04), .clear],
+                center: .bottomTrailing,
+                startRadius: 10,
+                endRadius: 360
             )
-            .blendMode(colorScheme == .dark ? .screen : .normal)
             .ignoresSafeArea()
         }
     }
@@ -200,14 +203,40 @@ struct GlassCard<Content: View>: View {
                     .fill(.regularMaterial)
                     .overlay {
                         RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                            .fill(colorScheme == .dark ? Color.white.opacity(0.035) : Color.white.opacity(0.88))
+                            .fill(colorScheme == .dark ? Color.white.opacity(0.04) : Color.white.opacity(0.90))
+                    }
+                    .overlay(alignment: .top) {
+                        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                            .fill(
+                                LinearGradient(
+                                    colors: [
+                                        Color.white.opacity(colorScheme == .dark ? 0.10 : 0.35),
+                                        Color.white.opacity(0)
+                                    ],
+                                    startPoint: .top,
+                                    endPoint: .bottom
+                                )
+                            )
+                            .frame(height: max(cornerRadius * 0.55, 14))
+                            .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
                     }
                     .overlay {
                         RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                            .stroke(colorScheme == .dark ? Color.white.opacity(0.16) : Color.black.opacity(0.12), lineWidth: 1)
+                            .stroke(
+                                LinearGradient(
+                                    colors: [
+                                        Color.white.opacity(colorScheme == .dark ? 0.20 : 0.30),
+                                        Color.white.opacity(colorScheme == .dark ? 0.06 : 0.10)
+                                    ],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                ),
+                                lineWidth: 1
+                            )
                     }
             }
-            .shadow(color: .black.opacity(colorScheme == .dark ? 0.13 : 0.06), radius: colorScheme == .dark ? 14 : 8, x: 0, y: colorScheme == .dark ? 6 : 4)
+            .shadow(color: SysPulseDesign.accent.opacity(colorScheme == .dark ? 0.06 : 0.04), radius: 12, y: 4)
+            .shadow(color: .black.opacity(colorScheme == .dark ? 0.16 : 0.07), radius: colorScheme == .dark ? 16 : 10, x: 0, y: colorScheme == .dark ? 8 : 5)
     }
 }
 
@@ -436,54 +465,79 @@ struct PageHeader: View {
 
     var body: some View {
         HStack(alignment: .center) {
-            VStack(alignment: .leading, spacing: 5) {
-                Text(title)
-                    .font(SysPulseDesign.displayLarge)
-                    .lineLimit(2)
-                    .minimumScaleFactor(0.72)
-                if let subtitle {
-                    Text(subtitle)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(2)
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(alignment: .center, spacing: 10) {
+                    RoundedRectangle(cornerRadius: 2, style: .continuous)
+                        .fill(
+                            LinearGradient(
+                                colors: [SysPulseDesign.accent, SysPulseDesign.proEnd],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            )
+                        )
+                        .frame(width: 4, height: 28)
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(title)
+                            .font(SysPulseDesign.displayLarge)
+                            .lineLimit(2)
+                            .minimumScaleFactor(0.72)
+                        if let subtitle {
+                            Text(subtitle)
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(2)
+                        }
+                    }
                 }
             }
             Spacer()
             HStack(spacing: 8) {
                 if let leadingActionSymbol, let leadingAction {
-                    Button(action: leadingAction) {
-                        Image(systemName: leadingActionSymbol)
-                            .font(.headline)
-                            .frame(width: 44, height: 44)
-                            .foregroundStyle(leadingActionActive ? Color.cyan : Color.primary)
-                            .background(
-                                leadingActionActive ? Color.cyan.opacity(0.14) : Color.clear,
-                                in: Circle()
-                            )
-                            .background(.ultraThinMaterial, in: Circle())
-                    }
-                    .buttonStyle(.plain)
+                    headerActionButton(symbol: leadingActionSymbol, isActive: leadingActionActive, action: leadingAction)
                 }
                 if let secondaryActionSymbol, let secondaryAction {
-                    Button(action: secondaryAction) {
-                        Image(systemName: secondaryActionSymbol)
-                            .font(.headline)
-                            .frame(width: 44, height: 44)
-                            .background(.ultraThinMaterial, in: Circle())
-                    }
-                    .buttonStyle(.plain)
+                    headerActionButton(symbol: secondaryActionSymbol, isActive: false, action: secondaryAction)
                 }
                 if let actionSymbol, let action {
                     Button(action: action) {
                         Image(systemName: actionSymbol)
-                            .font(.headline)
+                            .font(.headline.weight(.semibold))
+                            .foregroundStyle(.white)
                             .frame(width: 44, height: 44)
-                            .background(.ultraThinMaterial, in: Circle())
+                            .background(
+                                LinearGradient(
+                                    colors: [SysPulseDesign.actionStart, SysPulseDesign.actionEnd],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                ),
+                                in: Circle()
+                            )
+                            .shadow(color: SysPulseDesign.accent.opacity(0.28), radius: 8, y: 3)
                     }
                     .buttonStyle(.plain)
                 }
             }
         }
+    }
+
+    private func headerActionButton(symbol: String, isActive: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: symbol)
+                .font(.headline)
+                .frame(width: 44, height: 44)
+                .foregroundStyle(isActive ? SysPulseDesign.accent : .primary)
+                .background(
+                    isActive ? SysPulseDesign.accent.opacity(0.14) : Color.clear,
+                    in: Circle()
+                )
+                .background(.ultraThinMaterial, in: Circle())
+                .overlay {
+                    Circle()
+                        .stroke(Color.white.opacity(0.14), lineWidth: 0.8)
+                }
+        }
+        .buttonStyle(.plain)
     }
 }
 
@@ -625,6 +679,7 @@ struct GlassPrimaryButton: View {
                     LinearGradient(colors: [SysPulseDesign.actionStart, SysPulseDesign.actionEnd], startPoint: .topLeading, endPoint: .bottomTrailing),
                     in: RoundedRectangle(cornerRadius: SysPulseDesign.controlRadius, style: .continuous)
                 )
+                .shadow(color: SysPulseDesign.accent.opacity(0.25), radius: 10, y: 4)
         }
         .buttonStyle(.plain)
     }

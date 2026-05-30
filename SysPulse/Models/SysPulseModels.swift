@@ -10,8 +10,8 @@ enum AppTab: String, CaseIterable, Identifiable, Hashable {
 
     var id: String { rawValue }
 
-    /// Tabs shown in the bottom bar (terminal opens from server actions).
-    static let barTabs: [AppTab] = [.servers, .sftp, .settings]
+    /// All tabs shown in the bottom bar (hidden while Terminal tab is active).
+    static var barTabs: [AppTab] { allCases }
 
     var titleText: String {
         switch self {

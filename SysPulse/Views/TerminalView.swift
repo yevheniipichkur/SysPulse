@@ -145,7 +145,7 @@ struct TerminalView: View {
         .onChange(of: activeSessionID) { _, newID in
             terminalBridgeStore.setActiveSession(newID)
             guard newID != nil,
-                  appState.isTerminalPresented,
+                  appState.selectedTab == .terminal,
                   !appState.isScreenshotMode else { return }
             keyboardActive = true
             Task { @MainActor in
@@ -157,8 +157,8 @@ struct TerminalView: View {
             ensureSessionForSelectedServer()
             reloadCommandHistoryFromStore()
         }
-        .onChange(of: appState.isTerminalPresented) { _, isPresented in
-            guard isPresented else {
+        .onChange(of: appState.selectedTab) { _, newTab in
+            guard newTab == .terminal else {
                 terminalBridgeStore.setActiveSession(nil)
                 keyboardActive = false
                 setTerminalSurfaceVisible(false)
@@ -175,7 +175,7 @@ struct TerminalView: View {
         }
         .onChange(of: activeConnectionState) { _, newState in
             guard newState == .connected,
-                  appState.isTerminalPresented,
+                  appState.selectedTab == .terminal,
                   !appState.isScreenshotMode else { return }
             keyboardActive = true
             Task { @MainActor in
@@ -264,7 +264,7 @@ struct TerminalView: View {
                             .multilineTextAlignment(.center)
                     }
                     GlassPrimaryButton(title: "Add Server", symbol: "plus") {
-                        appState.dismissTerminal()
+                        appState.selectedTab = .servers
                     }
                     .frame(maxWidth: 260)
                 }
@@ -305,7 +305,7 @@ struct TerminalView: View {
 
     private func terminalSurface(for session: TerminalSession, palette: TerminalThemePalette) -> some View {
         let isActive = session.id == activeSessionID
-        let shouldFocus = isActive && appState.isTerminalPresented && !isTranscriptSearchPresented
+        let shouldFocus = isActive && appState.selectedTab == .terminal && !isTranscriptSearchPresented
 
         return SwiftTermTerminalSurface(
             bridge: terminalBridgeStore.bridge(for: session.id),
@@ -1202,7 +1202,7 @@ struct TerminalView: View {
     }
 
     private func focusActiveTerminal() {
-        guard appState.isTerminalPresented,
+        guard appState.selectedTab == .terminal,
               !isTranscriptSearchPresented,
               let id = activeSessionID else { return }
         terminalBridgeStore.setActiveSession(id)
@@ -1482,8 +1482,7 @@ struct TerminalView: View {
 
     private func leaveTerminal(to tab: AppTab) {
         guard !appState.shouldReduceMotion else {
-            appState.dismissTerminal()
-            if tab != .terminal { appState.selectedTab = tab }
+            appState.selectedTab = tab
             return
         }
         withAnimation(.easeOut(duration: 0.14)) {
@@ -1492,8 +1491,7 @@ struct TerminalView: View {
         }
         Task { @MainActor in
             try? await Task.sleep(for: .seconds(0.11))
-            appState.dismissTerminal()
-            if tab != .terminal { appState.selectedTab = tab }
+            appState.selectedTab = tab
         }
     }
 

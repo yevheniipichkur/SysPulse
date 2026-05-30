@@ -125,6 +125,10 @@ private struct SecurityLockView: View {
 struct MainShellView: View {
     @EnvironmentObject private var appState: AppState
 
+    private var showsTabBar: Bool {
+        appState.selectedTab != .terminal
+    }
+
     var body: some View {
         ZStack {
             AppBackground()
@@ -133,25 +137,22 @@ struct MainShellView: View {
                 .tabScreenMotion(tab: appState.selectedTab, selectedTab: appState.selectedTab, disabled: appState.shouldReduceMotion)
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
-            FloatingTabBar(selection: $appState.selectedTab)
-        }
-        .fullScreenCover(isPresented: $appState.isTerminalPresented) {
-            TerminalView()
-                .environmentObject(appState)
-        }
-        .onAppear {
-            if appState.selectedTab == .terminal {
-                appState.selectedTab = .servers
+            if showsTabBar {
+                FloatingTabBar(selection: $appState.selectedTab)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
+        .animation(SysPulseMotion.softSpring(disabled: appState.shouldReduceMotion), value: showsTabBar)
         .tint(SysPulseDesign.accent)
     }
 
     @ViewBuilder
     private var tabContent: some View {
         switch appState.selectedTab {
-        case .servers, .terminal:
+        case .servers:
             ServersView()
+        case .terminal:
+            TerminalView()
         case .sftp:
             SFTPFilesView()
         case .settings:
