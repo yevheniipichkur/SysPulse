@@ -5,7 +5,7 @@ import SwiftData
 final class MetricSnapshot {
     var id: UUID = UUID()
     var serverID: UUID = UUID()
-    var recordedAt: Date = .now
+    var recordedAt: Date
     var cpuUsage: Double = 0
     var ramUsage: Double = 0
     var diskUsage: Double = 0
