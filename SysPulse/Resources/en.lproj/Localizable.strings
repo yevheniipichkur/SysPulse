@@ -766,7 +766,7 @@
 "Copy SSH" = "Copy SSH";
 "New Snippet" = "New Snippet";
 "Edit Snippet" = "Edit Snippet";
-"No results for "%@"" = "No results for \"%@\"";
+"No results for \"%@\"" = "No results for \"%@\"";
 "Every %lld min" = "Every %lld min";
 "Next: %@" = "Next: %@";
 "Unknown server" = "Unknown server";
@@ -879,7 +879,7 @@
 "Health timeline and alerts" = "Health timeline and alerts";
 "Shortcuts and iCloud sync" = "Shortcuts and iCloud sync";
 "Done." = "Done.";
-"Ran "%@" on %@." = "Ran \"%@\" on %@.";
+"Ran \"%@\" on %@." = "Ran \"%@\" on %@.";
 
 /* Paywall extras */
 "Unlock %@" = "Unlock %@";

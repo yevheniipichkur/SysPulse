@@ -872,7 +872,7 @@
 "Automation" = "Automatyzacja";
 "Alert webhook failed: %@" = "Webhook alertu nie powiódł się: %@";
 "Scheduled command ran" = "Zaplanowane polecenie wykonane";
-"Ran "%@" on %@." = "Wykonano „%@” na %@.";
+"Ran \"%@\" on %@." = "Wykonano „%@” na %@.";
 "Scheduled command failed on %@: %@" = "Zaplanowane polecenie nie powiodło się na %@: %@";
 "active alert(s)" = "aktywnych alertów";
 
