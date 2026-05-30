@@ -43,7 +43,7 @@ struct CommandsView: View {
                 case .custom:
                     CustomCommandsContent()
                 case .snippets:
-                    SnippetsView()
+                    SnippetsView(presentation: .embedded)
                 }
             }
         }

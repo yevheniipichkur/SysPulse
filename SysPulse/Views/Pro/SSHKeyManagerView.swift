@@ -17,65 +17,62 @@ struct SSHKeyManagerView: View {
     private let generator = SSHKeyGeneratorService()
 
     var body: some View {
-        ZStack {
-            AppBackground()
-
-            ScrollView {
-                LazyVStack(spacing: 16) {
-                    PageHeader(
-                        title: "SSH Keys",
-                        subtitle: "Manage ED25519 key pairs",
-                        actionSymbol: "plus"
-                    ) {
-                        guard appState.isProUnlocked else {
-                            appState.isPaywallPresented = true
-                            return
-                        }
-                        showingNamePrompt = true
+        ScrollView {
+            LazyVStack(spacing: 16) {
+                ProEmbeddedHeader(
+                    title: "SSH Keys",
+                    subtitle: "Manage ED25519 key pairs",
+                    symbol: "key.fill",
+                    actionSymbol: "plus"
+                ) {
+                    guard appState.isProUnlocked else {
+                        appState.isPaywallPresented = true
+                        return
                     }
-
-                    if !appState.isProUnlocked {
-                        ProLockedBanner(feature: "SSH Key Manager")
-                    } else {
-                        if let error = generatingError {
-                            GlassCard {
-                                Label(error, systemImage: "exclamationmark.triangle")
-                                    .font(.caption)
-                                    .foregroundStyle(.red)
-                            }
-                        }
-
-                        if keyPairs.isEmpty {
-                            ActionEmptyStateView(
-                                title: "No SSH keys",
-                                message: "Generate an ED25519 key pair to use for passwordless authentication.",
-                                symbol: "key.fill",
-                                actionTitle: "Generate Key",
-                                actionSymbol: "plus"
-                            ) { showingNamePrompt = true }
-                        } else {
-                            ForEach(keyPairs) { keyPair in
-                                KeyPairCard(
-                                    keyPair: keyPair,
-                                    isCopied: copiedKeyID == keyPair.id
-                                ) {
-                                    copyPublicKey(keyPair)
-                                } onDelete: {
-                                    pendingDeleteKey = keyPair
-                                    showingDeleteConfirm = true
-                                }
-                            }
-                        }
-
-                        howToInstallCard
-                    }
+                    showingNamePrompt = true
                 }
-                .padding(.horizontal, SysPulseDesign.pagePadding)
-                .padding(.top, 8)
-                .padding(.bottom, 32)
+
+                if !appState.isProUnlocked {
+                    ProLockedBanner(feature: "SSH Key Manager")
+                } else {
+                    if let error = generatingError {
+                        GlassCard {
+                            Label(error, systemImage: "exclamationmark.triangle")
+                                .font(.caption)
+                                .foregroundStyle(.red)
+                        }
+                    }
+
+                    if keyPairs.isEmpty {
+                        ActionEmptyStateView(
+                            title: "No SSH keys",
+                            message: "Generate an ED25519 key pair to use for passwordless authentication.",
+                            symbol: "key.fill",
+                            actionTitle: "Generate Key",
+                            actionSymbol: "plus"
+                        ) { showingNamePrompt = true }
+                    } else {
+                        ForEach(keyPairs) { keyPair in
+                            KeyPairCard(
+                                keyPair: keyPair,
+                                isCopied: copiedKeyID == keyPair.id
+                            ) {
+                                copyPublicKey(keyPair)
+                            } onDelete: {
+                                pendingDeleteKey = keyPair
+                                showingDeleteConfirm = true
+                            }
+                        }
+                    }
+
+                    howToInstallCard
+                }
             }
-            .scrollIndicators(.hidden)
+            .padding(.horizontal, SysPulseDesign.pagePadding)
+            .padding(.top, 8)
+            .padding(.bottom, 32)
         }
+        .scrollIndicators(.hidden)
         .alert("Key Name", isPresented: $showingNamePrompt) {
             TextField("e.g. iPad Pro", text: $newKeyName)
                 .autocorrectionDisabled()

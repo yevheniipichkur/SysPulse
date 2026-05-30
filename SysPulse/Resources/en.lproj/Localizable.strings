@@ -715,3 +715,8 @@
 "Icon" = "Icon";
 "Server icon" = "Server icon";
 "Selected" = "Selected";
+"Swipe from the left edge or tap the back button in the header." = "Swipe from the left edge or tap the back button in the header.";
+"Dismiss hint" = "Dismiss hint";
+"Metric alerts." = "Metric alerts.";
+"Get notified when CPU, RAM, disk or health score cross your thresholds after each refresh." = "Get notified when CPU, RAM, disk or health score cross your thresholds after each refresh.";
+"Maybe later" = "Maybe later";

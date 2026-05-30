@@ -1,10 +1,18 @@
 import SwiftData
 import SwiftUI
 
+enum SnippetsPresentation {
+    case standalone
+    case embedded
+}
+
 struct SnippetsView: View {
     @EnvironmentObject private var appState: AppState
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \CommandSnippet.updatedAt, order: .reverse) private var snippets: [CommandSnippet]
+
+    var presentation: SnippetsPresentation = .standalone
+    var onInsert: ((String) -> Void)?
 
     @State private var isAdding = false
     @State private var editingSnippet: CommandSnippet?
@@ -12,79 +20,28 @@ struct SnippetsView: View {
     @State private var searchText = ""
     @State private var selectedCategory: String?
 
-    var onInsert: ((String) -> Void)?
-
     var body: some View {
-        ZStack {
-            AppBackground()
-
-            ScrollView {
-                LazyVStack(spacing: 16) {
-                    PageHeader(
-                        title: "Snippets",
-                        subtitle: "Reusable command templates",
-                        actionSymbol: "plus"
-                    ) {
-                        guard appState.isProUnlocked else {
-                            appState.isPaywallPresented = true
-                            return
-                        }
-                        isAdding = true
+        Group {
+            switch presentation {
+            case .standalone:
+                ZStack {
+                    AppBackground()
+                    ScrollView {
+                        snippetsContent
+                            .padding(.horizontal, SysPulseDesign.pagePadding)
+                            .padding(.top, 8)
+                            .padding(.bottom, 32)
                     }
-
-                    if !appState.isProUnlocked {
-                        ProLockedBanner(feature: "Command Snippets")
-                    } else {
-                        if !categories.isEmpty {
-                            categoryFilter
-                        }
-
-                        TextField("Search snippets", text: $searchText)
-                            .textInputAutocapitalization(.never)
-                            .padding(.horizontal, 14)
-                            .padding(.vertical, 12)
-                            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-
-                        if filtered.isEmpty {
-                            if snippets.isEmpty {
-                                ActionEmptyStateView(
-                                    title: "No snippets",
-                                    message: "Save frequently-used commands as snippets for quick reuse.",
-                                    symbol: "text.badge.plus",
-                                    actionTitle: "Add Snippet",
-                                    actionSymbol: "plus"
-                                ) { isAdding = true }
-                            } else {
-                                Text("No results for \"\(searchText)\"")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                                    .padding(.top, 20)
-                            }
-                        } else {
-                            ForEach(Array(filtered.enumerated()), id: \.element.id) { index, snippet in
-                                SnippetCard(
-                                    snippet: snippet,
-                                    isCopied: copiedID == snippet.id,
-                                    canInsert: onInsert != nil
-                                ) {
-                                    editingSnippet = snippet
-                                } onCopy: {
-                                    copySnippet(snippet)
-                                } onInsert: {
-                                    onInsert?(snippet.body)
-                                } onDelete: {
-                                    deleteSnippet(snippet)
-                                }
-                                .listItemEntrance(index: index, disabled: appState.shouldReduceMotion)
-                            }
-                        }
-                    }
+                    .scrollIndicators(.hidden)
                 }
-                .padding(.horizontal, SysPulseDesign.pagePadding)
-                .padding(.top, 8)
-                .padding(.bottom, 32)
+            case .embedded:
+                ScrollView {
+                    snippetsContent
+                        .padding(.horizontal, SysPulseDesign.pagePadding)
+                        .padding(.bottom, 24)
+                }
+                .scrollIndicators(.hidden)
             }
-            .scrollIndicators(.hidden)
         }
         .sheet(isPresented: $isAdding) {
             SnippetFormView()
@@ -95,6 +52,71 @@ struct SnippetsView: View {
             SnippetFormView(editingSnippet: snippet)
                 .presentationDetents([.medium, .large])
                 .presentationCornerRadius(32)
+        }
+    }
+
+    private var snippetsContent: some View {
+        LazyVStack(spacing: 16) {
+            ProEmbeddedHeader(
+                title: "Snippets",
+                subtitle: "Reusable command templates",
+                symbol: "text.badge.plus",
+                actionSymbol: "plus"
+            ) {
+                guard appState.isProUnlocked else {
+                    appState.isPaywallPresented = true
+                    return
+                }
+                isAdding = true
+            }
+
+            if !appState.isProUnlocked {
+                ProLockedBanner(feature: "Command Snippets")
+            } else {
+                if !categories.isEmpty {
+                    categoryFilter
+                }
+
+                TextField("Search snippets", text: $searchText)
+                    .textInputAutocapitalization(.never)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 12)
+                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+
+                if filtered.isEmpty {
+                    if snippets.isEmpty {
+                        ActionEmptyStateView(
+                            title: "No snippets",
+                            message: "Save frequently-used commands as snippets for quick reuse.",
+                            symbol: "text.badge.plus",
+                            actionTitle: "Add Snippet",
+                            actionSymbol: "plus"
+                        ) { isAdding = true }
+                    } else {
+                        Text("No results for \"\(searchText)\"")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .padding(.top, 20)
+                    }
+                } else {
+                    ForEach(Array(filtered.enumerated()), id: \.element.id) { index, snippet in
+                        SnippetCard(
+                            snippet: snippet,
+                            isCopied: copiedID == snippet.id,
+                            canInsert: onInsert != nil
+                        ) {
+                            editingSnippet = snippet
+                        } onCopy: {
+                            copySnippet(snippet)
+                        } onInsert: {
+                            onInsert?(snippet.body)
+                        } onDelete: {
+                            deleteSnippet(snippet)
+                        }
+                        .listItemEntrance(index: index, disabled: appState.shouldReduceMotion)
+                    }
+                }
+            }
         }
     }
 

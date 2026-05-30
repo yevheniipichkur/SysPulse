@@ -24,12 +24,26 @@ struct OnboardingView: View {
             accent: .blue
         ),
         OnboardingPage(
+            title: "Metric alerts.",
+            subtitle: "Get notified when CPU, RAM, disk or health score cross your thresholds after each refresh.",
+            symbol: "bell.badge",
+            accent: .orange
+        ),
+        OnboardingPage(
             title: "Unlock SysPulse Pro.",
             subtitle: "Unlimited servers, Docker monitoring, widgets, Live Activities and premium terminal themes.",
             symbol: "sparkles",
             accent: .purple
         )
     ]
+
+    private var isAlertsPage: Bool {
+        page == pages.count - 2
+    }
+
+    private var isLastPage: Bool {
+        page == pages.count - 1
+    }
 
     var body: some View {
         ZStack {
@@ -76,37 +90,61 @@ struct OnboardingView: View {
                 .tabViewStyle(.page(indexDisplayMode: .always))
 
                 VStack(spacing: 12) {
-                    GlassPrimaryButton(
-                        title: page == pages.count - 1 ? "Start SysPulse" : "Continue",
-                        symbol: page == pages.count - 1 ? "terminal.fill" : "arrow.right"
-                    ) {
-                        if page == pages.count - 1 {
-                            appState.completeOnboarding()
-                        } else {
+                    if isAlertsPage {
+                        GlassPrimaryButton(title: "Enable notifications", symbol: "bell.badge") {
+                            Task {
+                                await appState.requestAlertNotifications()
+                                withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+                                    page += 1
+                                }
+                            }
+                        }
+
+                        Button {
                             withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
                                 page += 1
                             }
+                        } label: {
+                            Label("Maybe later", systemImage: "bell.slash")
+                                .font(.callout.weight(.semibold))
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 13)
+                                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
                         }
-                    }
+                        .buttonStyle(.plain)
+                    } else {
+                        GlassPrimaryButton(
+                            title: isLastPage ? "Start SysPulse" : "Continue",
+                            symbol: isLastPage ? "terminal.fill" : "arrow.right"
+                        ) {
+                            if isLastPage {
+                                appState.completeOnboarding()
+                            } else {
+                                withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+                                    page += 1
+                                }
+                            }
+                        }
 
-                    Button {
-                        appState.completeOnboarding()
-                    } label: {
-                        if page == pages.count - 1 {
-                            Label("Add your first server", systemImage: "server.rack")
-                                .font(.callout.weight(.semibold))
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 13)
-                                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-                        } else {
-                            Label("Skip for now", systemImage: "forward.end")
-                                .font(.callout.weight(.semibold))
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 13)
-                                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        Button {
+                            appState.completeOnboarding()
+                        } label: {
+                            if isLastPage {
+                                Label("Add your first server", systemImage: "server.rack")
+                                    .font(.callout.weight(.semibold))
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 13)
+                                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                            } else {
+                                Label("Skip for now", systemImage: "forward.end")
+                                    .font(.callout.weight(.semibold))
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 13)
+                                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                            }
                         }
+                        .buttonStyle(.plain)
                     }
-                    .buttonStyle(.plain)
                 }
                 .padding(.horizontal, 22)
                 .padding(.bottom, 34)

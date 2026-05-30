@@ -699,3 +699,8 @@
 "Icon" = "Ikona";
 "Server icon" = "Ikona serwera";
 "Selected" = "Wybrano";
+"Swipe from the left edge or tap the back button in the header." = "Przesuń od lewej krawędzi lub dotknij ← w nagłówku.";
+"Dismiss hint" = "Ukryj podpowiedź";
+"Metric alerts." = "Alerty metryk.";
+"Get notified when CPU, RAM, disk or health score cross your thresholds after each refresh." = "Powiadomienia po przekroczeniu progów CPU, RAM, dysku i health score po każdym odświeżeniu.";
+"Maybe later" = "Później";

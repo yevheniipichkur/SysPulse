@@ -406,6 +406,80 @@ struct PageHeader: View {
     }
 }
 
+/// Compact header for Pro features embedded in Monitor, Commands, or sheets.
+struct ProEmbeddedHeader: View {
+    var title: LocalizedStringKey
+    var subtitle: LocalizedStringKey
+    var symbol: String
+    var actionSymbol: String? = "plus"
+    var action: (() -> Void)?
+
+    var body: some View {
+        GlassCard(cornerRadius: 22, padding: 16) {
+            HStack(alignment: .center, spacing: 12) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Label(title, systemImage: symbol)
+                        .font(.headline)
+                    Text(subtitle)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                }
+                Spacer()
+                if let actionSymbol, let action {
+                    Button(action: action) {
+                        Image(systemName: actionSymbol)
+                            .font(.headline)
+                            .frame(width: 40, height: 40)
+                    }
+                    .buttonStyle(PressableGlassButtonStyle(cornerRadius: 14, verticalPadding: 0, horizontalPadding: 0))
+                }
+            }
+        }
+    }
+}
+
+struct MonitorNavigationHintBanner: View {
+    @EnvironmentObject private var appState: AppState
+    @AppStorage("hasSeenMonitorNavigationHint") private var hasSeenHint = false
+
+    var body: some View {
+        if !hasSeenHint {
+            GlassCard(cornerRadius: 20, padding: 14) {
+                HStack(alignment: .top, spacing: 12) {
+                    Image(systemName: "arrow.turn.up.left")
+                        .font(.title3.weight(.semibold))
+                        .foregroundStyle(.cyan)
+                        .frame(width: 36, height: 36)
+                        .background(Color.cyan.opacity(0.14), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(appState.localized("Back to servers"))
+                            .font(.subheadline.weight(.semibold))
+                        Text(LocalizedStringKey("Swipe from the left edge or tap the back button in the header."))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+
+                    Button {
+                        appState.haptic(.light)
+                        hasSeenHint = true
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.caption.weight(.bold))
+                            .foregroundStyle(.secondary)
+                            .frame(width: 28, height: 28)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(appState.localized("Dismiss hint"))
+                }
+            }
+            .transition(.opacity.combined(with: .move(edge: .top)))
+        }
+    }
+}
+
 struct GlassPrimaryButton: View {
     var title: LocalizedStringKey
     var symbol: String

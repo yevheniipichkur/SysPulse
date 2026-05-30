@@ -699,3 +699,8 @@
 "Icon" = "Іконка";
 "Server icon" = "Іконка сервера";
 "Selected" = "Вибрано";
+"Swipe from the left edge or tap the back button in the header." = "Свайп від лівого краю або кнопка ← у шапці.";
+"Dismiss hint" = "Приховати підказку";
+"Metric alerts." = "Сповіщення за метриками.";
+"Get notified when CPU, RAM, disk or health score cross your thresholds after each refresh." = "Сповіщення при перевищенні порогів CPU, RAM, диска та health score після кожного оновлення.";
+"Maybe later" = "Пізніше";

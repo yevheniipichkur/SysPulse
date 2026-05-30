@@ -34,6 +34,8 @@ struct ServerDetailView: View {
                     LazyVStack(spacing: 16) {
                         detailHeader(server: server)
                             .listItemEntrance(index: 0, disabled: appState.shouldReduceMotion)
+                        MonitorNavigationHintBanner()
+                            .listItemEntrance(index: 0, disabled: appState.shouldReduceMotion)
                         monitorQuickActions(server: server)
                             .listItemEntrance(index: 1, disabled: appState.shouldReduceMotion)
                         detailTabs
@@ -254,11 +256,13 @@ struct ServerDetailView: View {
     }
 
     private var monitorDismissDragGesture: some Gesture {
-        DragGesture(minimumDistance: 24, coordinateSpace: .local)
+        DragGesture(minimumDistance: 18, coordinateSpace: .local)
             .onEnded { value in
-                let startedNearLeadingEdge = value.startLocation.x < 40
-                let swipedRight = value.translation.width > 72
-                let isHorizontal = abs(value.translation.width) > abs(value.translation.height)
+                let startedNearLeadingEdge = value.startLocation.x < 56
+                let swipedRight = value.translation.width > 56
+                let width = abs(value.translation.width)
+                let height = max(abs(value.translation.height), 1)
+                let isHorizontal = width > height * 1.15
                 guard swipedRight, isHorizontal, startedNearLeadingEdge else { return }
                 appState.haptic(.light)
                 dismiss()
