@@ -10,6 +10,8 @@ final class AppState: ObservableObject {
     @AppStorage("hasSeenProFeatureTour") var hasSeenProFeatureTour: Bool = false
     @AppStorage("metricAlertsSilencedUntil") var metricAlertsSilencedUntil: Double = 0
     @AppStorage("pendingScheduledReminderIDs") private var pendingScheduledReminderIDsData: Data = Data()
+    @AppStorage("debugMenuAuthorizedUntil") var debugMenuAuthorizedUntil: Double = 0
+    @AppStorage("debugDemoModeEnabled") var debugDemoModeEnabled: Bool = false
     @Published var paywallFeatureTitle: String?
     @Published var paywallFeatureMessage: String?
     @Published var shouldOpenSelectedServerMonitor = false
@@ -168,6 +170,7 @@ final class AppState: ObservableObject {
         loadPersistedMetricsHistory()
         registerBackgroundRefresh()
         runDueScheduledCommands()
+        restoreDebugDemoModeIfNeeded()
     }
 
     func serverEvents(for server: ServerProfile?) -> [ServerEvent] {
@@ -212,10 +215,13 @@ final class AppState: ObservableObject {
 
     var isProUnlocked: Bool {
         if subscription.isPro { return true }
+        if settings.forceProOverride, isDebugMenuAuthorized || isScreenshotMode {
+            return true
+        }
         #if DEBUG
         return settings.forceProOverride
         #else
-        return isScreenshotMode && settings.forceProOverride
+        return false
         #endif
     }
 
@@ -888,13 +894,13 @@ final class AppState: ObservableObject {
         dockerContainersByServer = [:]
         systemdServicesByServer = [:]
         logEntriesByServer = [:]
-        if !isScreenshotMode {
+        if !isScreenshotMode, !isDebugMenuAuthorized {
             settings.forceProOverride = false
         }
         publishWidgetSnapshots()
     }
 
-    private func reloadProfilesFromRepository() {
+    func reloadProfilesFromRepository() {
         guard let profileRepository else { return }
         do {
             let savedProfiles = try profileRepository.loadProfiles()

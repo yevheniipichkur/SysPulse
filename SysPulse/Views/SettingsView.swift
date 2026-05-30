@@ -19,7 +19,12 @@ struct SettingsView: View {
     @State private var telegramBotToken = ""
     @State private var telegramChatID = ""
     @State private var isSendingWebhookSample = false
+    @State private var versionTapCount = 0
+    @State private var isDebugPasswordGatePresented = false
+    @State private var isDebugMenuPresented = false
+    @State private var versionTapResetTask: Task<Void, Never>?
     private let buildInfo = GitBuildInfoService()
+    private let debugMenuTapThreshold = 7
 
     var body: some View {
         ZStack {
@@ -319,6 +324,14 @@ struct SettingsView: View {
                         settingsSection("About", symbol: "info.circle") {
                             SettingsRow(title: "Version") {
                                 Text("\(buildInfo.version) (\(buildInfo.build))")
+                                    .contentShape(Rectangle())
+                                    .onTapGesture {
+                                        handleVersionTap()
+                                    }
+                                    .accessibilityLabel(
+                                        Text(appState.localized("Version %@ build %@", buildInfo.version, buildInfo.build))
+                                    )
+                                    .accessibilityHint(Text("Debug menu"))
                             }
                             Link("Privacy", destination: URL(string: "https://github.com/yevheniipichkur/SysPulse/blob/main/PRIVACY.md")!)
                             Link("Terms", destination: URL(string: "https://github.com/yevheniipichkur/SysPulse/blob/main/TERMS.md")!)
@@ -354,7 +367,37 @@ struct SettingsView: View {
                 PrometheusDashboardView(url: url)
             }
         }
+        .sheet(isPresented: $isDebugPasswordGatePresented) {
+            DebugPasswordGateView {
+                if appState.isDebugMenuAuthorized {
+                    isDebugMenuPresented = true
+                }
+            }
+            .environmentObject(appState)
+        }
+        .sheet(isPresented: $isDebugMenuPresented) {
+            DebugMenuView()
+                .environmentObject(appState)
+        }
         .accessibilityIdentifier(AppTab.settings.screenAccessibilityIdentifier)
+    }
+
+    private func handleVersionTap() {
+        versionTapResetTask?.cancel()
+        versionTapCount += 1
+        if versionTapCount >= debugMenuTapThreshold {
+            versionTapCount = 0
+            if appState.isDebugMenuAuthorized {
+                isDebugMenuPresented = true
+            } else {
+                isDebugPasswordGatePresented = true
+            }
+            return
+        }
+        versionTapResetTask = Task { @MainActor in
+            try? await Task.sleep(for: .seconds(3))
+            versionTapCount = 0
+        }
     }
 
     private func sendWebhookSample() {
