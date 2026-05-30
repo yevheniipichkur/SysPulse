@@ -322,17 +322,23 @@ struct SettingsView: View {
                         .listItemEntrance(index: 9, disabled: appState.shouldReduceMotion)
 
                         settingsSection("About", symbol: "info.circle") {
-                            SettingsRow(title: "Version") {
-                                Text("\(buildInfo.version) (\(buildInfo.build))")
-                                    .contentShape(Rectangle())
-                                    .onTapGesture {
-                                        handleVersionTap()
-                                    }
-                                    .accessibilityLabel(
-                                        Text(appState.localized("Version %@ build %@", buildInfo.version, buildInfo.build))
-                                    )
-                                    .accessibilityHint(Text("Debug menu"))
+                            Button {
+                                handleVersionTap()
+                            } label: {
+                                HStack {
+                                    Text("Version")
+                                    Spacer()
+                                    Text("\(buildInfo.version) (\(buildInfo.build))")
+                                        .foregroundStyle(.secondary)
+                                }
+                                .font(.callout)
+                                .contentShape(Rectangle())
                             }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel(
+                                Text(appState.localized("Version %@ build %@", buildInfo.version, buildInfo.build))
+                            )
+                            .accessibilityHint(Text("Debug menu"))
                             Link("Privacy", destination: URL(string: "https://github.com/yevheniipichkur/SysPulse/blob/main/PRIVACY.md")!)
                             Link("Terms", destination: URL(string: "https://github.com/yevheniipichkur/SysPulse/blob/main/TERMS.md")!)
                             Link("Contact support", destination: URL(string: "https://github.com/yevheniipichkur/SysPulse/issues")!)
@@ -387,6 +393,7 @@ struct SettingsView: View {
         versionTapCount += 1
         if versionTapCount >= debugMenuTapThreshold {
             versionTapCount = 0
+            versionTapResetTask = nil
             if appState.isDebugMenuAuthorized {
                 isDebugMenuPresented = true
             } else {
@@ -395,7 +402,11 @@ struct SettingsView: View {
             return
         }
         versionTapResetTask = Task { @MainActor in
-            try? await Task.sleep(for: .seconds(3))
+            do {
+                try await Task.sleep(for: .seconds(3))
+            } catch {
+                return
+            }
             versionTapCount = 0
         }
     }
