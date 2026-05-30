@@ -720,3 +720,12 @@
 "Metric alerts." = "Metric alerts.";
 "Get notified when CPU, RAM, disk or health score cross your thresholds after each refresh." = "Get notified when CPU, RAM, disk or health score cross your thresholds after each refresh.";
 "Maybe later" = "Maybe later";
+"Security & Privacy" = "Security & Privacy";
+"Silence alerts for 1 hour" = "Silence alerts for 1 hour";
+"Alerts are silenced until the timer expires." = "Alerts are silenced until the timer expires.";
+"Export metrics CSV" = "Export metrics CSV";
+"Reconnecting to %@..." = "Reconnecting to %@...";
+"Metric alerts silenced for %.0f hour(s)." = "Metric alerts silenced for %.0f hour(s).";
+"Connection" = "Connection";
+"Security" = "Security";
+"Save" = "Save";

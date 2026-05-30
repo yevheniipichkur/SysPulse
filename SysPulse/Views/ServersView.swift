@@ -34,18 +34,30 @@ struct ServersView: View {
                 .presentationDetents([.large])
                 .presentationCornerRadius(32)
         }
-        .fullScreenCover(isPresented: $isShowingDetail) {
-            ServerDetailView()
-                .environmentObject(appState)
-        }
         .sheet(item: $editingServer) { server in
             AddServerView(editingServer: server)
                 .presentationDetents([.large])
                 .presentationCornerRadius(32)
         }
+        .onChange(of: appState.shouldOpenSelectedServerMonitor) { _, shouldOpen in
+            if shouldOpen {
+                isShowingDetail = true
+                appState.shouldOpenSelectedServerMonitor = false
+            }
+        }
     }
 
     private var serversListBody: some View {
+        NavigationStack {
+            serversScrollContent
+                .navigationDestination(isPresented: $isShowingDetail) {
+                    ServerDetailView()
+                        .environmentObject(appState)
+                }
+        }
+    }
+
+    private var serversScrollContent: some View {
         ScrollView {
             LazyVStack(spacing: 18) {
                 PageHeader(
@@ -309,6 +321,14 @@ struct ServerCardView: View {
 
                     VStack(alignment: .trailing, spacing: 7) {
                         StatusPill(status: server.status)
+                        if appState.activeAlertCount(for: server) > 0 {
+                            Text("\(appState.activeAlertCount(for: server))")
+                                .font(.caption2.weight(.bold))
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 7)
+                                .padding(.vertical, 3)
+                                .background(.orange, in: Capsule())
+                        }
                         MetricFreshnessBadge(date: metrics.timestamp, isStale: isMetricsStale)
                     }
                     .fixedSize(horizontal: true, vertical: false)
@@ -316,6 +336,15 @@ struct ServerCardView: View {
 
                 if let metricError, !metricError.isEmpty {
                     ServerConnectionIssueBanner(message: metricError)
+                }
+
+                if appState.isProUnlocked, !metrics.cpuHistory.isEmpty {
+                    HStack(spacing: 8) {
+                        Sparkline(values: metrics.cpuHistory, color: .cyan)
+                            .frame(height: 26)
+                        Sparkline(values: metrics.ramHistory, color: .green)
+                            .frame(height: 26)
+                    }
                 }
 
                 HStack(spacing: 10) {
@@ -661,6 +690,11 @@ struct AddServerView: View {
                             accent: accent
                         )
                         .listItemEntrance(index: 0, disabled: appState.shouldReduceMotion)
+
+                        if editingServer == nil {
+                            AddServerGuideStrip()
+                                .listItemEntrance(index: 0, disabled: appState.shouldReduceMotion)
+                        }
 
                         ServerFormSection(title: "Connection", symbol: "network") {
                             ServerFormTextField(
@@ -1340,6 +1374,39 @@ private struct ServerAccentPicker: View {
         .buttonStyle(.plain)
         .accessibilityLabel(Text("Accent"))
         .accessibilityValue(Text(hex))
+    }
+}
+
+private struct AddServerGuideStrip: View {
+    var body: some View {
+        GlassCard(cornerRadius: 20, padding: 14) {
+            HStack(spacing: 10) {
+                guidePill(number: 1, title: "Connection")
+                Image(systemName: "chevron.right")
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(.secondary)
+                guidePill(number: 2, title: "Security")
+                Image(systemName: "chevron.right")
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(.secondary)
+                guidePill(number: 3, title: "Save")
+            }
+            .frame(maxWidth: .infinity)
+        }
+    }
+
+    private func guidePill(number: Int, title: LocalizedStringKey) -> some View {
+        VStack(spacing: 4) {
+            Text("\(number)")
+                .font(.caption2.weight(.bold))
+                .foregroundStyle(.white)
+                .frame(width: 22, height: 22)
+                .background(.cyan, in: Circle())
+            Text(title)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity)
     }
 }
 

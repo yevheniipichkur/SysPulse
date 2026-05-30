@@ -312,7 +312,7 @@ struct ProLockedBanner: View {
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
                 Button("Unlock Pro") {
-                    appState.isPaywallPresented = true
+                    appState.presentPaywall(feature: "SSH Tunnels")
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(.cyan)

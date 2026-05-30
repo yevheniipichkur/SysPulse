@@ -69,11 +69,14 @@ struct PaywallView: View {
                 .frame(width: 112, height: 112)
                 .background(.ultraThinMaterial, in: Circle())
 
-            Text("Unlock Pro Monitoring")
+            Text(appState.paywallFeatureTitle.map { "Unlock \($0)" } ?? "Unlock Pro Monitoring")
                 .font(.largeTitle.weight(.bold))
                 .multilineTextAlignment(.center)
 
-            Text("Everything you need to monitor Linux servers from your iPhone.")
+            Text(
+                appState.paywallFeatureMessage
+                    ?? "Everything you need to monitor Linux servers from your iPhone."
+            )
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)

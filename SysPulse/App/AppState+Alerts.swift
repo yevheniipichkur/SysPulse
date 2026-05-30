@@ -54,7 +54,7 @@ extension AppState {
     }
 
     func evaluateAlertRules(for server: ServerProfile, metrics: ServerMetrics) {
-        guard areNotificationsAuthorized else { return }
+        guard areNotificationsAuthorized, !areMetricAlertsSilenced else { return }
         let evaluations = alertEvaluationService.evaluations(for: alertRules, server: server, metrics: metrics)
         guard !evaluations.isEmpty else { return }
 

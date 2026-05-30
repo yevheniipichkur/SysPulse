@@ -20,6 +20,7 @@ struct WidgetServerSnapshot: Codable, Hashable, Identifiable {
     var uptime: String
     var osName: String
     var updatedAt: Date
+    var needsAttention: Bool
 
     static let placeholder = WidgetServerSnapshot(
         id: UUID(uuidString: "11111111-1111-1111-1111-111111111111") ?? UUID(),
@@ -31,13 +32,15 @@ struct WidgetServerSnapshot: Codable, Hashable, Identifiable {
         health: 91,
         uptime: "42d 3h",
         osName: "Raspberry Pi OS",
-        updatedAt: .now
+        updatedAt: .now,
+        needsAttention: false
     )
 }
 
 struct WidgetSnapshotEnvelope: Codable, Hashable {
     var generatedAt: Date
     var servers: [WidgetServerSnapshot]
+    var spotlightServerID: UUID?
 
     static let placeholder = WidgetSnapshotEnvelope(
         generatedAt: .now,
@@ -53,7 +56,8 @@ struct WidgetSnapshotEnvelope: Codable, Hashable {
                 health: 66,
                 uptime: "120d 9h",
                 osName: "Ubuntu 24.04 LTS",
-                updatedAt: .now
+                updatedAt: .now,
+                needsAttention: true
             ),
             WidgetServerSnapshot(
                 id: UUID(uuidString: "33333333-3333-3333-3333-333333333333") ?? UUID(),
@@ -65,9 +69,11 @@ struct WidgetSnapshotEnvelope: Codable, Hashable {
                 health: 84,
                 uptime: "8d 14h",
                 osName: "Debian 12",
-                updatedAt: .now
+                updatedAt: .now,
+                needsAttention: false
             )
-        ]
+        ],
+        spotlightServerID: UUID(uuidString: "22222222-2222-2222-2222-222222222222")
     )
 }
 

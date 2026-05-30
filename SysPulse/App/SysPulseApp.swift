@@ -23,6 +23,14 @@ struct SysPulseApp: App {
                 .onReceive(NotificationCenter.default.publisher(for: .syspulseRefreshAllServers)) { _ in
                     appState.refreshAllServers()
                 }
+                .onReceive(NotificationCenter.default.publisher(for: .syspulseOpenMonitor)) { notification in
+                    let name = notification.userInfo?[SysPulseShortcutPayload.serverNameKey] as? String
+                    appState.handleShortcut(serverName: name, tab: .servers, openMonitor: true)
+                }
+                .onReceive(NotificationCenter.default.publisher(for: .syspulseOpenTerminal)) { notification in
+                    let name = notification.userInfo?[SysPulseShortcutPayload.serverNameKey] as? String
+                    appState.handleShortcut(serverName: name, tab: .terminal)
+                }
         }
         .modelContainer(modelContainer)
     }

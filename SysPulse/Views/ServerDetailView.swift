@@ -11,6 +11,7 @@ struct ServerDetailView: View {
     @State private var showingConfirmation = false
     @State private var pendingRemoteCommand: String?
     @State private var commandSearchText = ""
+    private let metricsExporter = MetricsExportService()
 
     private let dockerService = DockerService()
     private let systemdService = SystemdService()
@@ -75,7 +76,6 @@ struct ServerDetailView: View {
                 .refreshable {
                     appState.refreshMetrics(for: server, announceStatus: true)
                 }
-                .simultaneousGesture(monitorDismissDragGesture)
             } else {
                 EmptyStateView(
                     title: "No server selected",
@@ -84,6 +84,8 @@ struct ServerDetailView: View {
                 )
             }
         }
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbarBackground(.hidden, for: .navigationBar)
         .accessibilityIdentifier("screen_monitor")
         .sheet(isPresented: $showingMissingTools) {
             MissingToolsView()
@@ -144,17 +146,6 @@ struct ServerDetailView: View {
         return GlassCard(cornerRadius: 28, padding: 18) {
             VStack(alignment: .leading, spacing: 15) {
                 HStack(alignment: .top, spacing: 12) {
-                    Button {
-                        appState.haptic(.light)
-                        dismiss()
-                    } label: {
-                        Image(systemName: "chevron.backward")
-                            .font(.system(size: 17, weight: .semibold))
-                            .frame(width: 40, height: 40)
-                    }
-                    .buttonStyle(PressableGlassButtonStyle(cornerRadius: 14, verticalPadding: 0, horizontalPadding: 0))
-                    .accessibilityLabel(appState.localized("Back to servers"))
-
                     VStack(alignment: .leading, spacing: 6) {
                         Text(server.name)
                             .font(.largeTitle.weight(.bold))
@@ -255,20 +246,6 @@ struct ServerDetailView: View {
         }
     }
 
-    private var monitorDismissDragGesture: some Gesture {
-        DragGesture(minimumDistance: 18, coordinateSpace: .local)
-            .onEnded { value in
-                let startedNearLeadingEdge = value.startLocation.x < 56
-                let swipedRight = value.translation.width > 56
-                let width = abs(value.translation.width)
-                let height = max(abs(value.translation.height), 1)
-                let isHorizontal = width > height * 1.15
-                guard swipedRight, isHorizontal, startedNearLeadingEdge else { return }
-                appState.haptic(.light)
-                dismiss()
-            }
-    }
-
     private func overview(server: ServerProfile, metrics: ServerMetrics) -> some View {
         VStack(spacing: 14) {
             healthOverview(server: server, metrics: metrics)
@@ -318,6 +295,21 @@ struct ServerDetailView: View {
 
             if appState.isProUnlocked {
                 healthTimeline(server: server)
+
+                ShareLink(
+                    item: metricsExporter.csv(
+                        server: server,
+                        metrics: metrics,
+                        events: appState.serverEvents(for: server)
+                    ),
+                    preview: SharePreview("SysPulse \(server.name).csv")
+                ) {
+                    Label("Export metrics CSV", systemImage: "square.and.arrow.up")
+                        .font(.subheadline.weight(.semibold))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
+                }
+                .buttonStyle(PressableGlassButtonStyle(cornerRadius: 16))
             }
         }
     }
@@ -503,100 +495,67 @@ struct ServerDetailView: View {
 
     private func docker(server: ServerProfile) -> some View {
         let containers = appState.dockerContainers(for: server)
-        return LazyVStack(spacing: 12) {
-            if !appState.isProUnlocked {
-                PremiumLockedCard(title: "Docker monitoring is Pro", message: "Unlock live container stats, logs and restart actions.")
-            } else {
-                monitorRefreshHeader(
-                    title: "Docker scan",
-                    message: "Container states and live stats parsed from Docker CLI.",
-                    primaryTitle: "Refresh Containers",
-                    primarySymbol: "shippingbox",
-                    primaryAction: { appState.refreshDockerContainers(for: server) }
-                )
-
-                if containers.isEmpty {
-                    EmptyStateView(
-                        title: "No containers loaded",
-                        message: "Refresh to read Docker container states.",
-                        symbol: "shippingbox"
-                    )
-                } else {
-                    ForEach(containers) { container in
-                        dockerRow(container)
-                    }
-                }
-
-                commandPreview(title: "Docker compose projects", command: "docker compose ls 2>/dev/null || docker-compose ls 2>/dev/null || echo 'Docker Compose not found'")
-                commandPreview(title: "Recent Docker state", command: "docker ps -a --format '{{.Names}} {{.Status}}' | head -n 40")
+        return ProMonitorFeatureSection(
+            feature: "Docker monitoring",
+            title: "Docker",
+            subtitle: "Container states and live stats from Docker CLI.",
+            symbol: "shippingbox",
+            refreshTitle: "Refresh Containers",
+            refreshAction: { appState.refreshDockerContainers(for: server) },
+            isEmpty: containers.isEmpty,
+            emptyTitle: "No containers loaded",
+            emptyMessage: "Refresh to read Docker container states."
+        ) {
+            ForEach(containers) { container in
+                dockerRow(container)
             }
+            commandPreview(title: "Docker compose projects", command: "docker compose ls 2>/dev/null || docker-compose ls 2>/dev/null || echo 'Docker Compose not found'")
+            commandPreview(title: "Recent Docker state", command: "docker ps -a --format '{{.Names}} {{.Status}}' | head -n 40")
         }
     }
 
     private func services(server: ServerProfile) -> some View {
         let services = appState.systemdServices(for: server)
-        return LazyVStack(spacing: 12) {
-            if !appState.isProUnlocked {
-                PremiumLockedCard(title: "Advanced systemd is Pro", message: "Unlock restart/start/stop actions and failed service diagnostics.")
-            } else {
-                monitorRefreshHeader(
-                    title: "Services",
-                    message: "systemd units parsed into actionable status rows.",
-                    primaryTitle: "Refresh Services",
-                    primarySymbol: "gearshape.2",
-                    primaryAction: { appState.refreshSystemdServices(for: server) }
-                )
-
-                if services.isEmpty {
-                    EmptyStateView(
-                        title: "No services loaded",
-                        message: "Refresh to read systemd service states.",
-                        symbol: "gearshape.2"
-                    )
-                } else {
-                    ForEach(services) { service in
-                        serviceRow(service)
-                    }
-                }
-
-                commandPreview(title: "Failed units", command: systemdService.failedUnitsCommand())
-                commandPreview(title: "Enabled services", command: "systemctl list-unit-files --type=service --state=enabled --no-pager | head -n 45")
-                commandPreview(title: "Recent service errors", command: "journalctl -p err -n 80 --no-pager")
+        return ProMonitorFeatureSection(
+            feature: "systemd monitoring",
+            title: "Services",
+            subtitle: "systemd units parsed into actionable status rows.",
+            symbol: "gearshape.2",
+            refreshTitle: "Refresh Services",
+            refreshAction: { appState.refreshSystemdServices(for: server) },
+            isEmpty: services.isEmpty,
+            emptyTitle: "No services loaded",
+            emptyMessage: "Refresh to read systemd service states."
+        ) {
+            ForEach(services) { service in
+                serviceRow(service)
             }
+            commandPreview(title: "Failed units", command: systemdService.failedUnitsCommand())
+            commandPreview(title: "Enabled services", command: "systemctl list-unit-files --type=service --state=enabled --no-pager | head -n 45")
+            commandPreview(title: "Recent service errors", command: "journalctl -p err -n 80 --no-pager")
         }
     }
 
     private func logs(server: ServerProfile) -> some View {
         let entries = appState.logEntries(for: server)
-        return LazyVStack(spacing: 12) {
-            if !appState.isProUnlocked {
-                PremiumLockedCard(title: "Logs viewer is Pro", message: "Unlock journalctl, dmesg, nginx and Docker logs.")
-            } else {
-                monitorRefreshHeader(
-                    title: "Recent Logs",
-                    message: "Journal entries parsed into severity-aware rows.",
-                    primaryTitle: "Refresh Logs",
-                    primarySymbol: "doc.text.magnifyingglass",
-                    primaryAction: { appState.refreshLogEntries(for: server) }
-                )
-
-                if entries.isEmpty {
-                    EmptyStateView(
-                        title: "No logs loaded",
-                        message: "Refresh to read journal entries.",
-                        symbol: "doc.text.magnifyingglass"
-                    )
-                } else {
-                    ForEach(entries.prefix(40)) { entry in
-                        logRow(entry)
-                    }
-                }
-
-                commandPreview(title: "System journal", command: logsService.journalCommand(lines: 200))
-                commandPreview(title: "Kernel ring buffer", command: logsService.dmesgCommand(lines: 120))
-                commandPreview(title: "nginx error log", command: logsService.nginxErrorLogCommand(lines: 200))
-                commandPreview(title: "SSH auth log", command: "sudo tail -n 120 /var/log/auth.log 2>/dev/null || sudo tail -n 120 /var/log/secure 2>/dev/null")
+        return ProMonitorFeatureSection(
+            feature: "Logs viewer",
+            title: "Recent Logs",
+            subtitle: "Journal entries parsed into severity-aware rows.",
+            symbol: "doc.text.magnifyingglass",
+            refreshTitle: "Refresh Logs",
+            refreshAction: { appState.refreshLogEntries(for: server) },
+            isEmpty: entries.isEmpty,
+            emptyTitle: "No logs loaded",
+            emptyMessage: "Refresh to read journal entries."
+        ) {
+            ForEach(entries.prefix(40)) { entry in
+                logRow(entry)
             }
+            commandPreview(title: "System journal", command: logsService.journalCommand(lines: 200))
+            commandPreview(title: "Kernel ring buffer", command: logsService.dmesgCommand(lines: 120))
+            commandPreview(title: "nginx error log", command: logsService.nginxErrorLogCommand(lines: 200))
+            commandPreview(title: "SSH auth log", command: "sudo tail -n 120 /var/log/auth.log 2>/dev/null || sudo tail -n 120 /var/log/secure 2>/dev/null")
         }
     }
 
@@ -1247,6 +1206,7 @@ private struct ActionTile: View {
 
 struct PremiumLockedCard: View {
     @EnvironmentObject private var appState: AppState
+    var feature: String
     var title: LocalizedStringKey
     var message: LocalizedStringKey
 
@@ -1263,7 +1223,7 @@ struct PremiumLockedCard: View {
                 }
                 Spacer()
                 Button {
-                    appState.isPaywallPresented = true
+                    appState.presentPaywall(feature: feature)
                 } label: {
                     Image(systemName: "chevron.right")
                         .frame(width: 34, height: 34)

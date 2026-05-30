@@ -6,7 +6,11 @@ struct SysPulseWidgetEntry: TimelineEntry {
     let envelope: WidgetSnapshotEnvelope
 
     var primary: WidgetServerSnapshot {
-        envelope.servers.first ?? .placeholder
+        if let spotlightID = envelope.spotlightServerID,
+           let match = envelope.servers.first(where: { $0.id == spotlightID }) {
+            return match
+        }
+        return envelope.servers.first(where: \.needsAttention) ?? envelope.servers.first ?? .placeholder
     }
 }
 
@@ -87,6 +91,15 @@ struct SysPulseWidgetView: View {
             Spacer()
             Text("Health \(entry.primary.health)")
                 .font(.title3.weight(.bold))
+                .foregroundStyle(entry.primary.needsAttention ? .orange : .primary)
+        }
+        .overlay(alignment: .topLeading) {
+            if entry.primary.needsAttention {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+                    .padding(4)
+            }
         }
         .sysPulseWidgetBackground()
     }

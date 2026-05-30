@@ -23,9 +23,11 @@ final class WidgetSnapshotStoreTests: XCTestCase {
                     health: 84,
                     uptime: "8d 14h",
                     osName: "Debian 12",
-                    updatedAt: Date(timeIntervalSince1970: 1_777_000_001)
+                    updatedAt: Date(timeIntervalSince1970: 1_777_000_001),
+                    needsAttention: true
                 )
-            ]
+            ],
+            spotlightServerID: UUID(uuidString: "AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA")
         )
 
         store.save(envelope)

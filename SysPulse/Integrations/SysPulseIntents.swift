@@ -10,7 +10,14 @@ struct OpenServerIntent: AppIntent {
     var serverName: String
 
     func perform() async throws -> some IntentResult {
-        .result(dialog: "Opening \(serverName) in SysPulse.")
+        await MainActor.run {
+            NotificationCenter.default.post(
+                name: .syspulseOpenMonitor,
+                object: nil,
+                userInfo: [SysPulseShortcutPayload.serverNameKey: serverName]
+            )
+        }
+        return .result(dialog: "Opening \(serverName) in SysPulse.")
     }
 }
 
@@ -35,6 +42,13 @@ struct RunQuickCommandIntent: AppIntent {
 
 extension Notification.Name {
     static let syspulseRefreshAllServers = Notification.Name("syspulseRefreshAllServers")
+    static let syspulseOpenServer = Notification.Name("syspulseOpenServer")
+    static let syspulseOpenTerminal = Notification.Name("syspulseOpenTerminal")
+    static let syspulseOpenMonitor = Notification.Name("syspulseOpenMonitor")
+}
+
+enum SysPulseShortcutPayload {
+    static let serverNameKey = "serverName"
 }
 
 struct RefreshAllServersIntent: AppIntent {
@@ -70,7 +84,14 @@ struct OpenTerminalIntent: AppIntent {
     var serverName: String
 
     func perform() async throws -> some IntentResult {
-        .result(dialog: "Opening terminal for \(serverName).")
+        await MainActor.run {
+            NotificationCenter.default.post(
+                name: .syspulseOpenTerminal,
+                object: nil,
+                userInfo: [SysPulseShortcutPayload.serverNameKey: serverName]
+            )
+        }
+        return .result(dialog: "Opening terminal for \(serverName).")
     }
 }
 
@@ -127,6 +148,12 @@ struct SysPulseShortcuts: AppShortcutsProvider {
             phrases: ["Refresh \(.applicationName) servers"],
             shortTitle: "Refresh Servers",
             systemImageName: "arrow.clockwise"
+        )
+        AppShortcut(
+            intent: RunQuickCommandIntent(),
+            phrases: ["Run command on \(.applicationName)"],
+            shortTitle: "Run Command",
+            systemImageName: "terminal"
         )
     }
 }

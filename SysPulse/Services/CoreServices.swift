@@ -732,8 +732,12 @@ struct WidgetDataService {
     }
 
     func save(profiles: [ServerProfile], metricsByServer: [UUID: ServerMetrics]) {
-        let snapshots = profiles.prefix(8).map { profile in
+        let snapshots = profiles.map { profile in
             let metrics = metricsByServer[profile.id] ?? .empty(serverID: profile.id)
+            let needsAttention = metrics.cpuUsage >= 85
+                || metrics.ramUsage >= 85
+                || metrics.diskUsage >= 85
+                || metrics.healthScore <= 55
             return WidgetServerSnapshot(
                 id: profile.id,
                 name: profile.name,
@@ -744,10 +748,19 @@ struct WidgetDataService {
                 health: metrics.healthScore,
                 uptime: metrics.uptime,
                 osName: metrics.osName,
-                updatedAt: metrics.timestamp
+                updatedAt: metrics.timestamp,
+                needsAttention: needsAttention
             )
         }
-        store.save(WidgetSnapshotEnvelope(generatedAt: .now, servers: snapshots))
+        .sorted { $0.health < $1.health }
+        let spotlight = snapshots.first(where: \.needsAttention)?.id ?? snapshots.first?.id
+        store.save(
+            WidgetSnapshotEnvelope(
+                generatedAt: .now,
+                servers: Array(snapshots.prefix(8)),
+                spotlightServerID: spotlight
+            )
+        )
     }
 
     func saveLocked() {
@@ -761,9 +774,10 @@ struct WidgetDataService {
             health: 0,
             uptime: "Widgets",
             osName: "Open SysPulse",
-            updatedAt: .now
+            updatedAt: .now,
+            needsAttention: false
         )
-        store.save(WidgetSnapshotEnvelope(generatedAt: .now, servers: [locked]))
+        store.save(WidgetSnapshotEnvelope(generatedAt: .now, servers: [locked], spotlightServerID: nil))
     }
 
     func load() -> WidgetSnapshotEnvelope {

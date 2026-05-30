@@ -12,6 +12,7 @@ struct SettingsView: View {
     @State private var isRestoringPurchases = false
     @State private var storeKitSettingsMessage: String?
     @State private var isSSHKeyManagerPresented = false
+    @State private var isSecurityInfoPresented = false
     private let buildInfo = GitBuildInfoService()
 
     var body: some View {
@@ -47,6 +48,9 @@ struct SettingsView: View {
                         .listItemEntrance(index: 0, disabled: appState.shouldReduceMotion)
 
                         settingsSection("Security", symbol: "lock.shield") {
+                            Button("Security & Privacy") {
+                                isSecurityInfoPresented = true
+                            }
                             Toggle("Face ID lock", isOn: biometricLockBinding)
                             Stepper("Auto-lock: \(appState.settings.autoLockMinutes) min", value: $appState.settings.autoLockMinutes, in: 1...30)
                             Toggle("Hide sensitive data", isOn: $appState.settings.hideSensitiveData)
@@ -185,6 +189,16 @@ struct SettingsView: View {
                             ForEach(appState.alertRules) { rule in
                                 AlertRuleToggleRow(rule: rule)
                             }
+
+                            if appState.areMetricAlertsSilenced {
+                                Text("Alerts are silenced until the timer expires.")
+                                    .font(.caption)
+                                    .foregroundStyle(.orange)
+                            }
+
+                            Button("Silence alerts for 1 hour") {
+                                appState.silenceMetricAlerts(for: 1)
+                            }
                         }
                         .listItemEntrance(index: 7, disabled: appState.shouldReduceMotion)
 
@@ -244,6 +258,10 @@ struct SettingsView: View {
         }
         .onAppear {
             backendMonitoringToken = appState.backendMonitoringTokenForSettings()
+        }
+        .sheet(isPresented: $isSecurityInfoPresented) {
+            SecurityPrivacyView()
+                .environmentObject(appState)
         }
         .accessibilityIdentifier(AppTab.settings.screenAccessibilityIdentifier)
     }

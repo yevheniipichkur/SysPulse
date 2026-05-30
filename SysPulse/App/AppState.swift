@@ -7,6 +7,10 @@ import UIKit
 @MainActor
 final class AppState: ObservableObject {
     @AppStorage("hasSeenOnboarding") var hasSeenOnboarding: Bool = false
+    @AppStorage("metricAlertsSilencedUntil") var metricAlertsSilencedUntil: Double = 0
+    @Published var paywallFeatureTitle: String?
+    @Published var paywallFeatureMessage: String?
+    @Published var shouldOpenSelectedServerMonitor = false
     @Published var selectedTab: AppTab = .servers
     @Published var selectedServer: ServerProfile?
     @Published var serverProfiles: [ServerProfile] {
@@ -458,7 +462,7 @@ final class AppState: ObservableObject {
     @discardableResult
     func addServer(_ server: ServerProfile) -> Bool {
         if !isProUnlocked && serverProfiles.count >= 1 {
-            isPaywallPresented = true
+            presentPaywall(feature: "Unlimited servers", message: localized("Free plan includes one server. Upgrade to add more."))
             return false
         }
 
@@ -667,6 +671,29 @@ final class AppState: ObservableObject {
                 sendBackendMonitoringSnapshotIfEnabled(server: server, metrics: visibleMetrics)
             }
         } catch {
+            let recovered = await retryMetricsOnce(for: server, previous: await MainActor.run { metricsByServer[server.id] })
+            if recovered != nil {
+                await MainActor.run {
+                    var visibleMetrics = isProUnlocked ? recovered! : metricsWithoutPremiumSignals(recovered!)
+                    recordMetricSnapshot(visibleMetrics)
+                    if isProUnlocked, let modelContext {
+                        try? metricsHistoryService.applyHistory(to: &visibleMetrics, in: modelContext)
+                    }
+                    metricsByServer[server.id] = visibleMetrics
+                    metricRefreshingServerIDs.remove(server.id)
+                    metricErrorByServer.removeValue(forKey: server.id)
+                    if selectedServer?.id == server.id {
+                        selectedServer?.status = .online
+                    }
+                    if announceStatus {
+                        postStatus(localized("Metrics refreshed for %@.", server.name), style: .success)
+                    }
+                    evaluateAlertRules(for: server, metrics: visibleMetrics)
+                    sendBackendMonitoringSnapshotIfEnabled(server: server, metrics: visibleMetrics)
+                }
+                return
+            }
+
             await MainActor.run {
                 let message = connectionErrorMessage(error, server: server)
                 metricRefreshingServerIDs.remove(server.id)
@@ -683,6 +710,14 @@ final class AppState: ObservableObject {
                 postStatus(localized("Metrics refresh failed for %@: %@", server.name, message), style: .error)
             }
         }
+    }
+
+    private func retryMetricsOnce(for server: ServerProfile, previous: ServerMetrics?) async -> ServerMetrics? {
+        await MainActor.run {
+            postStatus(localized("Reconnecting to %@...", server.name), style: .info)
+        }
+        try? await Task.sleep(for: .seconds(2))
+        return try? await metricsCollector.collect(server: server, using: sshClient, previous: previous)
     }
 
     func backendMonitoringTokenForSettings() -> String {
@@ -794,7 +829,7 @@ final class AppState: ObservableObject {
     }
 
     func refreshDockerContainers(for server: ServerProfile? = nil) {
-        guard requireProFeature() else { return }
+        guard requireProFeature(feature: "Docker monitoring") else { return }
         guard let targetServer = server ?? selectedServer else {
             postStatus(localized("Select a server before running commands."))
             return
@@ -819,7 +854,7 @@ final class AppState: ObservableObject {
     }
 
     func refreshSystemdServices(for server: ServerProfile? = nil) {
-        guard requireProFeature() else { return }
+        guard requireProFeature(feature: "systemd monitoring") else { return }
         guard let targetServer = server ?? selectedServer else {
             postStatus(localized("Select a server before running commands."))
             return
@@ -844,7 +879,7 @@ final class AppState: ObservableObject {
     }
 
     func refreshLogEntries(for server: ServerProfile? = nil) {
-        guard requireProFeature() else { return }
+        guard requireProFeature(feature: "Logs viewer") else { return }
         guard let targetServer = server ?? selectedServer else {
             postStatus(localized("Select a server before running commands."))
             return
@@ -1135,7 +1170,7 @@ final class AppState: ObservableObject {
 
     func startMonitoringLiveActivity() {
         guard isProUnlocked else {
-            isPaywallPresented = true
+            presentPaywall(feature: "Live Activities", message: localized("Show live CPU, RAM and health on the Lock Screen."))
             return
         }
         guard let server = selectedServer else { return }
@@ -1169,14 +1204,6 @@ final class AppState: ObservableObject {
         }
     }
 
-    private func requireProFeature(message: String = "Unlock Pro to use this feature.") -> Bool {
-        guard isProUnlocked else {
-            postStatus(localized(message))
-            isPaywallPresented = true
-            return false
-        }
-        return true
-    }
 
     private func enforceSubscriptionBoundaries() {
         guard !subscription.isPro else {
