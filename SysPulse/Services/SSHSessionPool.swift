@@ -15,17 +15,13 @@ actor SSHSessionPool {
 
     init(idleTimeout: TimeInterval = 45) {
         self.idleTimeout = idleTimeout
-        startCleanupLoop()
-    }
-
-    deinit {
-        cleanupTask?.cancel()
     }
 
     func acquire(
         for server: ServerProfile,
         factory: () async throws -> SSHClient
     ) async throws -> SSHClient {
+        ensureCleanupLoop()
         if var entry = entries[server.id] {
             entry.leaseCount += 1
             entry.lastUsed = .now
@@ -58,8 +54,8 @@ actor SSHSessionPool {
         }
     }
 
-    private func startCleanupLoop() {
-        cleanupTask?.cancel()
+    private func ensureCleanupLoop() {
+        guard cleanupTask == nil else { return }
         cleanupTask = Task {
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(15))

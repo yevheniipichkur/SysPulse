@@ -85,8 +85,8 @@ final class AppState: ObservableObject {
     private var protectedBackgroundDate: Date?
     private var alertLastFiredAt: [String: Date] = [:]
     private var sftpLoadTokensByServer: [UUID: UUID] = [:]
-    private var statusToastDismissTask: Task<Void, Never>?
-    private var widgetPublishTask: Task<Void, Never>?
+    var statusToastDismissTask: Task<Void, Never>?
+    var widgetPublishTask: Task<Void, Never>?
     private let alertCooldown: TimeInterval = 15 * 60
     private static let backendMonitoringTokenAccount = "backend-monitoring-token"
     private static let metricsRefreshConcurrency = 2
@@ -1177,7 +1177,7 @@ final class AppState: ObservableObject {
         }
     }
 
-    private func publishWidgetSnapshots() {
+    func publishWidgetSnapshots() {
         if isProUnlocked {
             widgetDataService.save(profiles: serverProfiles, metricsByServer: metricsByServer)
         } else {
