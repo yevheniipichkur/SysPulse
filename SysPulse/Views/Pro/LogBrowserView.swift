@@ -2,6 +2,7 @@ import SwiftUI
 
 struct LogBrowserView: View {
     @EnvironmentObject private var appState: AppState
+    @Environment(\.colorScheme) private var colorScheme
 
     var server: ServerProfile
 
@@ -14,39 +15,29 @@ struct LogBrowserView: View {
     @State private var lineCount = 200
     @State private var searchText = ""
 
-    private let logDirectories = ["/var/log", "/var/log/apt", "/var/log/nginx", "/var/log/mysql"]
-
     var body: some View {
-        ZStack {
-            AppBackground()
-
+        Group {
             if !appState.isProUnlocked {
-                VStack {
-                    Spacer()
-                    ProLockedBanner(feature: "Log Browser")
-                    Spacer()
-                }
-                .padding(.horizontal, SysPulseDesign.pagePadding)
+                ProLockedBanner(feature: "Log Browser")
             } else {
-                VStack(spacing: 0) {
-                    sidebarContent
-                        .frame(maxHeight: 220)
-                    Divider().opacity(0.2)
-                    detailContent
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                VStack(spacing: 12) {
+                    GlassCard(cornerRadius: 22, padding: 0) {
+                        sidebarContent
+                    }
+                    GlassCard(cornerRadius: 22, padding: 0) {
+                        detailContent
+                    }
                 }
             }
         }
         .onAppear { loadLogFiles() }
     }
 
-    // MARK: - Sidebar
-
     @ViewBuilder
     private var sidebarContent: some View {
         VStack(spacing: 0) {
-            HStack {
-                Text("Log Files")
+            HStack(spacing: 10) {
+                Label("Log Files", systemImage: "externaldrive.fill.badge.magnifyingglass")
                     .font(.headline)
                 Spacer()
                 Button(action: loadLogFiles) {
@@ -54,6 +45,7 @@ struct LogBrowserView: View {
                         .rotationEffect(.degrees(isLoadingFiles ? 360 : 0))
                         .animation(isLoadingFiles ? .linear(duration: 1).repeatForever(autoreverses: false) : .default, value: isLoadingFiles)
                 }
+                .buttonStyle(.plain)
                 .tint(.cyan)
             }
             .padding(.horizontal, 16)
@@ -61,53 +53,57 @@ struct LogBrowserView: View {
 
             if isLoadingFiles {
                 ProgressView()
-                    .padding()
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 24)
             } else if let error = errorMessage, logFiles.isEmpty {
                 Text(error)
                     .font(.caption)
-                    .foregroundStyle(.red)
-                    .padding()
+                    .foregroundStyle(.orange)
+                    .multilineTextAlignment(.center)
+                    .padding(16)
             } else {
                 ScrollView {
-                    LazyVStack(spacing: 2) {
+                    LazyVStack(spacing: 4) {
                         ForEach(logFiles, id: \.self) { file in
                             Button {
                                 selectedFile = file
                                 loadContent(file: file)
                             } label: {
-                                HStack {
+                                HStack(spacing: 10) {
                                     Image(systemName: "doc.text")
                                         .font(.caption)
-                                        .foregroundStyle(.secondary)
+                                        .foregroundStyle(selectedFile == file ? .cyan : .secondary)
                                     Text(file.components(separatedBy: "/").last ?? file)
-                                        .font(.caption)
+                                        .font(.caption.weight(.medium))
                                         .lineLimit(1)
+                                        .foregroundStyle(.primary)
                                     Spacer()
                                 }
-                                .padding(.horizontal, 14)
-                                .padding(.vertical, 8)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 9)
                                 .background(
-                                    selectedFile == file ? Color.cyan.opacity(0.18) : Color.clear,
-                                    in: RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                    selectedFile == file
+                                        ? Color.cyan.opacity(colorScheme == .dark ? 0.14 : 0.12)
+                                        : Color.primary.opacity(colorScheme == .dark ? 0.04 : 0.03),
+                                    in: RoundedRectangle(cornerRadius: 10, style: .continuous)
                                 )
                             }
                             .buttonStyle(.plain)
                         }
                     }
-                    .padding(.horizontal, 8)
+                    .padding(.horizontal, 12)
+                    .padding(.bottom, 12)
                 }
+                .frame(maxHeight: 220)
             }
         }
     }
-
-    // MARK: - Detail
 
     @ViewBuilder
     private var detailContent: some View {
         VStack(spacing: 0) {
             if let file = selectedFile {
-                // Toolbar
-                HStack {
+                HStack(spacing: 10) {
                     Text(file.components(separatedBy: "/").last ?? file)
                         .font(.headline)
                         .lineLimit(1)
@@ -116,26 +112,27 @@ struct LogBrowserView: View {
                     Button(action: { loadContent(file: file) }) {
                         Image(systemName: "arrow.clockwise")
                     }
+                    .buttonStyle(.plain)
                     .tint(.cyan)
                 }
                 .padding(.horizontal, 16)
                 .padding(.vertical, 12)
 
-                // Search bar
                 TextField("Search logs…", text: $searchText)
                     .textInputAutocapitalization(.never)
                     .padding(.horizontal, 14)
-                    .padding(.vertical, 8)
-                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .padding(.vertical, 10)
+                    .background(
+                        Color.primary.opacity(colorScheme == .dark ? 0.06 : 0.04),
+                        in: RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    )
                     .padding(.horizontal, 16)
-                    .padding(.bottom, 8)
-
-                Divider().opacity(0.2)
+                    .padding(.bottom, 10)
 
                 if isLoadingContent {
-                    Spacer()
                     ProgressView()
-                    Spacer()
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 32)
                 } else {
                     ScrollView {
                         Text(filteredContent)
@@ -144,17 +141,19 @@ struct LogBrowserView: View {
                             .padding(16)
                             .textSelection(.enabled)
                     }
+                    .frame(minHeight: 200)
                 }
             } else {
                 VStack(spacing: 12) {
-                    Image(systemName: "doc.text.magnifyingglass")
-                        .font(.system(size: 48))
-                        .foregroundStyle(.secondary)
+                    Image(systemName: "externaldrive.fill.badge.magnifyingglass")
+                        .font(.system(size: 40, weight: .semibold))
+                        .foregroundStyle(.cyan.opacity(0.85))
                     Text("Select a log file")
                         .font(.title3.weight(.medium))
                         .foregroundStyle(.secondary)
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 36)
             }
         }
     }
@@ -179,14 +178,11 @@ struct LogBrowserView: View {
         return lines.filter { $0.localizedCaseInsensitiveContains(searchText) }.joined(separator: "\n")
     }
 
-    // MARK: - Data loading
-
     private func loadLogFiles() {
         isLoadingFiles = true
         errorMessage = nil
         Task {
             do {
-                // List .log files in /var/log
                 let cmd = "find /var/log -maxdepth 2 -name '*.log' -type f 2>/dev/null | sort | head -60"
                 let output = try await appState.sshClient.run(cmd, on: server)
                 let files = output.components(separatedBy: "\n")
@@ -229,4 +225,3 @@ struct LogBrowserView: View {
         }
     }
 }
-

@@ -695,6 +695,7 @@
 "Cmds" = "Polec.";
 "Active server: %@" = "Aktywny serwer: %@";
 "Back to servers" = "Wróć do serwerów";
+"Port forwarding for %@" = "Przekierowanie portów dla %@";
 "Icon" = "Ikona";
 "Server icon" = "Ikona serwera";
 "Selected" = "Wybrano";

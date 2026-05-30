@@ -141,7 +141,18 @@ struct ServerDetailView: View {
         let metrics = appState.metric(for: server)
         return GlassCard(cornerRadius: 28, padding: 18) {
             VStack(alignment: .leading, spacing: 15) {
-                HStack(alignment: .top) {
+                HStack(alignment: .top, spacing: 12) {
+                    Button {
+                        appState.haptic(.light)
+                        dismiss()
+                    } label: {
+                        Image(systemName: "chevron.backward")
+                            .font(.system(size: 17, weight: .semibold))
+                            .frame(width: 40, height: 40)
+                    }
+                    .buttonStyle(PressableGlassButtonStyle(cornerRadius: 14, verticalPadding: 0, horizontalPadding: 0))
+                    .accessibilityLabel(appState.localized("Back to servers"))
+
                     VStack(alignment: .leading, spacing: 6) {
                         Text(server.name)
                             .font(.largeTitle.weight(.bold))
@@ -151,7 +162,8 @@ struct ServerDetailView: View {
                             .font(.callout.monospaced())
                             .foregroundStyle(.secondary)
                     }
-                    Spacer()
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
                     StatusPill(status: server.status)
                 }
 
@@ -242,10 +254,12 @@ struct ServerDetailView: View {
     }
 
     private var monitorDismissDragGesture: some Gesture {
-        DragGesture(minimumDistance: 36)
+        DragGesture(minimumDistance: 24, coordinateSpace: .local)
             .onEnded { value in
-                guard value.translation.height > 110,
-                      abs(value.translation.width) < 100 else { return }
+                let startedNearLeadingEdge = value.startLocation.x < 40
+                let swipedRight = value.translation.width > 72
+                let isHorizontal = abs(value.translation.width) > abs(value.translation.height)
+                guard swipedRight, isHorizontal, startedNearLeadingEdge else { return }
                 appState.haptic(.light)
                 dismiss()
             }
@@ -1062,7 +1076,7 @@ private enum DetailTab: String, CaseIterable, Identifiable {
         case .docker: "shippingbox"
         case .services: "gearshape.2"
         case .logs: "doc.text.magnifyingglass"
-        case .logBrowser: "folder.badge.magnifyingglass"
+        case .logBrowser: "externaldrive.fill.badge.magnifyingglass"
         case .tunnels: "network.badge.shield.half.filled"
         case .commands: "bolt.horizontal"
         case .actions: "square.grid.2x2"

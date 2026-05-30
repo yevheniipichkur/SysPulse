@@ -709,8 +709,9 @@
 "Pro keeps metric history and records health events on each refresh." = "Pro keeps metric history and records health events on each refresh.";
 "Unlock Pro for auto-refresh, metric history and health timeline." = "Unlock Pro for auto-refresh, metric history and health timeline.";
 "Events from metric refreshes and alerts will appear here." = "Events from metric refreshes and alerts will appear here.";
-"Active server: %@" = "Active server: %@";
 "Back to servers" = "Back to servers";
+"Port forwarding for %@" = "Port forwarding for %@";
+"Active server: %@" = "Active server: %@";
 "Icon" = "Icon";
 "Server icon" = "Server icon";
 "Selected" = "Selected";

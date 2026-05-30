@@ -16,57 +16,60 @@ struct SSHTunnelsView: View {
     private let tunnelService = SSHTunnelService()
 
     var body: some View {
-        ZStack {
-            AppBackground()
-
-            ScrollView {
-                LazyVStack(spacing: 16) {
-                    PageHeader(
-                        title: "SSH Tunnels",
-                        subtitle: "Port forwarding rules for \(server.name)",
-                        actionSymbol: "plus"
-                    ) {
-                        guard appState.isProUnlocked else {
-                            appState.isPaywallPresented = true
-                            return
+        VStack(spacing: 12) {
+            if !appState.isProUnlocked {
+                ProLockedBanner(feature: "SSH Tunnels")
+            } else {
+                GlassCard(cornerRadius: 22, padding: 16) {
+                    HStack(alignment: .center, spacing: 12) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Label("SSH Tunnels", systemImage: "network.badge.shield.half.filled")
+                                .font(.headline)
+                            Text(appState.localized("Port forwarding for %@", server.name))
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
                         }
-                        isAdding = true
+                        Spacer()
+                        Button {
+                            isAdding = true
+                        } label: {
+                            Image(systemName: "plus")
+                                .font(.headline)
+                                .frame(width: 40, height: 40)
+                        }
+                        .buttonStyle(PressableGlassButtonStyle(cornerRadius: 14, verticalPadding: 0, horizontalPadding: 0))
+                        .accessibilityLabel("Add tunnel")
                     }
+                }
 
-                    if !appState.isProUnlocked {
-                        ProLockedBanner(feature: "SSH Tunnels")
-                    } else if serverTunnels.isEmpty {
-                        ActionEmptyStateView(
-                            title: "No tunnels yet",
-                            message: "Create a tunnel to forward a remote port through SSH.",
-                            symbol: "network.badge.shield.half.filled",
-                            actionTitle: "Add Tunnel",
-                            actionSymbol: "plus"
-                        ) { isAdding = true }
-                    } else {
-                        ForEach(serverTunnels) { tunnel in
-                            TunnelCard(
-                                tunnel: tunnel,
-                                server: server,
-                                testState: testResults[tunnel.id],
-                                isCopied: copiedID == tunnel.id
-                            ) {
-                                editingTunnel = tunnel
-                            } onTest: {
-                                testTunnel(tunnel)
-                            } onCopy: {
-                                copySSHCommand(for: tunnel)
-                            } onDelete: {
-                                deleteTunnel(tunnel)
-                            }
+                if serverTunnels.isEmpty {
+                    ActionEmptyStateView(
+                        title: "No tunnels yet",
+                        message: "Create a tunnel to forward a remote port through SSH.",
+                        symbol: "network.badge.shield.half.filled",
+                        actionTitle: "Add Tunnel",
+                        actionSymbol: "plus"
+                    ) { isAdding = true }
+                } else {
+                    ForEach(serverTunnels) { tunnel in
+                        TunnelCard(
+                            tunnel: tunnel,
+                            server: server,
+                            testState: testResults[tunnel.id],
+                            isCopied: copiedID == tunnel.id
+                        ) {
+                            editingTunnel = tunnel
+                        } onTest: {
+                            testTunnel(tunnel)
+                        } onCopy: {
+                            copySSHCommand(for: tunnel)
+                        } onDelete: {
+                            deleteTunnel(tunnel)
                         }
                     }
                 }
-                .padding(.horizontal, SysPulseDesign.pagePadding)
-                .padding(.top, 8)
-                .padding(.bottom, 32)
             }
-            .scrollIndicators(.hidden)
         }
         .sheet(isPresented: $isAdding) {
             TunnelFormView(serverID: server.id)

@@ -695,6 +695,7 @@
 "Cmds" = "Команды";
 "Active server: %@" = "Активный сервер: %@";
 "Back to servers" = "Назад к серверам";
+"Port forwarding for %@" = "Проброс портов для %@";
 "Icon" = "Иконка";
 "Server icon" = "Иконка сервера";
 "Selected" = "Выбрано";
