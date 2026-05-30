@@ -16,6 +16,7 @@ final class AppState: ObservableObject {
     @Published var paywallFeatureMessage: String?
     @Published var shouldOpenSelectedServerMonitor = false
     @Published var selectedTab: AppTab = .servers
+    @Published var isTerminalPresented = false
     @Published var selectedServer: ServerProfile?
     @Published var serverProfiles: [ServerProfile] {
         didSet {
@@ -572,8 +573,16 @@ final class AppState: ObservableObject {
 
     func select(_ server: ServerProfile, tab: AppTab = .servers) {
         selectedServer = server
-        selectedTab = tab
+        if tab == .terminal {
+            isTerminalPresented = true
+        } else {
+            selectedTab = tab
+        }
         haptic(.light)
+    }
+
+    func dismissTerminal() {
+        isTerminalPresented = false
     }
 
     func testConnection(to server: ServerProfile) async throws -> String {

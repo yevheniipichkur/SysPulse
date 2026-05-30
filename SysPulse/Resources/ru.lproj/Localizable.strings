@@ -1022,3 +1022,5 @@
 "Advanced" = "Расширенные";
 "Integrations, alerts, keys and encrypted sharing." = "Интеграции, алерты, ключи и шифрованный обмен.";
 "Encrypted sharing" = "Шифрованный обмен";
+"Tap a theme to apply" = "Нажмите на тему для выбора";
+"Select a server to open the terminal." = "Выберите сервер, чтобы открыть терминал.";

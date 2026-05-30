@@ -9,7 +9,11 @@ extension AppState {
                 shouldOpenSelectedServerMonitor = true
             }
         } else {
-            selectedTab = tab
+            if tab == .terminal {
+                postStatus(localized("Select a server to open the terminal."), style: .info)
+            } else {
+                selectedTab = tab
+            }
             if let serverName {
                 postStatus(localized("Server \"%@\" was not found.", serverName), style: .info)
             }

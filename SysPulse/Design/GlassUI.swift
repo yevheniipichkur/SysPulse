@@ -7,7 +7,7 @@ enum SysPulseDesign {
     static let tileRadius: CGFloat = 20
     static let controlRadius: CGFloat = 16
     static let pagePadding: CGFloat = 18
-    static let floatingTabBarHeight: CGFloat = 72
+    static let floatingTabBarHeight: CGFloat = 54
     static let accent = Color(red: 0.20, green: 0.76, blue: 0.92)
     static let warning = Color(red: 0.96, green: 0.58, blue: 0.12)
     static let ink = Color(red: 0.04, green: 0.06, blue: 0.09)
@@ -595,8 +595,10 @@ struct MonitorStickyHeader: View {
                             .font(.caption.weight(.bold))
                             .foregroundStyle(healthRating.color)
                         Text("\(metrics.healthScore)")
-                            .font(SysPulseDesign.displayMetric)
+                            .font(.caption.weight(.bold))
                             .monospacedDigit()
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.8)
                     }
                     .padding(.horizontal, 8)
                     .padding(.vertical, 5)

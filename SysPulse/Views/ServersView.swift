@@ -478,6 +478,14 @@ struct ServerCardView: View {
             }
         }
         .scaleEffect(isRefreshing ? 0.995 : 1)
+        .overlay(alignment: .leading) {
+            RoundedRectangle(cornerRadius: 2, style: .continuous)
+                .fill(
+                    LinearGradient(colors: [accent, accent.opacity(0.35)], startPoint: .top, endPoint: .bottom)
+                )
+                .frame(width: 4)
+                .padding(.vertical, 18)
+        }
         .overlay {
             RoundedRectangle(cornerRadius: 28, style: .continuous)
                 .stroke(attentionColor.opacity(needsAttention ? (colorScheme == .dark ? 0.42 : 0.34) : 0), lineWidth: needsAttention ? 1.5 : 0)
@@ -582,8 +590,11 @@ private struct ServerHealthSummary: View {
                     .foregroundStyle(.secondary)
                 HStack(spacing: 6) {
                     Text("\(score)")
-                        .font(SysPulseDesign.displayMetric)
+                        .font(.title3.weight(.bold))
                         .monospacedDigit()
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.75)
+                        .fixedSize(horizontal: true, vertical: false)
                     Text(rating.titleKey)
                         .font(.caption.weight(.bold))
                         .foregroundStyle(rating.color)

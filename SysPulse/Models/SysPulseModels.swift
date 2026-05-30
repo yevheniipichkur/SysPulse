@@ -10,6 +10,9 @@ enum AppTab: String, CaseIterable, Identifiable, Hashable {
 
     var id: String { rawValue }
 
+    /// Tabs shown in the bottom bar (terminal opens from server actions).
+    static let barTabs: [AppTab] = [.servers, .sftp, .settings]
+
     var titleText: String {
         switch self {
         case .servers:

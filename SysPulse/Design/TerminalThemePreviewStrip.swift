@@ -3,48 +3,69 @@ import SwiftUI
 struct TerminalThemePreviewStrip: View {
     var selected: TerminalTheme
     var isProUnlocked: Bool
+    var onSelect: (TerminalTheme) -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(LocalizedStringKey("Theme preview"))
+            Text(LocalizedStringKey("Tap a theme to apply"))
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .accessibilityAddTraits(.isHeader)
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 10) {
                     ForEach(TerminalTheme.allCases) { theme in
-                        let locked = theme.isPremium && !isProUnlocked
-                        VStack(alignment: .leading, spacing: 4) {
-                            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                .fill(
-                                    LinearGradient(
-                                        colors: TerminalThemePreviewColors.background(for: theme),
-                                        startPoint: .topLeading,
-                                        endPoint: .bottomTrailing
-                                    )
-                                )
-                                .frame(width: 88, height: 44)
-                                .overlay {
-                                    Text("abc")
-                                        .font(.system(size: 11, design: .monospaced))
-                                        .foregroundStyle(TerminalThemePreviewColors.foreground(for: theme))
-                                }
-                                .overlay {
-                                    if selected == theme {
-                                        RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                            .stroke(Color.accentColor, lineWidth: 2)
-                                    }
-                                }
-                                .opacity(locked ? 0.45 : 1)
-                            Text(theme.titleKey)
-                                .font(.caption2)
-                        }
-                        .accessibilityLabel(Text(theme.titleKey))
-                        .accessibilityAddTraits(selected == theme ? .isSelected : [])
+                        themeChip(theme)
                     }
                 }
             }
         }
+    }
+
+    private func themeChip(_ theme: TerminalTheme) -> some View {
+        let locked = theme.isPremium && !isProUnlocked
+        let isSelected = selected == theme
+
+        return Button {
+            onSelect(theme)
+        } label: {
+            VStack(alignment: .leading, spacing: 4) {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(
+                        LinearGradient(
+                            colors: TerminalThemePreviewColors.background(for: theme),
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .frame(width: 88, height: 44)
+                    .overlay {
+                        Text("abc")
+                            .font(.system(size: 11, design: .monospaced))
+                            .foregroundStyle(TerminalThemePreviewColors.foreground(for: theme))
+                    }
+                    .overlay {
+                        if isSelected {
+                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                .stroke(SysPulseDesign.accent, lineWidth: 2)
+                        }
+                    }
+                    .overlay(alignment: .topTrailing) {
+                        if locked {
+                            Image(systemName: "lock.fill")
+                                .font(.caption2.weight(.bold))
+                                .foregroundStyle(.white)
+                                .padding(5)
+                        }
+                    }
+                    .opacity(locked ? 0.55 : 1)
+                Text(theme.titleKey)
+                    .font(.caption2.weight(isSelected ? .bold : .regular))
+                    .foregroundStyle(isSelected ? SysPulseDesign.accent : .secondary)
+            }
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(Text(theme.titleKey))
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 }
 

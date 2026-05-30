@@ -135,16 +135,23 @@ struct MainShellView: View {
         .safeAreaInset(edge: .bottom, spacing: 0) {
             FloatingTabBar(selection: $appState.selectedTab)
         }
+        .fullScreenCover(isPresented: $appState.isTerminalPresented) {
+            TerminalView()
+                .environmentObject(appState)
+        }
+        .onAppear {
+            if appState.selectedTab == .terminal {
+                appState.selectedTab = .servers
+            }
+        }
         .tint(SysPulseDesign.accent)
     }
 
     @ViewBuilder
     private var tabContent: some View {
         switch appState.selectedTab {
-        case .servers:
+        case .servers, .terminal:
             ServersView()
-        case .terminal:
-            TerminalView()
         case .sftp:
             SFTPFilesView()
         case .settings:

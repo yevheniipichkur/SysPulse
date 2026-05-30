@@ -1,22 +1,21 @@
 import SwiftUI
 
-/// Floating pill tab bar (replaces system `TabView` chrome).
+/// Compact icon dock — terminal is not a tab (opened from server actions).
 struct FloatingTabBar: View {
     @Environment(\.colorScheme) private var colorScheme
     @Binding var selection: AppTab
 
     var body: some View {
-        HStack(spacing: 4) {
-            ForEach(AppTab.allCases) { tab in
+        HStack(spacing: 0) {
+            ForEach(AppTab.barTabs) { tab in
                 tabButton(tab)
             }
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 8)
+        .padding(.horizontal, 6)
+        .padding(.vertical, 5)
         .background { barBackground }
-        .padding(.horizontal, SysPulseDesign.pagePadding)
-        .padding(.bottom, 6)
-        .accessibilityElement(children: .contain)
+        .padding(.horizontal, 28)
+        .padding(.bottom, 4)
     }
 
     private func tabButton(_ tab: AppTab) -> some View {
@@ -26,28 +25,18 @@ struct FloatingTabBar: View {
             guard selection != tab else { return }
             selection = tab
         } label: {
-            VStack(spacing: 4) {
-                Image(systemName: tab.symbol)
-                    .font(.system(size: 18, weight: isSelected ? .bold : .semibold))
-                    .symbolVariant(isSelected ? .fill : .none)
-                Text(tab.title)
-                    .font(.caption2.weight(isSelected ? .bold : .medium))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
-            }
-            .foregroundStyle(isSelected ? SysPulseDesign.accent : Color.primary.opacity(colorScheme == .dark ? 0.62 : 0.52))
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 8)
-            .background {
-                if isSelected {
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .fill(SysPulseDesign.accent.opacity(colorScheme == .dark ? 0.16 : 0.12))
-                        .overlay {
-                            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                .stroke(SysPulseDesign.accent.opacity(0.28), lineWidth: 1)
-                        }
+            Image(systemName: tab.symbol)
+                .font(.system(size: 21, weight: isSelected ? .semibold : .regular))
+                .symbolVariant(isSelected ? .fill : .none)
+                .foregroundStyle(isSelected ? SysPulseDesign.accent : Color.primary.opacity(colorScheme == .dark ? 0.55 : 0.45))
+                .frame(maxWidth: .infinity)
+                .frame(height: 40)
+                .background {
+                    if isSelected {
+                        Capsule()
+                            .fill(SysPulseDesign.accent.opacity(colorScheme == .dark ? 0.14 : 0.10))
+                    }
                 }
-            }
         }
         .buttonStyle(.plain)
         .accessibilityLabel(Text(tab.title))
@@ -57,16 +46,12 @@ struct FloatingTabBar: View {
 
     @ViewBuilder
     private var barBackground: some View {
-        RoundedRectangle(cornerRadius: SysPulseDesign.cornerRadius, style: .continuous)
-            .fill(.regularMaterial)
+        Capsule()
+            .fill(.ultraThinMaterial)
             .overlay {
-                RoundedRectangle(cornerRadius: SysPulseDesign.cornerRadius, style: .continuous)
-                    .fill(colorScheme == .dark ? Color.white.opacity(0.04) : Color.white.opacity(0.90))
+                Capsule()
+                    .stroke(colorScheme == .dark ? Color.white.opacity(0.10) : Color.black.opacity(0.06), lineWidth: 0.8)
             }
-            .overlay {
-                RoundedRectangle(cornerRadius: SysPulseDesign.cornerRadius, style: .continuous)
-                    .stroke(colorScheme == .dark ? Color.white.opacity(0.14) : Color.black.opacity(0.08), lineWidth: 1)
-            }
-            .shadow(color: .black.opacity(colorScheme == .dark ? 0.28 : 0.12), radius: 18, y: 8)
+            .shadow(color: .black.opacity(colorScheme == .dark ? 0.20 : 0.08), radius: 10, y: 4)
     }
 }

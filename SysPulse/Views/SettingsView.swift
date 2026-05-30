@@ -62,21 +62,19 @@ struct SettingsView: View {
                                     Text(mode.titleKey).tag(mode)
                                 }
                             }
-                            Picker("Terminal theme", selection: terminalThemeBinding) {
-                                ForEach(TerminalTheme.allCases) { theme in
-                                    HStack {
-                                        Text(theme.titleKey)
-                                        if theme.isPremium { Text("Pro") }
-                                    }
-                                    .tag(theme)
-                                }
-                            }
                             Slider(value: $appState.settings.terminalFontSize, in: 11...22, step: 1) {
                                 Text("Terminal font size")
                             }
                             TerminalThemePreviewStrip(
                                 selected: appState.effectiveTerminalTheme,
-                                isProUnlocked: appState.isProUnlocked
+                                isProUnlocked: appState.isProUnlocked,
+                                onSelect: { theme in
+                                    if theme.isPremium && !appState.isProUnlocked {
+                                        appState.isPaywallPresented = true
+                                    } else {
+                                        appState.settings.terminalTheme = theme
+                                    }
+                                }
                             )
                             Toggle("Reduce animations", isOn: $appState.settings.reduceAnimations)
                         }
@@ -236,18 +234,6 @@ struct SettingsView: View {
             } else {
                 appState.disableBiometricLock()
             }
-        }
-    }
-
-    private var terminalThemeBinding: Binding<TerminalTheme> {
-        Binding {
-            appState.effectiveTerminalTheme
-        } set: { theme in
-            if theme.isPremium && !appState.isProUnlocked {
-                appState.isPaywallPresented = true
-                return
-            }
-            appState.settings.terminalTheme = theme
         }
     }
 
