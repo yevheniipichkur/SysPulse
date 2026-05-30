@@ -16,9 +16,9 @@ struct DiagnosticPackView: View {
                     VStack(spacing: 14) {
                         GlassCard {
                             VStack(alignment: .leading, spacing: 8) {
-                                Label("Diagnostic pack", systemImage: "stethoscope")
+                                Label(LocalizedStringKey("Diagnostic pack"), systemImage: "stethoscope")
                                     .font(.headline)
-                                Text("Read-only checks and suggested next steps for \(server.name).")
+                                Text(appState.localized("Read-only checks and suggested next steps for %@.", server.name))
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                             }
@@ -38,7 +38,7 @@ struct DiagnosticPackView: View {
                                         Button {
                                             appState.runRemoteCommand(command, on: server)
                                         } label: {
-                                            Label("Run suggested command", systemImage: "terminal")
+                                            Label(LocalizedStringKey("Run suggested command"), systemImage: "terminal")
                                                 .font(.caption.weight(.bold))
                                                 .frame(maxWidth: .infinity)
                                         }
@@ -67,7 +67,7 @@ struct DiagnosticPackView: View {
                 }
                 .scrollIndicators(.hidden)
             }
-            .navigationTitle("Diagnostics")
+            .navigationTitle(LocalizedStringKey("Diagnostics"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {

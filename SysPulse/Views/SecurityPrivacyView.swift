@@ -13,7 +13,7 @@ struct SecurityPrivacyView: View {
                     VStack(spacing: 16) {
                         GlassCard {
                             VStack(alignment: .leading, spacing: 12) {
-                                Label("Your credentials stay on device", systemImage: "lock.shield.fill")
+                                Label(LocalizedStringKey("Your credentials stay on device"), systemImage: "lock.shield.fill")
                                     .font(.headline)
                                 securityRow(
                                     symbol: "key.fill",
@@ -40,9 +40,9 @@ struct SecurityPrivacyView: View {
 
                         GlassCard {
                             VStack(alignment: .leading, spacing: 10) {
-                                Text("SSH connections")
+                                Text(LocalizedStringKey("SSH connections"))
                                     .font(.headline)
-                                Text("SysPulse opens direct SSH/SFTP sessions to your servers. Command output is kept in memory for the active session and is not uploaded to SysPulse servers.")
+                                Text(LocalizedStringKey("SysPulse opens direct SSH/SFTP sessions to your servers. Command output is kept in memory for the active session and is not uploaded to SysPulse servers."))
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                             }
@@ -53,7 +53,7 @@ struct SecurityPrivacyView: View {
                 }
                 .scrollIndicators(.hidden)
             }
-            .navigationTitle("Security & Privacy")
+            .navigationTitle(LocalizedStringKey("Security & Privacy"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {

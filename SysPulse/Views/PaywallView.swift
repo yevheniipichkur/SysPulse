@@ -69,19 +69,19 @@ struct PaywallView: View {
                 .frame(width: 112, height: 112)
                 .background(.ultraThinMaterial, in: Circle())
 
-            Text(appState.paywallFeatureTitle.map { "Unlock \($0)" } ?? "Unlock Pro Monitoring")
+            Text(appState.paywallFeatureTitle.map { appState.localized("Unlock %@", $0) } ?? appState.localized("Unlock Pro Monitoring"))
                 .font(.largeTitle.weight(.bold))
                 .multilineTextAlignment(.center)
 
-            Text(
+            Text(appState.localized(
                 appState.paywallFeatureMessage
                     ?? "Everything you need to monitor Linux servers from your iPhone."
-            )
+            ))
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
 
-            Text("SSH, SFTP, alerts and widgets in one secure workspace.")
+            Text(LocalizedStringKey("SSH, SFTP, alerts and widgets in one secure workspace."))
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(SysPulseDesign.actionStart)
                 .padding(.horizontal, 12)

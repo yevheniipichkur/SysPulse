@@ -93,7 +93,7 @@ struct SnippetsView: View {
                             actionSymbol: "plus"
                         ) { isAdding = true }
                     } else {
-                        Text("No results for \"\(searchText)\"")
+                        Text(appState.localized("No results for \"%@\"", searchText))
                             .font(.caption)
                             .foregroundStyle(.secondary)
                             .padding(.top, 20)

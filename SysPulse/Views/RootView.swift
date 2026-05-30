@@ -84,9 +84,9 @@ private struct SecurityLockView: View {
                     .foregroundStyle(.cyan)
 
                 VStack(spacing: 7) {
-                    Text("SysPulse Locked")
+                    Text(LocalizedStringKey("SysPulse Locked"))
                         .font(.title2.weight(.bold))
-                    Text("Unlock to view saved server profiles and credentials.")
+                    Text(LocalizedStringKey("Unlock to view saved server profiles and credentials."))
                         .font(.callout)
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)

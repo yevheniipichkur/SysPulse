@@ -37,7 +37,7 @@ struct LogBrowserView: View {
     private var sidebarContent: some View {
         VStack(spacing: 0) {
             HStack(spacing: 10) {
-                Label("Log Files", systemImage: "externaldrive.fill.badge.magnifyingglass")
+                Label(LocalizedStringKey("Log Files"), systemImage: "folder.badge.magnifyingglass")
                     .font(.headline)
                 Spacer()
                 Button(action: loadLogFiles) {
@@ -118,7 +118,7 @@ struct LogBrowserView: View {
                 .padding(.horizontal, 16)
                 .padding(.vertical, 12)
 
-                TextField("Search logs…", text: $searchText)
+                TextField(LocalizedStringKey("Search logs…"), text: $searchText)
                     .textInputAutocapitalization(.never)
                     .padding(.horizontal, 14)
                     .padding(.vertical, 10)
@@ -145,10 +145,10 @@ struct LogBrowserView: View {
                 }
             } else {
                 VStack(spacing: 12) {
-                    Image(systemName: "externaldrive.fill.badge.magnifyingglass")
+                    Image(systemName: "folder.badge.magnifyingglass")
                         .font(.system(size: 40, weight: .semibold))
                         .foregroundStyle(.cyan.opacity(0.85))
-                    Text("Select a log file")
+                    Text(LocalizedStringKey("Select a log file"))
                         .font(.title3.weight(.medium))
                         .foregroundStyle(.secondary)
                 }
@@ -159,7 +159,7 @@ struct LogBrowserView: View {
     }
 
     private var lineCountPicker: some View {
-        Picker("Lines", selection: $lineCount) {
+        Picker(LocalizedStringKey("Lines"), selection: $lineCount) {
             Text("100").tag(100)
             Text("200").tag(200)
             Text("500").tag(500)

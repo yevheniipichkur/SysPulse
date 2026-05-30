@@ -52,7 +52,7 @@ struct ScheduledCommandsView: View {
                 }
                 .scrollIndicators(.hidden)
             }
-            .navigationTitle("Schedules")
+            .navigationTitle(LocalizedStringKey("Schedules"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -68,11 +68,12 @@ struct ScheduledCommandsView: View {
     }
 
     private func serverName(for command: ScheduledCommand) -> String {
-        appState.serverProfiles.first(where: { $0.id == command.serverID })?.name ?? "Unknown server"
+        appState.serverProfiles.first(where: { $0.id == command.serverID })?.name ?? appState.localized("Unknown server")
     }
 }
 
 private struct ScheduledCommandRow: View {
+    @EnvironmentObject private var appState: AppState
     @Environment(\.modelContext) private var modelContext
     var command: ScheduledCommand
     var serverName: String
@@ -102,11 +103,11 @@ private struct ScheduledCommandRow: View {
                     .foregroundStyle(.secondary)
 
                 HStack {
-                    Text("Every \(command.intervalMinutes) min")
+                    Text(appState.localized("Every %lld min", Int64(command.intervalMinutes)))
                         .font(.caption2)
                         .foregroundStyle(.tertiary)
                     Spacer()
-                    Text("Next: \(command.nextRunAt.formatted(date: .abbreviated, time: .shortened))")
+                    Text(appState.localized("Next: %@", command.nextRunAt.formatted(date: .abbreviated, time: .shortened)))
                         .font(.caption2)
                         .foregroundStyle(.tertiary)
                 }

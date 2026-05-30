@@ -67,7 +67,7 @@ struct ServersView: View {
             LazyVStack(spacing: 18) {
                 PageHeader(
                     title: "Servers",
-                    subtitle: "Monitor · SSH · Files",
+                    subtitle: LocalizedStringKey("Monitor · SSH · Files"),
                     leadingActionSymbol: "list.bullet",
                     leadingActionActive: isCompactMode,
                     leadingAction: {
@@ -191,7 +191,7 @@ struct ServersView: View {
                 VStack(spacing: 18) {
                     PageHeader(
                         title: "Servers",
-                        subtitle: "Monitor · SSH · Files",
+                        subtitle: LocalizedStringKey("Monitor · SSH · Files"),
                         actionSymbol: "plus"
                     ) {
                         isAddingServer = true

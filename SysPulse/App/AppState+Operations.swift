@@ -3,7 +3,8 @@ import SwiftData
 
 extension AppState {
     func configureSSHProfileLookup() {
-        (sshClient as? RealSSHClient)?.profileLookup = { [weak self] id in
+        guard let client = sshClient as? RealSSHClient else { return }
+        client.profileLookup = { [weak self] id in
             self?.serverProfiles.first { $0.id == id }
         }
     }

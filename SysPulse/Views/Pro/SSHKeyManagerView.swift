@@ -161,6 +161,7 @@ struct SSHKeyManagerView: View {
 // MARK: - Key Pair Card
 
 private struct KeyPairCard: View {
+    @EnvironmentObject private var appState: AppState
     var keyPair: SSHKeyPair
     var isCopied: Bool
     var onCopy: () -> Void
@@ -190,7 +191,7 @@ private struct KeyPairCard: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .background(.black.opacity(0.18), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
 
-                Text("Created \(keyPair.createdAt.formatted(date: .abbreviated, time: .shortened))")
+                Text(appState.localized("Created %@", keyPair.createdAt.formatted(date: .abbreviated, time: .shortened)))
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
 

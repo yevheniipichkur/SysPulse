@@ -305,14 +305,14 @@ struct ProLockedBanner: View {
                 Image(systemName: "sparkles")
                     .font(.title2.weight(.bold))
                     .foregroundStyle(.cyan)
-                Text("\(feature) requires Pro")
+                Text(appState.localized("%@ requires Pro", appState.localized(feature)))
                     .font(.headline)
-                Text("Upgrade to SysPulse Pro to unlock all features.")
+                Text(LocalizedStringKey("Upgrade to SysPulse Pro to unlock all features."))
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
                 Button("Unlock Pro") {
-                    appState.presentPaywall(feature: "SSH Tunnels")
+                    appState.presentPaywall(feature: feature)
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(.cyan)

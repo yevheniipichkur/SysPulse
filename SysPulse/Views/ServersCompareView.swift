@@ -55,9 +55,9 @@ struct ServersCompareView: View {
             VStack(spacing: 16) {
                 GlassCard(cornerRadius: 22, padding: 14) {
                     VStack(alignment: .leading, spacing: 10) {
-                        Label("Compare servers", systemImage: "chart.bar")
+                        Label(LocalizedStringKey("Compare servers"), systemImage: "chart.bar")
                             .font(.headline)
-                        Text("Sorted view of CPU, RAM, disk and health across all saved servers.")
+                        Text(LocalizedStringKey("Sorted view of CPU, RAM, disk and health across all saved servers."))
                             .font(.caption)
                             .foregroundStyle(.secondary)
 
@@ -95,13 +95,14 @@ struct ServersCompareView: View {
             .padding(.vertical, 12)
         }
         .scrollIndicators(.hidden)
-        .navigationTitle("Compare")
+        .navigationTitle(LocalizedStringKey("Compare"))
         .navigationBarTitleDisplayMode(.inline)
         .refreshable { appState.refreshAllServers() }
     }
 }
 
 private struct CompareServerRow: View {
+    @EnvironmentObject private var appState: AppState
     var server: ServerProfile
     var metrics: ServerMetrics
     var alertCount: Int
@@ -138,7 +139,7 @@ private struct CompareServerRow: View {
                 }
 
                 if alertCount > 0 {
-                    Label("\(alertCount) active alert(s)", systemImage: "bell.badge")
+                    Label(appState.localized("%lld active alert(s)", Int64(alertCount)), systemImage: "bell.badge")
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(.orange)
                 }

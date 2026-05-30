@@ -520,7 +520,7 @@ struct ServerDetailView: View {
         return ProMonitorFeatureSection(
             feature: "Docker monitoring",
             title: "Docker",
-            subtitle: "Container states and live stats from Docker CLI.",
+            subtitle: "Container states and live stats parsed from Docker CLI.",
             symbol: "shippingbox",
             refreshTitle: "Refresh Containers",
             refreshAction: { appState.refreshDockerContainers(for: server) },
@@ -1074,7 +1074,7 @@ private enum DetailTab: String, CaseIterable, Identifiable {
         case .docker: "shippingbox"
         case .services: "gearshape.2"
         case .logs: "doc.text.magnifyingglass"
-        case .logBrowser: "externaldrive.fill.badge.magnifyingglass"
+        case .logBrowser: "folder.badge.magnifyingglass"
         case .tunnels: "network.badge.shield.half.filled"
         case .commands: "bolt.horizontal"
         case .actions: "square.grid.2x2"

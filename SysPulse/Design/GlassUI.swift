@@ -225,7 +225,7 @@ struct StatusPill: View {
 
 struct PremiumBadge: View {
     var body: some View {
-        Label("Pro", systemImage: "sparkles")
+        Label(LocalizedStringKey("Pro"), systemImage: "sparkles")
             .font(.caption.weight(.bold))
             .padding(.horizontal, 9)
             .padding(.vertical, 6)
