@@ -59,7 +59,7 @@ final class AppState: ObservableObject {
     @Published var areNotificationsAuthorized = false
     @Published var profileCloudSyncActivity: CloudProfileSyncActivity = .idle
 
-    private var modelContext: ModelContext?
+    var modelContext: ModelContext?
     private var profileRepository: ProfileRepository?
     private let settingsStorage = SettingsStorageService()
     private let widgetDataService = WidgetDataService()
