@@ -195,9 +195,10 @@ struct SFTPFilesView: View {
             }
             .padding(.horizontal, SysPulseDesign.pagePadding)
             .padding(.top, 8)
-            .padding(.bottom, 26)
+            .padding(.bottom, 12)
             .animation(activeAnimation, value: sftpSurfaceAnimationToken)
         }
+        .sysPulseScreenBottomInset()
         .refreshable {
             appState.refreshSFTPDirectory(for: server)
         }

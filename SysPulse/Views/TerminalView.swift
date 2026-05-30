@@ -327,7 +327,18 @@ struct TerminalView: View {
     }
 
     private func topChrome(palette: TerminalThemePalette) -> some View {
-        HStack(spacing: 10) {
+        VStack(spacing: 0) {
+            Rectangle()
+                .fill(
+                    LinearGradient(
+                        colors: [palette.accent, palette.accent.opacity(0.35)],
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    )
+                )
+                .frame(height: 3)
+
+            HStack(spacing: 10) {
             TerminalConnectionBadge(state: activeConnectionState, palette: palette)
 
             Text(sessionServer == nil ? "SysPulse SSH" : activePrompt.trimmingCharacters(in: .whitespaces))
@@ -397,10 +408,11 @@ struct TerminalView: View {
             .buttonStyle(.plain)
             .foregroundStyle(palette.chromeForeground)
             .accessibilityLabel(Text("Clear transcript"))
+            }
+            .padding(.horizontal, 14)
+            .padding(.top, 10)
+            .padding(.bottom, 8)
         }
-        .padding(.horizontal, 14)
-        .padding(.top, 10)
-        .padding(.bottom, 8)
         .background(palette.chromeBackground)
     }
 

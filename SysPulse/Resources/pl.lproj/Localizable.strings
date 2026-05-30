@@ -1015,3 +1015,10 @@
 "Profiles reloaded." = "Profile przeładowane.";
 "Pro unlocked from debug menu." = "Pro odblokowane z menu debugowania.";
 "Version %@ build %@" = "Wersja %@ build %@";
+"Essentials for security, appearance and monitoring." = "Podstawy: bezpieczeństwo, wygląd i monitoring.";
+"More" = "Więcej";
+"Advanced & integrations" = "Zaawansowane i integracje";
+"SSH keys, alerts, webhooks, Prometheus and sharing." = "Klucze SSH, alerty, webhooki, Prometheus i udostępnianie.";
+"Advanced" = "Zaawansowane";
+"Integrations, alerts, keys and encrypted sharing." = "Integracje, alerty, klucze i szyfrowane udostępnianie.";
+"Encrypted sharing" = "Szyfrowane udostępnianie";

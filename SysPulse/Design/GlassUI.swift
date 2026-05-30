@@ -4,9 +4,12 @@ import SwiftUI
 enum SysPulseDesign {
     static let cornerRadius: CGFloat = 28
     static let cardRadius: CGFloat = 24
+    static let tileRadius: CGFloat = 20
     static let controlRadius: CGFloat = 16
     static let pagePadding: CGFloat = 18
+    static let floatingTabBarHeight: CGFloat = 72
     static let accent = Color(red: 0.20, green: 0.76, blue: 0.92)
+    static let warning = Color(red: 0.96, green: 0.58, blue: 0.12)
     static let ink = Color(red: 0.04, green: 0.06, blue: 0.09)
     static let darkPanel = Color(red: 0.06, green: 0.08, blue: 0.12)
     static let actionStart = Color(red: 0.02, green: 0.47, blue: 0.68)
@@ -15,6 +18,19 @@ enum SysPulseDesign {
     static let proEnd = Color(red: 0.26, green: 0.18, blue: 0.68)
     static let warningAction = Color(red: 0.72, green: 0.34, blue: 0.00)
     static let destructiveAction = Color(red: 0.72, green: 0.08, blue: 0.10)
+
+    static func displayFont(size: CGFloat, weight: Font.Weight = .bold) -> Font {
+        .system(size: size, weight: weight, design: .rounded)
+    }
+
+    static var displayLarge: Font { displayFont(size: 34, weight: .bold) }
+    static var displayMetric: Font { displayFont(size: 26, weight: .black) }
+}
+
+extension View {
+    func sysPulseScreenBottomInset() -> some View {
+        safeAreaPadding(.bottom, SysPulseDesign.floatingTabBarHeight)
+    }
 }
 
 enum SysPulseMotion {
@@ -126,16 +142,20 @@ struct AppBackground: View {
             .ignoresSafeArea()
 
             LinearGradient(
-                colors: [.cyan.opacity(0.18), .clear, .green.opacity(0.10)],
+                colors: [
+                    SysPulseDesign.accent.opacity(colorScheme == .dark ? 0.18 : 0.10),
+                    .clear,
+                    Color.green.opacity(colorScheme == .dark ? 0.10 : 0.06)
+                ],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
-            .opacity(colorScheme == .dark ? 1 : 0.46)
+            .opacity(colorScheme == .dark ? 1 : 0.38)
             .blendMode(colorScheme == .dark ? .screen : .normal)
             .ignoresSafeArea()
 
             LinearGradient(
-                colors: [.clear, .purple.opacity(colorScheme == .dark ? 0.16 : 0.035), .clear],
+                colors: [.clear, .purple.opacity(colorScheme == .dark ? 0.16 : 0.02), .clear],
                 startPoint: .topTrailing,
                 endPoint: .bottomLeading
             )
@@ -187,7 +207,57 @@ struct GlassCard<Content: View>: View {
                             .stroke(colorScheme == .dark ? Color.white.opacity(0.16) : Color.black.opacity(0.12), lineWidth: 1)
                     }
             }
-            .shadow(color: .black.opacity(colorScheme == .dark ? 0.13 : 0.08), radius: colorScheme == .dark ? 14 : 10, x: 0, y: 6)
+            .shadow(color: .black.opacity(colorScheme == .dark ? 0.13 : 0.06), radius: colorScheme == .dark ? 14 : 8, x: 0, y: colorScheme == .dark ? 6 : 4)
+    }
+}
+
+/// Settings / forms section wrapper shared across settings screens.
+struct SettingsSectionCard<Content: View>: View {
+    var title: LocalizedStringKey
+    var symbol: String
+    @ViewBuilder var content: Content
+
+    var body: some View {
+        GlassCard(cornerRadius: SysPulseDesign.cardRadius) {
+            VStack(alignment: .leading, spacing: 13) {
+                Label(title, systemImage: symbol)
+                    .font(.headline)
+                content()
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+}
+
+struct SettingsNavigationRow: View {
+    var title: LocalizedStringKey
+    var subtitle: LocalizedStringKey
+    var symbol: String
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: symbol)
+                .font(.headline)
+                .foregroundStyle(SysPulseDesign.accent)
+                .frame(width: 36, height: 36)
+                .background(SysPulseDesign.accent.opacity(0.12), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title)
+                    .font(.callout.weight(.semibold))
+                Text(subtitle)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+            }
+
+            Spacer(minLength: 8)
+
+            Image(systemName: "chevron.right")
+                .font(.caption.weight(.bold))
+                .foregroundStyle(.tertiary)
+        }
+        .contentShape(Rectangle())
     }
 }
 
@@ -368,7 +438,7 @@ struct PageHeader: View {
         HStack(alignment: .center) {
             VStack(alignment: .leading, spacing: 5) {
                 Text(title)
-                    .font(.largeTitle.weight(.bold))
+                    .font(SysPulseDesign.displayLarge)
                     .lineLimit(2)
                     .minimumScaleFactor(0.72)
                 if let subtitle {
@@ -525,7 +595,7 @@ struct MonitorStickyHeader: View {
                             .font(.caption.weight(.bold))
                             .foregroundStyle(healthRating.color)
                         Text("\(metrics.healthScore)")
-                            .font(.caption.weight(.black))
+                            .font(SysPulseDesign.displayMetric)
                             .monospacedDigit()
                     }
                     .padding(.horizontal, 8)
@@ -619,20 +689,49 @@ struct RefreshGlyph: View {
     }
 }
 
+struct SysPulseEmptyStateIllustration: View {
+    @Environment(\.colorScheme) private var colorScheme
+    var symbol: String
+    var tint: Color = SysPulseDesign.accent
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .fill(
+                    RadialGradient(
+                        colors: [tint.opacity(colorScheme == .dark ? 0.22 : 0.14), .clear],
+                        center: .center,
+                        startRadius: 4,
+                        endRadius: 52
+                    )
+                )
+                .frame(width: 104, height: 104)
+
+            Circle()
+                .stroke(tint.opacity(0.18), lineWidth: 1)
+                .frame(width: 86, height: 86)
+
+            Image(systemName: symbol)
+                .font(.system(size: 38, weight: .semibold))
+                .foregroundStyle(tint)
+                .frame(width: 72, height: 72)
+                .background(.ultraThinMaterial, in: Circle())
+        }
+        .accessibilityHidden(true)
+    }
+}
+
 struct EmptyStateView: View {
     var title: LocalizedStringKey
     var message: LocalizedStringKey
     var symbol: String
+    var tint: Color = SysPulseDesign.accent
 
     var body: some View {
         VStack(spacing: 14) {
-            Image(systemName: symbol)
-                .font(.system(size: 46, weight: .semibold))
-                .foregroundStyle(.cyan)
-                .frame(width: 86, height: 86)
-                .background(.ultraThinMaterial, in: Circle())
+            SysPulseEmptyStateIllustration(symbol: symbol, tint: tint)
             Text(title)
-                .font(.title2.weight(.bold))
+                .font(SysPulseDesign.displayFont(size: 22, weight: .bold))
             Text(message)
                 .font(.callout)
                 .foregroundStyle(.secondary)
@@ -647,14 +746,15 @@ struct ActionEmptyStateView: View {
     var title: LocalizedStringKey
     var message: LocalizedStringKey
     var symbol: String
+    var tint: Color = SysPulseDesign.accent
     var actionTitle: LocalizedStringKey
-    var actionSymbol: String
+    var actionSymbol: String = "plus.circle.fill"
     var action: () -> Void
 
     var body: some View {
-        GlassCard(cornerRadius: 28, padding: 0) {
+        GlassCard(cornerRadius: SysPulseDesign.cornerRadius, padding: 0) {
             VStack(spacing: 16) {
-                EmptyStateView(title: title, message: message, symbol: symbol)
+                EmptyStateView(title: title, message: message, symbol: symbol, tint: tint)
                     .padding(.bottom, -10)
 
                 Button(action: action) {

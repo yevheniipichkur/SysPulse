@@ -1019,3 +1019,10 @@
 "Profiles reloaded." = "Profiles reloaded.";
 "Pro unlocked from debug menu." = "Pro unlocked from debug menu.";
 "Version %@ build %@" = "Version %@ build %@";
+"Essentials for security, appearance and monitoring." = "Essentials for security, appearance and monitoring.";
+"More" = "More";
+"Advanced & integrations" = "Advanced & integrations";
+"SSH keys, alerts, webhooks, Prometheus and sharing." = "SSH keys, alerts, webhooks, Prometheus and sharing.";
+"Advanced" = "Advanced";
+"Integrations, alerts, keys and encrypted sharing." = "Integrations, alerts, keys and encrypted sharing.";
+"Encrypted sharing" = "Encrypted sharing";

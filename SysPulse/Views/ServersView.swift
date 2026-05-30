@@ -176,8 +176,10 @@ struct ServersView: View {
             }
             .padding(.horizontal, SysPulseDesign.pagePadding)
             .padding(.top, 8)
+            .padding(.bottom, 12)
         }
         .scrollIndicators(.hidden)
+        .sysPulseScreenBottomInset()
         .refreshable {
             appState.refreshAllServers()
         }
@@ -580,7 +582,7 @@ private struct ServerHealthSummary: View {
                     .foregroundStyle(.secondary)
                 HStack(spacing: 6) {
                     Text("\(score)")
-                        .font(.headline.weight(.black))
+                        .font(SysPulseDesign.displayMetric)
                         .monospacedDigit()
                     Text(rating.titleKey)
                         .font(.caption.weight(.bold))
@@ -593,7 +595,7 @@ private struct ServerHealthSummary: View {
             if failedServices > 0 {
                 Label("\(failedServices)", systemImage: "exclamationmark.triangle.fill")
                     .font(.caption.weight(.bold))
-                    .foregroundStyle(.orange)
+                    .foregroundStyle(SysPulseDesign.warning)
             }
         }
         .padding(.horizontal, 11)

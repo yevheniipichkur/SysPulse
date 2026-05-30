@@ -69,7 +69,7 @@ struct OnboardingView: View {
 
                             VStack(spacing: 14) {
                                 Text(LocalizedStringKey(item.title))
-                                    .font(.system(size: 28, weight: .bold, design: .rounded))
+                                    .font(SysPulseDesign.displayFont(size: 28, weight: .bold))
                                     .multilineTextAlignment(.center)
                                     .lineLimit(4)
                                     .fixedSize(horizontal: false, vertical: true)

@@ -70,7 +70,7 @@ struct PaywallView: View {
                 .background(.ultraThinMaterial, in: Circle())
 
             Text(appState.paywallFeatureTitle.map { appState.localized("Unlock %@", $0) } ?? appState.localized("Unlock Pro Monitoring"))
-                .font(.largeTitle.weight(.bold))
+                .font(SysPulseDesign.displayLarge)
                 .multilineTextAlignment(.center)
 
             Text(appState.localized(

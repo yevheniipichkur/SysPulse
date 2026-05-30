@@ -1,6 +1,5 @@
 import SwiftData
 import SwiftUI
-import UIKit
 
 struct RootView: View {
     @Environment(\.modelContext) private var modelContext
@@ -81,11 +80,11 @@ private struct SecurityLockView: View {
             VStack(spacing: 18) {
                 Image(systemName: "lock.shield.fill")
                     .font(.system(size: 54, weight: .semibold))
-                    .foregroundStyle(.cyan)
+                    .foregroundStyle(SysPulseDesign.accent)
 
                 VStack(spacing: 7) {
                     Text(LocalizedStringKey("SysPulse Locked"))
-                        .font(.title2.weight(.bold))
+                        .font(SysPulseDesign.displayFont(size: 24, weight: .bold))
                     Text(LocalizedStringKey("Unlock to view saved server profiles and credentials."))
                         .font(.callout)
                         .foregroundStyle(.secondary)
@@ -111,7 +110,7 @@ private struct SecurityLockView: View {
                         .foregroundStyle(.white)
                         .background(
                             LinearGradient(colors: [SysPulseDesign.actionStart, SysPulseDesign.actionEnd], startPoint: .topLeading, endPoint: .bottomTrailing),
-                            in: RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            in: RoundedRectangle(cornerRadius: SysPulseDesign.controlRadius, style: .continuous)
                         )
                 }
                 .buttonStyle(.plain)
@@ -130,147 +129,26 @@ struct MainShellView: View {
         ZStack {
             AppBackground()
 
-            TabView(selection: $appState.selectedTab) {
-                ServersView()
-                    .tabScreenMotion(tab: .servers, selectedTab: appState.selectedTab, disabled: appState.shouldReduceMotion)
-                    .tabItem { tabLabel(for: .servers) }
-                    .tag(AppTab.servers)
-                TerminalView()
-                    .tabScreenMotion(tab: .terminal, selectedTab: appState.selectedTab, disabled: appState.shouldReduceMotion)
-                    .tabItem { tabLabel(for: .terminal) }
-                    .tag(AppTab.terminal)
-                SFTPFilesView()
-                    .tabScreenMotion(tab: .sftp, selectedTab: appState.selectedTab, disabled: appState.shouldReduceMotion)
-                    .tabItem { tabLabel(for: .sftp) }
-                    .tag(AppTab.sftp)
-                SettingsView()
-                    .tabScreenMotion(tab: .settings, selectedTab: appState.selectedTab, disabled: appState.shouldReduceMotion)
-                    .tabItem { tabLabel(for: .settings) }
-                    .tag(AppTab.settings)
-            }
-            .tint(SysPulseDesign.accent)
+            tabContent
+                .tabScreenMotion(tab: appState.selectedTab, selectedTab: appState.selectedTab, disabled: appState.shouldReduceMotion)
         }
-        .background(TabBarAccessibilityConfigurator())
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            FloatingTabBar(selection: $appState.selectedTab)
+        }
+        .tint(SysPulseDesign.accent)
     }
 
-    private func tabLabel(for tab: AppTab) -> some View {
-        Label {
-            Text(tab.title)
-        } icon: {
-            Image(systemName: tab.symbol)
+    @ViewBuilder
+    private var tabContent: some View {
+        switch appState.selectedTab {
+        case .servers:
+            ServersView()
+        case .terminal:
+            TerminalView()
+        case .sftp:
+            SFTPFilesView()
+        case .settings:
+            SettingsView()
         }
-        .accessibilityLabel(Text(tab.title))
-        .accessibilityIdentifier(tab.tabAccessibilityIdentifier)
-    }
-}
-
-private struct TabBarAccessibilityConfigurator: UIViewControllerRepresentable {
-    func makeUIViewController(context: Context) -> Controller {
-        Controller()
-    }
-
-    func updateUIViewController(_ controller: Controller, context: Context) {
-        controller.applySoon()
-    }
-
-    final class Controller: UIViewController {
-        override func didMove(toParent parent: UIViewController?) {
-            super.didMove(toParent: parent)
-            applySoon()
-        }
-
-        override func viewDidAppear(_ animated: Bool) {
-            super.viewDidAppear(animated)
-            applySoon()
-        }
-
-        override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
-            super.traitCollectionDidChange(previousTraitCollection)
-            guard previousTraitCollection?.userInterfaceStyle != traitCollection.userInterfaceStyle else { return }
-            applySoon()
-        }
-
-        func applySoon() {
-            DispatchQueue.main.async { [weak self] in
-                self?.apply()
-            }
-        }
-
-        private func apply() {
-            guard let tabBarController = findTabBarController() else { return }
-            applyAppearance(to: tabBarController.tabBar)
-            let tabs = AppTab.allCases
-            for (index, item) in (tabBarController.tabBar.items ?? []).enumerated() where tabs.indices.contains(index) {
-                let tab = tabs[index]
-                let title = NSLocalizedString(tab.titleText, comment: "")
-                item.title = title
-                item.accessibilityLabel = title
-                item.accessibilityIdentifier = tab.tabAccessibilityIdentifier
-            }
-        }
-
-        private func applyAppearance(to tabBar: UITabBar) {
-            let isDark = tabBar.traitCollection.userInterfaceStyle == .dark
-            let appearance = UITabBarAppearance()
-            appearance.configureWithTransparentBackground()
-            appearance.backgroundEffect = UIBlurEffect(style: isDark ? .systemUltraThinMaterialDark : .systemThinMaterialLight)
-            appearance.backgroundColor = isDark
-                ? UIColor(red: 0.03, green: 0.04, blue: 0.06, alpha: 0.82)
-                : UIColor(red: 0.97, green: 0.99, blue: 1.00, alpha: 0.92)
-
-            let selectedColor = isDark
-                ? UIColor(red: 0.20, green: 0.76, blue: 0.92, alpha: 1)
-                : UIColor(red: 0.00, green: 0.38, blue: 0.58, alpha: 1)
-            let normalColor = isDark
-                ? UIColor.white.withAlphaComponent(0.74)
-                : UIColor(red: 0.10, green: 0.15, blue: 0.20, alpha: 0.68)
-            styleTabItemAppearance(appearance.stackedLayoutAppearance, selectedColor: selectedColor, normalColor: normalColor)
-            styleTabItemAppearance(appearance.inlineLayoutAppearance, selectedColor: selectedColor, normalColor: normalColor)
-            styleTabItemAppearance(appearance.compactInlineLayoutAppearance, selectedColor: selectedColor, normalColor: normalColor)
-
-            tabBar.standardAppearance = appearance
-            tabBar.scrollEdgeAppearance = appearance
-            tabBar.isTranslucent = true
-        }
-
-        private func styleTabItemAppearance(
-            _ itemAppearance: UITabBarItemAppearance,
-            selectedColor: UIColor,
-            normalColor: UIColor
-        ) {
-            itemAppearance.normal.iconColor = normalColor
-            itemAppearance.normal.titleTextAttributes = [.foregroundColor: normalColor]
-            itemAppearance.selected.iconColor = selectedColor
-            itemAppearance.selected.titleTextAttributes = [.foregroundColor: selectedColor]
-        }
-
-        private func findTabBarController() -> UITabBarController? {
-            var current: UIViewController? = self
-            while let candidate = current {
-                if let tabBarController = candidate as? UITabBarController {
-                    return tabBarController
-                }
-                current = candidate.parent
-            }
-            return view.window?.rootViewController?.descendantTabBarController()
-        }
-    }
-}
-
-private extension UIViewController {
-    func descendantTabBarController() -> UITabBarController? {
-        if let tabBarController = self as? UITabBarController {
-            return tabBarController
-        }
-        for child in children {
-            if let tabBarController = child.descendantTabBarController() {
-                return tabBarController
-            }
-        }
-        if let presentedViewController,
-           let tabBarController = presentedViewController.descendantTabBarController() {
-            return tabBarController
-        }
-        return nil
     }
 }

@@ -1015,3 +1015,10 @@
 "Profiles reloaded." = "Профили перезагружены.";
 "Pro unlocked from debug menu." = "Pro разблокирован из меню отладки.";
 "Version %@ build %@" = "Версия %@ сборка %@";
+"Essentials for security, appearance and monitoring." = "Основное: безопасность, оформление и мониторинг.";
+"More" = "Ещё";
+"Advanced & integrations" = "Расширенные и интеграции";
+"SSH keys, alerts, webhooks, Prometheus and sharing." = "SSH-ключи, алерты, webhooks, Prometheus и обмен.";
+"Advanced" = "Расширенные";
+"Integrations, alerts, keys and encrypted sharing." = "Интеграции, алерты, ключи и шифрованный обмен.";
+"Encrypted sharing" = "Шифрованный обмен";
