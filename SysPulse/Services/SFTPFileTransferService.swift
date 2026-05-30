@@ -24,7 +24,20 @@ struct SFTPDirectoryListing {
 struct SFTPFileTransferService {
     private let maxUploadBytes = 100 * 1024 * 1024  // 100 MB
 
-    func listDirectory(at path: String, server: ServerProfile, via sshClient: SSHClientProtocol) async throws -> SFTPDirectoryListing {
+    func listDirectory(
+        at path: String,
+        server: ServerProfile,
+        jumpHost: ServerProfile? = nil,
+        via sshClient: SSHClientProtocol
+    ) async throws -> SFTPDirectoryListing {
+        if let jumpHost {
+            let command = SSHJumpHost.proxiedListDirectory(at: path, target: server)
+            let output = try await sshClient.run(command, on: jumpHost)
+            let resolved = path.isEmpty || path == "." ? "." : path
+            let items = JumpHostDirectoryListingParser.parse(output: output, basePath: resolved)
+            return SFTPDirectoryListing(path: resolved, items: items)
+        }
+
         let client = try await sshClient.makeCitadelClient(for: server)
         defer { Task { await sshClient.releaseClient(for: server) } }
         let sftp = try await client.openSFTP()
@@ -73,8 +86,26 @@ struct SFTPFileTransferService {
         }
     }
 
-    func download(_ item: SFTPRemoteItem, server: ServerProfile, via sshClient: SSHClientProtocol) async throws -> Data {
+    func download(
+        _ item: SFTPRemoteItem,
+        server: ServerProfile,
+        jumpHost: ServerProfile? = nil,
+        via sshClient: SSHClientProtocol
+    ) async throws -> Data {
         guard !item.isDirectory else { throw SFTPFileTransferError.notAFile }
+
+        if let jumpHost {
+            let escaped = item.path.replacingOccurrences(of: "'", with: "'\\''")
+            let command = SSHJumpHost.proxiedCommand("base64 '\(escaped)'", target: server)
+            let encoded = try await sshClient.run(command, on: jumpHost)
+            let trimmed = encoded.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard let data = Data(base64Encoded: trimmed, options: .ignoreUnknownCharacters) else {
+                throw SSHClientError.unsupportedAuthentication(
+                    L10n.string("Could not decode file from jump host.")
+                )
+            }
+            return data
+        }
 
         let client = try await sshClient.makeCitadelClient(for: server)
         defer { Task { await sshClient.releaseClient(for: server) } }

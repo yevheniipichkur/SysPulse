@@ -31,6 +31,23 @@ struct SysPulseApp: App {
                     let name = notification.userInfo?[SysPulseShortcutPayload.serverNameKey] as? String
                     appState.handleShortcut(serverName: name, tab: .terminal)
                 }
+                .onReceive(NotificationCenter.default.publisher(for: .syspulseRunScheduledCommands)) { _ in
+                    appState.runDueScheduledCommands(markMissedIfNeeded: true)
+                }
+                .onReceive(NotificationCenter.default.publisher(for: .syspulseScheduledCommandsMissed)) { _ in
+                    appState.runDueScheduledCommands(markMissedIfNeeded: true)
+                }
+                .onReceive(NotificationCenter.default.publisher(for: .syspulseRunDiagnostic)) { notification in
+                    let name = notification.userInfo?[SysPulseShortcutPayload.serverNameKey] as? String
+                    appState.runDiagnosticFromShortcut(serverName: name)
+                }
+                .onReceive(NotificationCenter.default.publisher(for: .syspulseExportMetricsCSV)) { notification in
+                    let name = notification.userInfo?[SysPulseShortcutPayload.serverNameKey] as? String
+                    if let name,
+                       let server = appState.serverProfiles.first(where: { $0.name.localizedCaseInsensitiveCompare(name) == .orderedSame }) {
+                        _ = appState.exportMetricsCSV(for: server)
+                    }
+                }
         }
         .modelContainer(modelContainer)
     }

@@ -15,7 +15,9 @@ enum SysPulseModelContainerFactory {
         SSHTunnel.self,
         CommandSnippet.self,
         SSHKeyPair.self,
-        ScheduledCommand.self
+        ScheduledCommand.self,
+        TerminalCommandEntry.self,
+        SFTPPathBookmark.self
     ])
 
     static func makeContainer() throws -> ModelContainer {

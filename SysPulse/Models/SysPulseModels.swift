@@ -789,6 +789,11 @@ struct AppSettings: Codable, Hashable {
     var metricsAutoRefreshIntervalSeconds: Int = 60
     var alertWebhookEnabled: Bool = false
     var alertWebhookEndpoint: String = ""
+    var prometheusDashboardURL: String = ""
+    var prometheusEnabled: Bool = false
+    var alertQuietHoursEnabled: Bool = false
+    var alertQuietHoursStart: Int = 22
+    var alertQuietHoursEnd: Int = 7
 
     init() {}
 
@@ -811,6 +816,11 @@ struct AppSettings: Codable, Hashable {
         case metricsAutoRefreshIntervalSeconds
         case alertWebhookEnabled
         case alertWebhookEndpoint
+        case prometheusDashboardURL
+        case prometheusEnabled
+        case alertQuietHoursEnabled
+        case alertQuietHoursStart
+        case alertQuietHoursEnd
     }
 
     init(from decoder: Decoder) throws {
@@ -833,6 +843,54 @@ struct AppSettings: Codable, Hashable {
         metricsAutoRefreshIntervalSeconds = try container.decodeIfPresent(Int.self, forKey: .metricsAutoRefreshIntervalSeconds) ?? 60
         alertWebhookEnabled = try container.decodeIfPresent(Bool.self, forKey: .alertWebhookEnabled) ?? false
         alertWebhookEndpoint = try container.decodeIfPresent(String.self, forKey: .alertWebhookEndpoint) ?? ""
+        prometheusDashboardURL = try container.decodeIfPresent(String.self, forKey: .prometheusDashboardURL) ?? ""
+        prometheusEnabled = try container.decodeIfPresent(Bool.self, forKey: .prometheusEnabled) ?? false
+        alertQuietHoursEnabled = try container.decodeIfPresent(Bool.self, forKey: .alertQuietHoursEnabled) ?? false
+        alertQuietHoursStart = try container.decodeIfPresent(Int.self, forKey: .alertQuietHoursStart) ?? 22
+        alertQuietHoursEnd = try container.decodeIfPresent(Int.self, forKey: .alertQuietHoursEnd) ?? 7
+    }
+}
+
+@Model
+final class TerminalCommandEntry: Identifiable {
+    var id: UUID = UUID()
+    var serverID: UUID = UUID()
+    var command: String = ""
+    var isFavorite: Bool = false
+    var lastUsedAt: Date = Date.now
+
+    init(id: UUID = UUID(), serverID: UUID, command: String, isFavorite: Bool = false, lastUsedAt: Date = .now) {
+        self.id = id
+        self.serverID = serverID
+        self.command = command
+        self.isFavorite = isFavorite
+        self.lastUsedAt = lastUsedAt
+    }
+}
+
+@Model
+final class SFTPPathBookmark: Identifiable {
+    var id: UUID = UUID()
+    var serverID: UUID = UUID()
+    var path: String = ""
+    var label: String = ""
+    var isFavorite: Bool = false
+    var lastVisitedAt: Date = Date.now
+
+    init(
+        id: UUID = UUID(),
+        serverID: UUID,
+        path: String,
+        label: String = "",
+        isFavorite: Bool = false,
+        lastVisitedAt: Date = .now
+    ) {
+        self.id = id
+        self.serverID = serverID
+        self.path = path
+        self.label = label.isEmpty ? path : label
+        self.isFavorite = isFavorite
+        self.lastVisitedAt = lastVisitedAt
     }
 }
 

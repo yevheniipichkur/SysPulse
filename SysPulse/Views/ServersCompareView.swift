@@ -1,54 +1,20 @@
 import SwiftUI
 
-private enum CompareSort: String, CaseIterable, Identifiable {
-    case health
-    case cpu
-    case ram
-    case disk
-    case name
-
-    var id: String { rawValue }
-
-    var titleKey: LocalizedStringKey {
-        switch self {
-        case .health: "Health"
-        case .cpu: "CPU"
-        case .ram: "RAM"
-        case .disk: "Disk"
-        case .name: "Name"
-        }
-    }
-
-    var label: String {
-        switch self {
-        case .health: "Health"
-        case .cpu: "CPU"
-        case .ram: "RAM"
-        case .disk: "Disk"
-        case .name: "Name"
-        }
-    }
-}
+private typealias CompareSort = ServerCompareSortMode
 
 struct ServersCompareView: View {
     @EnvironmentObject private var appState: AppState
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @State private var sortBy: CompareSort = .health
 
     private var rows: [(ServerProfile, ServerMetrics)] {
         let pairs = appState.serverProfiles.map { ($0, appState.metric(for: $0)) }
-        switch sortBy {
-        case .health:
-            return pairs.sorted { $0.1.healthScore < $1.1.healthScore }
-        case .cpu:
-            return pairs.sorted { $0.1.cpuUsage > $1.1.cpuUsage }
-        case .ram:
-            return pairs.sorted { $0.1.ramUsage > $1.1.ramUsage }
-        case .disk:
-            return pairs.sorted { $0.1.diskUsage > $1.1.diskUsage }
-        case .name:
-            return pairs.sorted { $0.0.name.localizedCaseInsensitiveCompare($1.0.name) == .orderedAscending }
-        }
+        return ServerCompareSorting.sorted(pairs, by: sortBy)
+    }
+
+    private var usesWideLayout: Bool {
+        horizontalSizeClass == .regular
     }
 
     private var visibleRows: [(ServerProfile, ServerMetrics)] {
@@ -90,6 +56,21 @@ struct ServersCompareView: View {
                         actionTitle: "Add Server",
                         actionSymbol: "plus"
                     ) {}
+                } else if usesWideLayout {
+                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
+                        ForEach(visibleRows, id: \.0.id) { server, metrics in
+                            CompareServerRow(
+                                server: server,
+                                metrics: metrics,
+                                alertCount: appState.activeAlertCount(for: server)
+                            ) {
+                                openMonitor(for: server)
+                            }
+                        }
+                    }
+                    if lockedCount > 0 {
+                        CompareLockedTeaser(lockedCount: lockedCount)
+                    }
                 } else {
                     ForEach(visibleRows, id: \.0.id) { server, metrics in
                         CompareServerRow(

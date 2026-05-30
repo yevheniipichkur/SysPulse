@@ -5,6 +5,7 @@ import UniformTypeIdentifiers
 struct ServerDetailView: View {
     @EnvironmentObject private var appState: AppState
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @State private var selectedTab: DetailTab = .overview
     @State private var showingMissingTools = false
     @State private var confirmationMessage = ""
@@ -222,93 +223,125 @@ struct ServerDetailView: View {
     }
 
     private func overview(server: ServerProfile, metrics: ServerMetrics) -> some View {
-        VStack(spacing: 14) {
-            healthOverview(server: server, metrics: metrics)
+        let metricTiles = LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
+            MetricTile(title: "CPU", value: "\(Int(metrics.cpuUsage))%", symbol: "cpu", color: .cyan, progress: metrics.cpuUsage, usesGlass: false)
+            MetricTile(title: "RAM", value: "\(Int(metrics.ramUsage))%", symbol: "memorychip", color: .green, progress: metrics.ramUsage, usesGlass: false)
+            MetricTile(title: "Disk", value: "\(Int(metrics.diskUsage))%", symbol: "externaldrive", color: metrics.diskUsage > 80 ? .orange : .blue, progress: metrics.diskUsage, usesGlass: false)
+            MetricTile(title: "Network", value: "\(Int(metrics.networkInMB + metrics.networkOutMB)) MB", symbol: "network", color: .purple, progress: nil, usesGlass: false)
+            MetricTile(title: "Swap", value: "\(Int(metrics.swapUsage))%", symbol: "arrow.triangle.2.circlepath", color: .yellow, progress: metrics.swapUsage, usesGlass: false)
+            MetricTile(title: "Temp", value: metrics.temperatureCelsius.map { "\(Int($0))°C" } ?? "N/A", symbol: "thermometer.medium", color: .red, progress: metrics.temperatureCelsius, usesGlass: false)
+        }
 
-            if appState.isProUnlocked {
-                metricHistoryChart(server: server, metrics: metrics)
+        return Group {
+            if horizontalSizeClass == .regular {
+                HStack(alignment: .top, spacing: 14) {
+                    VStack(spacing: 14) {
+                        healthOverview(server: server, metrics: metrics)
+                        overviewHistorySection(server: server, metrics: metrics)
+                        metricTiles
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                    VStack(spacing: 14) {
+                        overviewInsightsSection(server: server, metrics: metrics)
+                        overviewProActions(server: server, metrics: metrics)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
             } else {
-                PremiumLockedCard(
-                    feature: "Auto-refresh and metric history",
-                    title: "Metric history",
-                    message: "Unlock 7-day CPU, RAM and disk trends.",
-                    paywallMessage: "Unlock 7-day CPU, RAM and disk trends."
-                )
+                VStack(spacing: 14) {
+                    healthOverview(server: server, metrics: metrics)
+                    overviewHistorySection(server: server, metrics: metrics)
+                    metricTiles
+                    overviewInsightsSection(server: server, metrics: metrics)
+                    overviewProActions(server: server, metrics: metrics)
+                }
             }
+        }
+    }
 
-            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
-                MetricTile(title: "CPU", value: "\(Int(metrics.cpuUsage))%", symbol: "cpu", color: .cyan, progress: metrics.cpuUsage, usesGlass: false)
-                MetricTile(title: "RAM", value: "\(Int(metrics.ramUsage))%", symbol: "memorychip", color: .green, progress: metrics.ramUsage, usesGlass: false)
-                MetricTile(title: "Disk", value: "\(Int(metrics.diskUsage))%", symbol: "externaldrive", color: metrics.diskUsage > 80 ? .orange : .blue, progress: metrics.diskUsage, usesGlass: false)
-                MetricTile(title: "Network", value: "\(Int(metrics.networkInMB + metrics.networkOutMB)) MB", symbol: "network", color: .purple, progress: nil, usesGlass: false)
-                MetricTile(title: "Swap", value: "\(Int(metrics.swapUsage))%", symbol: "arrow.triangle.2.circlepath", color: .yellow, progress: metrics.swapUsage, usesGlass: false)
-                MetricTile(title: "Temp", value: metrics.temperatureCelsius.map { "\(Int($0))°C" } ?? "N/A", symbol: "thermometer.medium", color: .red, progress: metrics.temperatureCelsius, usesGlass: false)
-            }
+    @ViewBuilder
+    private func overviewHistorySection(server: ServerProfile, metrics: ServerMetrics) -> some View {
+        if appState.isProUnlocked {
+            metricHistoryChart(server: server, metrics: metrics)
+        } else {
+            PremiumLockedCard(
+                feature: "Auto-refresh and metric history",
+                title: "Metric history",
+                message: "Unlock 7-day CPU, RAM and disk trends.",
+                paywallMessage: "Unlock 7-day CPU, RAM and disk trends."
+            )
+        }
+    }
 
-            GlassCard {
-                VStack(alignment: .leading, spacing: 12) {
-                    Label("Smart Insights", systemImage: "sparkles")
-                        .font(.headline)
-                    ForEach(appState.insights(for: server)) { insight in
-                        HStack(alignment: .top, spacing: 12) {
-                            Image(systemName: insight.symbol)
-                                .foregroundStyle(insight.severity.color)
-                                .frame(width: 26)
-                            VStack(alignment: .leading, spacing: 3) {
-                                Text(LocalizedStringKey(insight.title))
-                                    .font(.subheadline.weight(.semibold))
-                                Text(LocalizedStringKey(insight.details))
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                            Spacer()
+    @ViewBuilder
+    private func overviewInsightsSection(server: ServerProfile, metrics: ServerMetrics) -> some View {
+        GlassCard {
+            VStack(alignment: .leading, spacing: 12) {
+                Label("Smart Insights", systemImage: "sparkles")
+                    .font(.headline)
+                ForEach(appState.insights(for: server)) { insight in
+                    HStack(alignment: .top, spacing: 12) {
+                        Image(systemName: insight.symbol)
+                            .foregroundStyle(insight.severity.color)
+                            .frame(width: 26)
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(LocalizedStringKey(insight.title))
+                                .font(.subheadline.weight(.semibold))
+                            Text(LocalizedStringKey(insight.details))
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
                         }
+                        Spacer()
                     }
                 }
             }
+        }
 
-            GlassCard {
-                VStack(alignment: .leading, spacing: 10) {
-                    Text("System Info")
-                        .font(.headline)
-                    DetailRow(title: "Kernel", value: metrics.kernel)
-                    DetailRow(title: "Load average", value: metrics.loadAverage)
-                    DetailRow(title: "IP addresses", value: metrics.ipAddresses.joined(separator: ", "))
-                }
+        GlassCard {
+            VStack(alignment: .leading, spacing: 10) {
+                Text("System Info")
+                    .font(.headline)
+                DetailRow(title: "Kernel", value: metrics.kernel)
+                DetailRow(title: "Load average", value: metrics.loadAverage)
+                DetailRow(title: "IP addresses", value: metrics.ipAddresses.joined(separator: ", "))
             }
+        }
+    }
 
-            if appState.isProUnlocked {
-                Button {
-                    runDiagnostics(for: server)
-                } label: {
-                    Label(
-                        isRunningDiagnostics ? "Running diagnostics..." : "Run diagnostic pack",
-                        systemImage: "stethoscope"
-                    )
+    @ViewBuilder
+    private func overviewProActions(server: ServerProfile, metrics: ServerMetrics) -> some View {
+        if appState.isProUnlocked {
+            Button {
+                runDiagnostics(for: server)
+            } label: {
+                Label(
+                    isRunningDiagnostics ? "Running diagnostics..." : "Run diagnostic pack",
+                    systemImage: "stethoscope"
+                )
+                .font(.subheadline.weight(.semibold))
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 12)
+            }
+            .buttonStyle(PressableGlassButtonStyle(cornerRadius: 16))
+            .disabled(isRunningDiagnostics)
+
+            healthTimeline(server: server)
+
+            ShareLink(
+                item: metricsExporter.csv(
+                    server: server,
+                    metrics: metrics,
+                    events: appState.serverEvents(for: server)
+                ),
+                preview: SharePreview("SysPulse \(server.name).csv")
+            ) {
+                Label("Export metrics CSV", systemImage: "square.and.arrow.up")
                     .font(.subheadline.weight(.semibold))
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 12)
-                }
-                .buttonStyle(PressableGlassButtonStyle(cornerRadius: 16))
-                .disabled(isRunningDiagnostics)
-
-                healthTimeline(server: server)
-
-                ShareLink(
-                    item: metricsExporter.csv(
-                        server: server,
-                        metrics: metrics,
-                        events: appState.serverEvents(for: server)
-                    ),
-                    preview: SharePreview("SysPulse \(server.name).csv")
-                ) {
-                    Label("Export metrics CSV", systemImage: "square.and.arrow.up")
-                        .font(.subheadline.weight(.semibold))
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 12)
-                }
-                .buttonStyle(PressableGlassButtonStyle(cornerRadius: 16))
             }
+            .buttonStyle(PressableGlassButtonStyle(cornerRadius: 16))
         }
     }
 

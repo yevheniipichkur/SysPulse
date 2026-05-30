@@ -3,6 +3,7 @@ import UniformTypeIdentifiers
 
 struct SFTPFilesView: View {
     @EnvironmentObject private var appState: AppState
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @State private var searchText = ""
     @State private var isSearching = false
     @State private var isImportingSFTPFile = false
@@ -152,6 +153,14 @@ struct SFTPFilesView: View {
                 }
 
                 pathCard(server: server)
+                sftpBookmarksStrip(server: server)
+
+                if appState.jumpHost(for: server) != nil {
+                    Text(LocalizedStringKey("Browsing via jump host — uploads and deletes require a direct connection."))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
 
                 if let loadError, !loadError.isEmpty, !allItems.isEmpty {
                     sftpConnectionIssueCard(message: loadError, server: server)
@@ -359,6 +368,45 @@ struct SFTPFilesView: View {
                 .scrollIndicators(.hidden)
             }
         }
+    }
+
+    @ViewBuilder
+    private func sftpBookmarksStrip(server: ServerProfile) -> some View {
+        let favorites = appState.sftpBookmarks(for: server, favoritesOnly: true)
+        let recents = appState.sftpBookmarks(for: server).filter { !$0.isFavorite }.prefix(6)
+        if !favorites.isEmpty || !recents.isEmpty {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(favorites) { bookmark in
+                        bookmarkChip(bookmark, server: server, isFavorite: true)
+                    }
+                    ForEach(Array(recents)) { bookmark in
+                        bookmarkChip(bookmark, server: server, isFavorite: false)
+                    }
+                }
+            }
+        }
+    }
+
+    private func bookmarkChip(_ bookmark: SFTPPathBookmark, server: ServerProfile, isFavorite: Bool) -> some View {
+        Button {
+            appState.refreshSFTPDirectory(for: server, path: bookmark.path)
+        } label: {
+            Label(bookmark.label, systemImage: isFavorite ? "star.fill" : "clock")
+                .font(.caption.weight(.semibold))
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(.ultraThinMaterial, in: Capsule())
+        }
+        .buttonStyle(.plain)
+        .contextMenu {
+            Button {
+                appState.toggleSFTPBookmarkFavorite(bookmark)
+            } label: {
+                Text(LocalizedStringKey(bookmark.isFavorite ? "Remove favorite" : "Add to favorites"))
+            }
+        }
+        .accessibilityLabel(Text(bookmark.label))
     }
 
     private var downloadReadyCard: some View {
@@ -761,6 +809,18 @@ struct SFTPFilesView: View {
             } label: {
                 Label("Delete", systemImage: "trash")
             }
+
+            Button {
+                appState.addSFTPFavorite(path: item.path, server: server, label: item.name)
+            } label: {
+                Label(LocalizedStringKey("Add to favorites"), systemImage: "star")
+            }
+        }
+        .onDrag {
+            guard horizontalSizeClass == .regular else {
+                return NSItemProvider()
+            }
+            return NSItemProvider(object: item.path as NSString)
         }
     }
 

@@ -134,6 +134,7 @@ struct TerminalView: View {
             terminalBridgeStore.setActiveSession(activeSessionID)
             setTerminalSurfaceVisible(true)
             ensureSessionForSelectedServer()
+            reloadCommandHistoryFromStore()
             guard !appState.isScreenshotMode else { return }
             Task { @MainActor in
                 try? await Task.sleep(for: .seconds(appState.shouldReduceMotion ? 0.05 : 0.5))
@@ -154,6 +155,7 @@ struct TerminalView: View {
         }
         .onChange(of: appState.selectedServer?.id) {
             ensureSessionForSelectedServer()
+            reloadCommandHistoryFromStore()
         }
         .onChange(of: appState.selectedTab) { _, newTab in
             guard newTab == .terminal else {
@@ -686,18 +688,49 @@ struct TerminalView: View {
                 focusActiveTerminal()
             }
 
-            if !commandHistory.isEmpty {
+            if let server = appState.selectedServer, let last = appState.lastTerminalCommand(for: server) {
+                TerminalIconButton(systemName: "arrow.counterclockwise", accessibilityLabel: LocalizedStringKey("Repeat last command"), palette: palette) {
+                    applySuggestion(last)
+                }
+            }
+
+            let historyEntries = appState.selectedServer.map { appState.terminalHistory(for: $0) } ?? []
+            let favoriteEntries = appState.selectedServer.map { appState.terminalFavorites(for: $0) } ?? []
+            if !historyEntries.isEmpty || !favoriteEntries.isEmpty || !commandHistory.isEmpty {
                 Menu {
-                    ForEach(commandHistory.reversed().prefix(12), id: \.self) { command in
-                        Button(command) {
-                            applySuggestion(command)
+                    if !favoriteEntries.isEmpty {
+                        Section(LocalizedStringKey("Favorites")) {
+                            ForEach(favoriteEntries) { entry in
+                                Button(entry.command) { applySuggestion(entry.command) }
+                            }
                         }
+                    }
+                    ForEach(historyEntries.prefix(12)) { entry in
+                        Button {
+                            applySuggestion(entry.command)
+                        } label: {
+                            Label(entry.command, systemImage: entry.isFavorite ? "star.fill" : "clock")
+                        }
+                        .contextMenu {
+                            Button {
+                                appState.toggleTerminalFavorite(entry)
+                                reloadCommandHistoryFromStore()
+                            } label: {
+                                Text(LocalizedStringKey(entry.isFavorite ? "Remove favorite" : "Add to favorites"))
+                            }
+                        }
+                    }
+                    ForEach(commandHistory.filter { cmd in !historyEntries.contains(where: { $0.command == cmd }) }.reversed().prefix(6), id: \.self) { command in
+                        Button(command) { applySuggestion(command) }
                     }
                     Divider()
                     Button("Clear terminal history", role: .destructive) {
                         updateWithMotion {
                             commandHistory.removeAll()
                             historyNavigationIndex = nil
+                            if let server = appState.selectedServer {
+                                appState.clearTerminalHistory(for: server)
+                            }
                         }
                     }
                 } label: {
@@ -884,6 +917,14 @@ struct TerminalView: View {
     }
 
     // MARK: - Input handling
+
+    private func reloadCommandHistoryFromStore() {
+        guard let server = appState.selectedServer else {
+            commandHistory = []
+            return
+        }
+        commandHistory = appState.terminalHistory(for: server, limit: 32).map(\.command)
+    }
 
     private func applySuggestion(_ cmd: String) {
         // ctrl-U clears current line on server, then we type the suggestion
@@ -1290,7 +1331,12 @@ struct TerminalView: View {
             }
         }
         ptySessions[sessionID] = pty
-        pty.connect(to: server, using: appStateRef.sshClient, initialSize: initialSize)
+        pty.connect(
+            to: server,
+            jumpHost: appStateRef.jumpHost(for: server),
+            using: appStateRef.sshClient,
+            initialSize: initialSize
+        )
         focusActiveTerminal()
     }
 
@@ -1467,6 +1513,9 @@ struct TerminalView: View {
                 let cmd = currentInput.trimmingCharacters(in: .whitespacesAndNewlines)
                 if !cmd.isEmpty && commandHistory.last != cmd {
                     commandHistory.append(cmd)
+                    if let server = appState.selectedServer {
+                        appState.recordTerminalCommand(cmd, server: server)
+                    }
                 }
                 currentInput = ""
                 historyNavigationIndex = nil

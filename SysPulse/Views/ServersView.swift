@@ -718,6 +718,7 @@ struct AddServerView: View {
     @State private var serverType: ServerType = .vps
     @State private var statusMessage = ""
     @State private var jumpServerID: UUID?
+    @State private var shouldPresentProTour = false
 
     init(editingServer: ServerProfile? = nil) {
         self.editingServer = editingServer
@@ -874,6 +875,11 @@ struct AddServerView: View {
                     .disabled(!canSave)
                 }
             }
+            .sheet(isPresented: $shouldPresentProTour) {
+                ProFeatureTourView()
+                    .environmentObject(appState)
+                    .onDisappear { dismiss() }
+            }
         }
     }
 
@@ -1005,7 +1011,7 @@ struct AddServerView: View {
                         }
                     }
                 }
-                Text("Commands and metrics use the bastion via SSH. Terminal/SFTP need a direct connection.")
+                Text(LocalizedStringKey("Metrics and commands proxy through the bastion. Terminal opens an SSH session via jump host; SFTP lists and downloads work through the bridge."))
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }
@@ -1078,9 +1084,15 @@ struct AddServerView: View {
         guard appState.addServer(server) else {
             return
         }
+        if appState.serverProfiles.count == 1, !appState.hasSeenProFeatureTour {
+            shouldPresentProTour = true
+        }
         if connectAfterSave {
             appState.select(server, tab: .terminal)
             appState.refreshMetrics(for: server)
+        }
+        if shouldPresentProTour {
+            return
         }
         dismiss()
     }

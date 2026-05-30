@@ -53,8 +53,16 @@ extension AppState {
         }
     }
 
+    var isWithinAlertQuietHours: Bool {
+        AlertQuietHours.isActive(
+            enabled: settings.alertQuietHoursEnabled,
+            startHour: settings.alertQuietHoursStart,
+            endHour: settings.alertQuietHoursEnd
+        )
+    }
+
     func evaluateAlertRules(for server: ServerProfile, metrics: ServerMetrics) {
-        guard !areMetricAlertsSilenced else { return }
+        guard !areMetricAlertsSilenced, !isWithinAlertQuietHours else { return }
         let evaluations = alertEvaluationService.evaluations(for: alertRules, server: server, metrics: metrics)
         guard !evaluations.isEmpty else { return }
 

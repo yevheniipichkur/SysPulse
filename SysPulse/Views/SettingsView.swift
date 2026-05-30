@@ -14,6 +14,11 @@ struct SettingsView: View {
     @State private var isSSHKeyManagerPresented = false
     @State private var isSecurityInfoPresented = false
     @State private var isScheduledCommandsPresented = false
+    @State private var isPrometheusDashboardPresented = false
+    @State private var webhookPreset: WebhookPreset = .custom
+    @State private var telegramBotToken = ""
+    @State private var telegramChatID = ""
+    @State private var isSendingWebhookSample = false
     private let buildInfo = GitBuildInfoService()
 
     var body: some View {
@@ -77,6 +82,10 @@ struct SettingsView: View {
                             Slider(value: $appState.settings.terminalFontSize, in: 11...22, step: 1) {
                                 Text("Terminal font size")
                             }
+                            TerminalThemePreviewStrip(
+                                selected: appState.effectiveTerminalTheme,
+                                isProUnlocked: appState.isProUnlocked
+                            )
                             Toggle("Reduce animations", isOn: $appState.settings.reduceAnimations)
                         }
                         .listItemEntrance(index: 2, disabled: appState.shouldReduceMotion)
@@ -201,12 +210,50 @@ struct SettingsView: View {
                                 appState.silenceMetricAlerts(for: 1)
                             }
 
+                            Toggle("Quiet hours", isOn: $appState.settings.alertQuietHoursEnabled)
+                            if appState.settings.alertQuietHoursEnabled {
+                                Stepper(value: $appState.settings.alertQuietHoursStart, in: 0...23) {
+                                    Text(appState.localized("Quiet from %d:00", appState.settings.alertQuietHoursStart))
+                                }
+                                .accessibilityLabel(Text(appState.localized("Quiet from %d:00", appState.settings.alertQuietHoursStart)))
+                                Stepper(value: $appState.settings.alertQuietHoursEnd, in: 0...23) {
+                                    Text(appState.localized("Until %d:00", appState.settings.alertQuietHoursEnd))
+                                }
+                                .accessibilityLabel(Text(appState.localized("Until %d:00", appState.settings.alertQuietHoursEnd)))
+                            }
+
                             if appState.isProUnlocked {
                                 Toggle("Webhook alerts", isOn: $appState.settings.alertWebhookEnabled)
-                                TextField("Webhook URL (Slack, Discord, etc.)", text: $appState.settings.alertWebhookEndpoint)
-                                    .keyboardType(.URL)
-                                    .textInputAutocapitalization(.never)
-                                    .autocorrectionDisabled()
+                                Picker("Webhook preset", selection: $webhookPreset) {
+                                    ForEach(WebhookPreset.allCases) { preset in
+                                        Text(LocalizedStringKey(preset.titleKey)).tag(preset)
+                                    }
+                                }
+                                if webhookPreset == .telegram {
+                                    SecureField("Telegram bot token", text: $telegramBotToken)
+                                        .accessibilityLabel(Text("Telegram bot token"))
+                                    TextField("Telegram chat ID", text: $telegramChatID)
+                                        .keyboardType(.numberPad)
+                                        .accessibilityLabel(Text("Telegram chat ID"))
+                                    Button("Apply Telegram URL") {
+                                        webhookPreset.apply(to: &appState.settings, botToken: telegramBotToken, chatID: telegramChatID)
+                                    }
+                                } else {
+                                    TextField("Webhook URL (Slack, Discord, etc.)", text: $appState.settings.alertWebhookEndpoint)
+                                        .keyboardType(.URL)
+                                        .textInputAutocapitalization(.never)
+                                        .autocorrectionDisabled()
+                                }
+                                Button {
+                                    sendWebhookSample()
+                                } label: {
+                                    if isSendingWebhookSample {
+                                        ProgressView()
+                                    } else {
+                                        Label("Send sample", systemImage: "paperplane")
+                                    }
+                                }
+                                .disabled(isSendingWebhookSample || appState.settings.alertWebhookEndpoint.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                                 Text("POST JSON when a metric threshold is crossed.")
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
@@ -221,6 +268,19 @@ struct SettingsView: View {
                             Button("Scheduled commands") {
                                 isScheduledCommandsPresented = true
                             }
+                        }
+                        .listItemEntrance(index: 8, disabled: appState.shouldReduceMotion)
+
+                        settingsSection("Prometheus / Grafana", symbol: "chart.xyaxis.line") {
+                            Toggle("Show metrics dashboard", isOn: $appState.settings.prometheusEnabled)
+                            TextField("Dashboard URL", text: $appState.settings.prometheusDashboardURL)
+                                .keyboardType(.URL)
+                                .textInputAutocapitalization(.never)
+                                .autocorrectionDisabled()
+                            Button("Open dashboard") {
+                                isPrometheusDashboardPresented = true
+                            }
+                            .disabled(appState.settings.prometheusDashboardURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                         }
                         .listItemEntrance(index: 8, disabled: appState.shouldReduceMotion)
 
@@ -289,7 +349,31 @@ struct SettingsView: View {
             ScheduledCommandsView()
                 .environmentObject(appState)
         }
+        .sheet(isPresented: $isPrometheusDashboardPresented) {
+            if let url = URL(string: appState.settings.prometheusDashboardURL.trimmingCharacters(in: .whitespacesAndNewlines)) {
+                PrometheusDashboardView(url: url)
+            }
+        }
         .accessibilityIdentifier(AppTab.settings.screenAccessibilityIdentifier)
+    }
+
+    private func sendWebhookSample() {
+        let endpoint = appState.settings.alertWebhookEndpoint
+        isSendingWebhookSample = true
+        Task {
+            do {
+                try await AlertWebhookService().sendSample(to: endpoint)
+                await MainActor.run {
+                    appState.postStatus(appState.localized("Sample webhook sent."), style: .success)
+                    isSendingWebhookSample = false
+                }
+            } catch {
+                await MainActor.run {
+                    appState.postStatus(appState.localized("Webhook failed: %@", error.localizedDescription), style: .error)
+                    isSendingWebhookSample = false
+                }
+            }
+        }
     }
 
     private var metricsAutoRefreshBinding: Binding<Bool> {

@@ -95,6 +95,45 @@ struct OpenTerminalIntent: AppIntent {
     }
 }
 
+struct RunDiagnosticIntent: AppIntent {
+    static var title: LocalizedStringResource = "Run diagnostic on server"
+    static var description = IntentDescription(LocalizedStringResource("Run diagnostic pack"))
+    static var openAppWhenRun = true
+
+    @Parameter(title: "Server")
+    var serverName: String
+
+    func perform() async throws -> some IntentResult {
+        await MainActor.run {
+            NotificationCenter.default.post(
+                name: .syspulseRunDiagnostic,
+                object: nil,
+                userInfo: [SysPulseShortcutPayload.serverNameKey: serverName]
+            )
+        }
+        return .result(dialog: "Running diagnostics for \(serverName) in SysPulse.")
+    }
+}
+
+struct ExportMetricsCSVIntent: AppIntent {
+    static var title: LocalizedStringResource = "Export metrics CSV"
+    static var openAppWhenRun = true
+
+    @Parameter(title: "Server")
+    var serverName: String
+
+    func perform() async throws -> some IntentResult {
+        await MainActor.run {
+            NotificationCenter.default.post(
+                name: .syspulseExportMetricsCSV,
+                object: nil,
+                userInfo: [SysPulseShortcutPayload.serverNameKey: serverName]
+            )
+        }
+        return .result(dialog: "Exporting CSV for \(serverName) in SysPulse.")
+    }
+}
+
 struct ShowDiskUsageIntent: AppIntent {
     static var title: LocalizedStringResource = "Show disk usage"
     static var openAppWhenRun = true
@@ -154,6 +193,18 @@ struct SysPulseShortcuts: AppShortcutsProvider {
             phrases: ["Run command on \(.applicationName)"],
             shortTitle: "Run Command",
             systemImageName: "terminal"
+        )
+        AppShortcut(
+            intent: RunDiagnosticIntent(),
+            phrases: ["Run diagnostic on \(.applicationName) server"],
+            shortTitle: "Run Diagnostic",
+            systemImageName: "stethoscope"
+        )
+        AppShortcut(
+            intent: ExportMetricsCSVIntent(),
+            phrases: ["Export CSV for \(.applicationName) server"],
+            shortTitle: "Export CSV",
+            systemImageName: "tablecells"
         )
     }
 }

@@ -14,15 +14,22 @@ final class PTYSession {
     // Use String stream to avoid ByteBuffer Sendability concerns
     private var textContinuation: AsyncStream<String>.Continuation?
 
-    func connect(to server: ServerProfile, using sshClient: SSHClientProtocol, initialSize: PTYTerminalSize? = nil) {
+    func connect(
+        to server: ServerProfile,
+        jumpHost: ServerProfile? = nil,
+        using sshClient: SSHClientProtocol,
+        initialSize: PTYTerminalSize? = nil
+    ) {
         task?.cancel()
         let (textStream, textCont) = AsyncStream<String>.makeStream()
         textContinuation = textCont
+        let connectServer = jumpHost ?? server
+        let usesJump = jumpHost != nil
         task = Task { [weak self] in
             guard let self else { return }
             do {
-                let client = try await sshClient.makeCitadelClient(for: server)
-                defer { Task { await sshClient.releaseClient(for: server) } }
+                let client = try await sshClient.makeCitadelClient(for: connectServer)
+                defer { Task { await sshClient.releaseClient(for: connectServer) } }
                 let ptySize = initialSize ?? Self.defaultSize
                 try await client.withPTY(Self.ptyRequest(size: ptySize)) { [weak self] ttyOutput, stdinWriter in
                     self?.stdinWriter = stdinWriter
@@ -33,7 +40,13 @@ final class PTYSession {
                         pixelWidth: ptySize.pixelWidth,
                         pixelHeight: ptySize.pixelHeight
                     )
-                    try? await stdinWriter.write(Self.bootstrapCommandBuffer)
+                    if usesJump {
+                        var jumpBuffer = ByteBufferAllocator().buffer(capacity: SSHJumpHost.interactiveSSHLaunch(target: server).utf8.count)
+                        jumpBuffer.writeString(SSHJumpHost.interactiveSSHLaunch(target: server))
+                        try? await stdinWriter.write(jumpBuffer)
+                    } else {
+                        try? await stdinWriter.write(Self.bootstrapCommandBuffer)
+                    }
 
                     // Stdin in separate task; String is Sendable so capture is safe
                     let stdinTask = Task { [weak self] in
