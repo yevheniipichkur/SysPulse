@@ -103,8 +103,8 @@ final class AppState: ObservableObject {
     var widgetPublishTask: Task<Void, Never>?
     let alertCooldown: TimeInterval = 15 * 60
     private static let backendMonitoringTokenAccount = "backend-monitoring-token"
-    private static let metricsRefreshConcurrency = 2
-    private static let backgroundServerRefreshIntervalSeconds: UInt64 = 120
+    static let metricsRefreshConcurrency = 2
+    static let backgroundServerRefreshIntervalSeconds: UInt64 = 120
 
     init() {
         let arguments = ProcessInfo.processInfo.arguments
@@ -600,7 +600,7 @@ final class AppState: ObservableObject {
         }
     }
 
-    private func sendBackendMonitoringSnapshotIfEnabled(server: ServerProfile, metrics: ServerMetrics) {
+    func sendBackendMonitoringSnapshotIfEnabled(server: ServerProfile, metrics: ServerMetrics) {
         guard settings.backendMonitoringEnabled else { return }
         let endpoint = settings.backendMonitoringEndpoint.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !endpoint.isEmpty else { return }
