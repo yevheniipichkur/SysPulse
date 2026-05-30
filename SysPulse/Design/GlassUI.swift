@@ -222,7 +222,7 @@ struct SettingsSectionCard<Content: View>: View {
             VStack(alignment: .leading, spacing: 13) {
                 Label(title, systemImage: symbol)
                     .font(.headline)
-                content()
+                content
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
