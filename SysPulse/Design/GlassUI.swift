@@ -491,6 +491,52 @@ struct MonitorNavigationHintBanner: View {
     }
 }
 
+struct MonitorStickyHeader: View {
+    @EnvironmentObject private var appState: AppState
+    var server: ServerProfile
+    var metrics: ServerMetrics
+
+    private var healthRating: HealthRating { .rating(for: metrics.healthScore) }
+
+    var body: some View {
+        GlassCard(cornerRadius: 20, padding: 12) {
+            HStack(spacing: 12) {
+                Image(systemName: server.displayIcon)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Color(hex: server.accentHex))
+                    .frame(width: 34, height: 34)
+                    .background(Color(hex: server.accentHex).opacity(0.14), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(server.name)
+                        .font(.subheadline.weight(.bold))
+                        .lineLimit(1)
+                    Text("\(server.username)@\(server.host)")
+                        .font(.caption2.monospaced())
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+                HStack(spacing: 8) {
+                    StatusPill(status: server.status)
+                    HStack(spacing: 4) {
+                        Image(systemName: "heart.text.square.fill")
+                            .font(.caption.weight(.bold))
+                            .foregroundStyle(healthRating.color)
+                        Text("\(metrics.healthScore)")
+                            .font(.caption.weight(.black))
+                            .monospacedDigit()
+                    }
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 5)
+                    .background(healthRating.color.opacity(0.12), in: Capsule())
+                }
+            }
+        }
+    }
+}
+
 struct GlassPrimaryButton: View {
     var title: LocalizedStringKey
     var symbol: String

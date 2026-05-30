@@ -33,10 +33,9 @@ struct ServerDetailView: View {
             AppBackground()
 
             if let server = appState.selectedServer {
+                let metrics = appState.metric(for: server)
                 ScrollView {
                     LazyVStack(spacing: 16) {
-                        detailHeader(server: server)
-                            .listItemEntrance(index: 0, disabled: appState.shouldReduceMotion)
                         MonitorNavigationHintBanner()
                             .listItemEntrance(index: 0, disabled: appState.shouldReduceMotion)
                         monitorQuickActions(server: server)
@@ -47,7 +46,7 @@ struct ServerDetailView: View {
                         Group {
                             switch selectedTab {
                             case .overview:
-                                overview(server: server, metrics: appState.metric(for: server))
+                                overview(server: server, metrics: metrics)
                             case .processes:
                                 processes(server: server)
                             case .disks:
@@ -75,6 +74,11 @@ struct ServerDetailView: View {
                     .animation(SysPulseMotion.fade(disabled: appState.shouldReduceMotion), value: selectedTab)
                 }
                 .scrollIndicators(.hidden)
+                .safeAreaInset(edge: .top, spacing: 8) {
+                    MonitorStickyHeader(server: server, metrics: metrics)
+                        .padding(.horizontal, SysPulseDesign.pagePadding)
+                        .padding(.top, 4)
+                }
                 .refreshable {
                     appState.refreshMetrics(for: server, announceStatus: true)
                 }
@@ -145,43 +149,6 @@ struct ServerDetailView: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 .scrollIndicators(.hidden)
-            }
-        }
-    }
-
-    private func detailHeader(server: ServerProfile) -> some View {
-        let metrics = appState.metric(for: server)
-        return GlassCard(cornerRadius: 28, padding: 18) {
-            VStack(alignment: .leading, spacing: 15) {
-                HStack(alignment: .top, spacing: 12) {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text(server.name)
-                            .font(.largeTitle.weight(.bold))
-                            .lineLimit(2)
-                            .minimumScaleFactor(0.72)
-                        Text("\(server.username)@\(server.host):\(server.port)")
-                            .font(.callout.monospaced())
-                            .foregroundStyle(.secondary)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-
-                    StatusPill(status: server.status)
-                }
-
-                HStack(spacing: 12) {
-                    HealthScoreView(score: metrics.healthScore)
-                    VStack(alignment: .leading, spacing: 5) {
-                        Text("Uptime")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                        Text(localizedMetricText(metrics.uptime))
-                            .font(.headline.monospacedDigit())
-                        Text(localizedMetricText(metrics.osName))
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                }
             }
         }
     }
@@ -258,7 +225,16 @@ struct ServerDetailView: View {
         VStack(spacing: 14) {
             healthOverview(server: server, metrics: metrics)
 
-            resourceTrendCard(metrics: metrics)
+            if appState.isProUnlocked {
+                metricHistoryChart(server: server, metrics: metrics)
+            } else {
+                PremiumLockedCard(
+                    feature: "Auto-refresh and metric history",
+                    title: "Metric history",
+                    message: "Unlock 7-day CPU, RAM and disk trends.",
+                    paywallMessage: "Unlock 7-day CPU, RAM and disk trends."
+                )
+            }
 
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
                 MetricTile(title: "CPU", value: "\(Int(metrics.cpuUsage))%", symbol: "cpu", color: .cyan, progress: metrics.cpuUsage, usesGlass: false)
@@ -421,16 +397,25 @@ struct ServerDetailView: View {
         }
     }
 
-    private func resourceTrendCard(metrics: ServerMetrics) -> some View {
-        GlassCard(cornerRadius: 24, padding: 15) {
+    private func metricHistoryChart(server: ServerProfile, metrics: ServerMetrics) -> some View {
+        let snapshots = appState.metricHistorySnapshots(for: server, days: 7)
+        let cpuValues = snapshots.isEmpty ? metrics.cpuHistory : snapshots.map(\.cpuUsage)
+        let ramValues = snapshots.isEmpty ? metrics.ramHistory : snapshots.map(\.ramUsage)
+        let diskValues = snapshots.isEmpty ? metrics.diskHistory : snapshots.map(\.diskUsage)
+        let usesWeekHistory = snapshots.count >= 3
+
+        return GlassCard(cornerRadius: 24, padding: 15) {
             VStack(alignment: .leading, spacing: 14) {
-                Label("Resource Trends", systemImage: "chart.xyaxis.line")
-                    .font(.headline)
+                Label(
+                    usesWeekHistory ? LocalizedStringKey("7-day metric history") : LocalizedStringKey("Resource Trends"),
+                    systemImage: "chart.xyaxis.line"
+                )
+                .font(.headline)
 
                 VStack(spacing: 12) {
-                    trendRow(title: "CPU", value: metrics.cpuUsage, values: metrics.cpuHistory, color: .cyan)
-                    trendRow(title: "RAM", value: metrics.ramUsage, values: metrics.ramHistory, color: .green)
-                    trendRow(title: "Disk", value: metrics.diskUsage, values: metrics.diskHistory, color: metrics.diskUsage > 80 ? .orange : .blue)
+                    trendRow(title: "CPU", value: metrics.cpuUsage, values: cpuValues, color: .cyan)
+                    trendRow(title: "RAM", value: metrics.ramUsage, values: ramValues, color: .green)
+                    trendRow(title: "Disk", value: metrics.diskUsage, values: diskValues, color: MetricThresholdColor.forPercent(metrics.diskUsage))
                 }
             }
         }
@@ -455,30 +440,19 @@ struct ServerDetailView: View {
 
     private func processes(server: ServerProfile) -> some View {
         let items = appState.processes(for: server)
-        return LazyVStack(spacing: 12) {
-            monitorRefreshHeader(
-                title: "Top Processes",
-                message: "Live process snapshot from ps on the selected server.",
-                primaryTitle: "Refresh CPU",
-                primarySymbol: "cpu",
-                primaryAction: { appState.refreshProcesses(for: server) },
-                secondaryTitle: "Refresh RAM",
-                secondarySymbol: "memorychip",
-                secondaryAction: { appState.refreshProcesses(for: server, sortedByMemory: true) }
-            )
-
-            if items.isEmpty {
-                EmptyStateView(
-                    title: "No processes loaded",
-                    message: "Refresh to fetch real process data.",
-                    symbol: "list.bullet.rectangle"
-                )
-            } else {
-                ForEach(items) { item in
-                    processRow(item)
-                }
+        return MonitorFeatureSection(
+            title: "Top Processes",
+            subtitle: "Live process snapshot from ps on the selected server.",
+            symbol: "list.bullet.rectangle",
+            refreshTitle: "Refresh CPU",
+            refreshAction: { appState.refreshProcesses(for: server) },
+            isEmpty: items.isEmpty,
+            emptyTitle: "No processes loaded",
+            emptyMessage: "Refresh to fetch real process data."
+        ) {
+            ForEach(items) { item in
+                processRow(item)
             }
-
             commandPreview(
                 title: "Interactive process viewer",
                 command: "top -b -n 1 | head -n 30"
@@ -488,27 +462,19 @@ struct ServerDetailView: View {
 
     private func disks(server: ServerProfile) -> some View {
         let disks = appState.disks(for: server)
-        return LazyVStack(spacing: 12) {
-            monitorRefreshHeader(
-                title: "Disk usage",
-                message: "Mounted filesystems parsed from df with warning levels.",
-                primaryTitle: "Refresh Disks",
-                primarySymbol: "externaldrive",
-                primaryAction: { appState.refreshDisks(for: server) }
-            )
-
-            if disks.isEmpty {
-                EmptyStateView(
-                    title: "No disk snapshot",
-                    message: "Refresh to read mounted filesystems.",
-                    symbol: "externaldrive"
-                )
-            } else {
-                ForEach(disks) { disk in
-                    diskRow(disk)
-                }
+        return MonitorFeatureSection(
+            title: "Disk usage",
+            subtitle: "Mounted filesystems parsed from df with warning levels.",
+            symbol: "externaldrive",
+            refreshTitle: "Refresh Disks",
+            refreshAction: { appState.refreshDisks(for: server) },
+            isEmpty: disks.isEmpty,
+            emptyTitle: "No disk snapshot",
+            emptyMessage: "Refresh to read mounted filesystems."
+        ) {
+            ForEach(disks) { disk in
+                diskRow(disk)
             }
-
             commandPreview(title: "Block devices", command: DiskService().blockDevicesCommand())
             commandPreview(title: "SMART devices", command: DiskService().smartDevicesCommand())
             commandPreview(title: "Large log files", command: DiskService().largeLogsCommand())
@@ -519,6 +485,7 @@ struct ServerDetailView: View {
         let containers = appState.dockerContainers(for: server)
         return ProMonitorFeatureSection(
             feature: "Docker monitoring",
+            paywallMessage: "See container stats, logs and remote start/stop actions.",
             title: "Docker",
             subtitle: "Container states and live stats parsed from Docker CLI.",
             symbol: "shippingbox",
@@ -540,6 +507,7 @@ struct ServerDetailView: View {
         let services = appState.systemdServices(for: server)
         return ProMonitorFeatureSection(
             feature: "systemd monitoring",
+            paywallMessage: "Inspect failed units and restart services remotely.",
             title: "Services",
             subtitle: "systemd units parsed into actionable status rows.",
             symbol: "gearshape.2",
@@ -562,6 +530,7 @@ struct ServerDetailView: View {
         let entries = appState.logEntries(for: server)
         return ProMonitorFeatureSection(
             feature: "Logs viewer",
+            paywallMessage: "Parse journal, nginx and auth logs with severity colors.",
             title: "Recent Logs",
             subtitle: "Journal entries parsed into severity-aware rows.",
             symbol: "doc.text.magnifyingglass",
@@ -578,50 +547,6 @@ struct ServerDetailView: View {
             commandPreview(title: "Kernel ring buffer", command: logsService.dmesgCommand(lines: 120))
             commandPreview(title: "nginx error log", command: logsService.nginxErrorLogCommand(lines: 200))
             commandPreview(title: "SSH auth log", command: "sudo tail -n 120 /var/log/auth.log 2>/dev/null || sudo tail -n 120 /var/log/secure 2>/dev/null")
-        }
-    }
-
-    private func monitorRefreshHeader(
-        title: LocalizedStringKey,
-        message: LocalizedStringKey,
-        primaryTitle: LocalizedStringKey,
-        primarySymbol: String,
-        primaryAction: @escaping () -> Void,
-        secondaryTitle: LocalizedStringKey? = nil,
-        secondarySymbol: String? = nil,
-        secondaryAction: (() -> Void)? = nil
-    ) -> some View {
-        GlassCard(cornerRadius: 22, padding: 14) {
-            VStack(alignment: .leading, spacing: 12) {
-                HStack(alignment: .top, spacing: 10) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(title)
-                            .font(.headline)
-                        Text(message)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                    Spacer()
-                }
-
-                HStack(spacing: 10) {
-                    Button(action: primaryAction) {
-                        Label(primaryTitle, systemImage: primarySymbol)
-                            .font(.caption.weight(.bold))
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(PressableGlassButtonStyle(cornerRadius: 18, verticalPadding: 10))
-
-                    if let secondaryTitle, let secondarySymbol, let secondaryAction {
-                        Button(action: secondaryAction) {
-                            Label(secondaryTitle, systemImage: secondarySymbol)
-                                .font(.caption.weight(.bold))
-                                .frame(maxWidth: .infinity)
-                        }
-                        .buttonStyle(PressableGlassButtonStyle(cornerRadius: 18, verticalPadding: 10))
-                    }
-                }
-            }
         }
     }
 
@@ -846,7 +771,10 @@ struct ServerDetailView: View {
                     .buttonStyle(.plain)
                     Button {
                         if isLocked {
-                            appState.isPaywallPresented = true
+                            appState.presentPaywall(
+                                feature: "Custom Commands",
+                                message: "Run the full quick command library on every server."
+                            )
                         } else if requiresConfirmation {
                             confirm(command)
                         } else {
@@ -877,11 +805,18 @@ struct ServerDetailView: View {
                 $0.command.localizedCaseInsensitiveContains(commandSearchText)
             }
 
-        return LazyVStack(spacing: 12) {
-            GlassCard(cornerRadius: 20, padding: 14) {
-                TextField("Search commands", text: $commandSearchText)
-                    .textInputAutocapitalization(.never)
-                    .font(.subheadline)
+        return VStack(spacing: 12) {
+            GlassCard(cornerRadius: 22, padding: 16) {
+                VStack(alignment: .leading, spacing: 12) {
+                    Label("Quick Commands", systemImage: "bolt.horizontal")
+                        .font(.headline)
+                    Text("Safe SSH shortcuts for this server.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    TextField("Search commands", text: $commandSearchText)
+                        .textInputAutocapitalization(.never)
+                        .font(.subheadline)
+                }
             }
 
             ForEach(filtered) { command in
@@ -896,11 +831,15 @@ struct ServerDetailView: View {
             }
 
             if filtered.isEmpty {
-                EmptyStateView(
+                ActionEmptyStateView(
                     title: "No commands found",
                     message: "Try a different search term.",
-                    symbol: "bolt.horizontal"
-                )
+                    symbol: "bolt.horizontal",
+                    actionTitle: "Clear Search",
+                    actionSymbol: "xmark"
+                ) {
+                    commandSearchText = ""
+                }
             }
 
             if !appState.remoteCommandOutput.isEmpty {
@@ -1244,6 +1183,7 @@ struct PremiumLockedCard: View {
     var feature: String
     var title: LocalizedStringKey
     var message: LocalizedStringKey
+    var paywallMessage: String? = nil
 
     var body: some View {
         GlassCard(cornerRadius: 22, padding: 15) {
@@ -1258,7 +1198,7 @@ struct PremiumLockedCard: View {
                 }
                 Spacer()
                 Button {
-                    appState.presentPaywall(feature: feature)
+                    appState.presentPaywall(feature: feature, message: paywallMessage)
                 } label: {
                     Image(systemName: "chevron.right")
                         .frame(width: 34, height: 34)

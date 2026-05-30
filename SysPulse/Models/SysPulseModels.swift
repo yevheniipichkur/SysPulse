@@ -236,6 +236,68 @@ enum HealthRating: String, Hashable {
     }
 }
 
+enum MetricThresholdColor {
+    static func forPercent(_ value: Double) -> Color {
+        if value >= 85 { return .red }
+        if value >= 70 { return .orange }
+        return .green
+    }
+}
+
+struct ServerPrimaryRisk {
+    var messageKey: String
+    var messageArgs: [CVarArg]
+    var color: Color
+    var symbol: String
+
+    static func evaluate(
+        server: ServerProfile,
+        metrics: ServerMetrics,
+        alertCount: Int
+    ) -> ServerPrimaryRisk {
+        if server.status == .offline {
+            return ServerPrimaryRisk(messageKey: "Server offline", messageArgs: [], color: .red, symbol: "wifi.slash")
+        }
+        if metrics.cpuUsage >= 85 {
+            return ServerPrimaryRisk(messageKey: "CPU at %d%%", messageArgs: [Int(metrics.cpuUsage)], color: .red, symbol: "cpu")
+        }
+        if metrics.ramUsage >= 85 {
+            return ServerPrimaryRisk(messageKey: "RAM at %d%%", messageArgs: [Int(metrics.ramUsage)], color: .red, symbol: "memorychip")
+        }
+        if metrics.diskUsage >= 85 {
+            return ServerPrimaryRisk(messageKey: "Disk at %d%%", messageArgs: [Int(metrics.diskUsage)], color: .red, symbol: "externaldrive")
+        }
+        if metrics.failedServices > 0 {
+            return ServerPrimaryRisk(
+                messageKey: "%d failed service(s)",
+                messageArgs: [metrics.failedServices],
+                color: .orange,
+                symbol: "exclamationmark.triangle"
+            )
+        }
+        if metrics.healthScore < 70 {
+            return ServerPrimaryRisk(
+                messageKey: "Health score %d",
+                messageArgs: [metrics.healthScore],
+                color: HealthRating.rating(for: metrics.healthScore).color,
+                symbol: "heart.text.square"
+            )
+        }
+        if alertCount > 0 {
+            return ServerPrimaryRisk(
+                messageKey: "%d active alert(s)",
+                messageArgs: [alertCount],
+                color: .orange,
+                symbol: "bell.badge"
+            )
+        }
+        if server.status == .warning {
+            return ServerPrimaryRisk(messageKey: "Needs attention", messageArgs: [], color: .orange, symbol: "exclamationmark.circle")
+        }
+        return ServerPrimaryRisk(messageKey: "All good", messageArgs: [], color: .green, symbol: "checkmark.seal")
+    }
+}
+
 enum AlertMetricKey: String, CaseIterable, Identifiable, Codable, Hashable {
     case cpuUsage = "cpu"
     case ramUsage = "ram"

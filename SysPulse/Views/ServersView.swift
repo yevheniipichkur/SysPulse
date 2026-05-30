@@ -236,7 +236,10 @@ private struct FreePlanBanner: View {
                 }
                 Spacer()
                 Button {
-                    appState.isPaywallPresented = true
+                    appState.presentPaywall(
+                        feature: "Unlimited servers",
+                        message: "One real server, basic dashboard and basic terminal."
+                    )
                 } label: {
                     Image(systemName: "sparkles")
                         .font(.headline)
@@ -260,6 +263,13 @@ struct ServerCardView: View {
 
     private var accent: Color { Color(hex: server.accentHex) }
     private var healthRating: HealthRating { .rating(for: metrics.healthScore) }
+    private var primaryRisk: ServerPrimaryRisk {
+        ServerPrimaryRisk.evaluate(
+            server: server,
+            metrics: metrics,
+            alertCount: appState.activeAlertCount(for: server)
+        )
+    }
     private var isMetricsStale: Bool { Date().timeIntervalSince(metrics.timestamp) > 900 }
     private var needsAttention: Bool {
         isMetricsStale || server.status == .offline || server.status == .warning || metrics.healthScore < 70 || metrics.failedServices > 0
@@ -347,6 +357,8 @@ struct ServerCardView: View {
                     ServerConnectionIssueBanner(message: metricError)
                 }
 
+                primaryRiskLine(compact: true)
+
                 if appState.isProUnlocked, !metrics.cpuHistory.isEmpty {
                     HStack(spacing: 8) {
                         Sparkline(values: metrics.cpuHistory, color: .cyan)
@@ -357,9 +369,9 @@ struct ServerCardView: View {
                 }
 
                 HStack(spacing: 10) {
-                    CompactMetric(title: "CPU", value: metrics.cpuUsage, color: .cyan)
-                    CompactMetric(title: "RAM", value: metrics.ramUsage, color: .green)
-                    CompactMetric(title: "Disk", value: metrics.diskUsage, color: metrics.diskUsage > 80 ? .orange : .blue)
+                    CompactMetric(title: "CPU", value: metrics.cpuUsage, color: MetricThresholdColor.forPercent(metrics.cpuUsage))
+                    CompactMetric(title: "RAM", value: metrics.ramUsage, color: MetricThresholdColor.forPercent(metrics.ramUsage))
+                    CompactMetric(title: "Disk", value: metrics.diskUsage, color: MetricThresholdColor.forPercent(metrics.diskUsage))
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -419,17 +431,21 @@ struct ServerCardView: View {
                     colorScheme: colorScheme
                 )
 
+                primaryRiskLine(compact: false)
+
                 if let metricError, !metricError.isEmpty {
                     ServerConnectionIssueBanner(message: metricError)
                 }
 
                 HStack(spacing: 10) {
-                    CompactMetric(title: "CPU", value: metrics.cpuUsage, color: .cyan)
-                    CompactMetric(title: "RAM", value: metrics.ramUsage, color: .green)
-                    CompactMetric(title: "Disk", value: metrics.diskUsage, color: metrics.diskUsage > 80 ? .orange : .blue)
+                    CompactMetric(title: "CPU", value: metrics.cpuUsage, color: MetricThresholdColor.forPercent(metrics.cpuUsage))
+                    CompactMetric(title: "RAM", value: metrics.ramUsage, color: MetricThresholdColor.forPercent(metrics.ramUsage))
+                    CompactMetric(title: "Disk", value: metrics.diskUsage, color: MetricThresholdColor.forPercent(metrics.diskUsage))
                 }
 
-                Sparkline(values: metrics.cpuHistory, color: accent)
+                if appState.isProUnlocked, !metrics.cpuHistory.isEmpty {
+                    Sparkline(values: metrics.cpuHistory, color: accent)
+                }
 
                 ScrollView(.horizontal) {
                     HStack(spacing: 10) {
@@ -465,6 +481,38 @@ struct ServerCardView: View {
                 .stroke(attentionColor.opacity(needsAttention ? (colorScheme == .dark ? 0.42 : 0.34) : 0), lineWidth: needsAttention ? 1.5 : 0)
         }
         .animation(.spring(response: 0.24, dampingFraction: 0.86), value: isRefreshing)
+    }
+
+    private func primaryRiskLine(compact: Bool) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: primaryRisk.symbol)
+                .font(compact ? .caption.weight(.bold) : .subheadline.weight(.semibold))
+                .foregroundStyle(primaryRisk.color)
+            Text(riskText)
+                .font(compact ? .caption.weight(.semibold) : .subheadline.weight(.semibold))
+                .foregroundStyle(primaryRisk.color)
+                .lineLimit(1)
+            Spacer(minLength: 0)
+            if !compact {
+                Text("\(metrics.healthScore)")
+                    .font(.caption.weight(.black))
+                    .monospacedDigit()
+                    .foregroundStyle(healthRating.color)
+            }
+        }
+        .padding(.horizontal, compact ? 10 : 11)
+        .padding(.vertical, compact ? 7 : 9)
+        .background(primaryRisk.color.opacity(colorScheme == .dark ? 0.10 : 0.12), in: RoundedRectangle(cornerRadius: compact ? 14 : 16, style: .continuous))
+    }
+
+    private var riskText: String {
+        if primaryRisk.messageArgs.isEmpty {
+            return appState.localized(primaryRisk.messageKey)
+        }
+        if primaryRisk.messageArgs.count == 1, let value = primaryRisk.messageArgs[0] as? Int {
+            return appState.localized(primaryRisk.messageKey, value)
+        }
+        return appState.localized(primaryRisk.messageKey)
     }
 }
 

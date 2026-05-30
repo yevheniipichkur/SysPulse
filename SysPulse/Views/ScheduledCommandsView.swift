@@ -17,7 +17,10 @@ struct ScheduledCommandsView: View {
                 ScrollView {
                     VStack(spacing: 14) {
                         if !appState.isProUnlocked {
-                            ProLockedBanner(feature: "Scheduled commands")
+                            ProLockedBanner(
+                                feature: "Scheduled commands",
+                                message: "Automate safe read-only checks while SysPulse is active."
+                            )
                         } else {
                             ProEmbeddedHeader(
                                 title: "Scheduled commands",

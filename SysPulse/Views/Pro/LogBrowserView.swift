@@ -18,7 +18,10 @@ struct LogBrowserView: View {
     var body: some View {
         Group {
             if !appState.isProUnlocked {
-                ProLockedBanner(feature: "Log Browser")
+                ProLockedBanner(
+                    feature: "Log Browser",
+                    message: "Browse and search log files under /var/log on the server."
+                )
             } else {
                 VStack(spacing: 12) {
                     GlassCard(cornerRadius: 22, padding: 0) {

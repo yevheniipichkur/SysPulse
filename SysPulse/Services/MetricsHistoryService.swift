@@ -57,6 +57,15 @@ struct MetricsHistoryService {
         return Array(snapshots.suffix(limit))
     }
 
+    func snapshotsForLastDays(for serverID: UUID, days: Int = 7, in context: ModelContext) throws -> [MetricSnapshot] {
+        let cutoff = Calendar.current.date(byAdding: .day, value: -days, to: .now) ?? .now
+        let descriptor = FetchDescriptor<MetricSnapshot>(
+            predicate: #Predicate { $0.serverID == serverID && $0.recordedAt >= cutoff },
+            sortBy: [SortDescriptor(\.recordedAt, order: .forward)]
+        )
+        return try context.fetch(descriptor)
+    }
+
     func applyHistory(to metrics: inout ServerMetrics, in context: ModelContext) throws {
         let snapshots = try recentSnapshots(for: metrics.serverID, limit: 24, in: context)
         guard !snapshots.isEmpty else { return }

@@ -18,7 +18,10 @@ struct SSHTunnelsView: View {
     var body: some View {
         VStack(spacing: 12) {
             if !appState.isProUnlocked {
-                ProLockedBanner(feature: "SSH Tunnels")
+                ProLockedBanner(
+                    feature: "SSH Tunnels",
+                    message: "Forward remote ports through SSH with one-tap setup."
+                )
             } else {
                 GlassCard(cornerRadius: 22, padding: 16) {
                     HStack(alignment: .center, spacing: 12) {
@@ -298,6 +301,7 @@ private enum TunnelTestState {
 struct ProLockedBanner: View {
     @EnvironmentObject private var appState: AppState
     var feature: String
+    var message: String?
 
     var body: some View {
         GlassCard {
@@ -307,12 +311,12 @@ struct ProLockedBanner: View {
                     .foregroundStyle(.cyan)
                 Text(appState.localized("%@ requires Pro", appState.localized(feature)))
                     .font(.headline)
-                Text(LocalizedStringKey("Upgrade to SysPulse Pro to unlock all features."))
+                Text(message.map { LocalizedStringKey($0) } ?? LocalizedStringKey("Upgrade to SysPulse Pro to unlock all features."))
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
                 Button("Unlock Pro") {
-                    appState.presentPaywall(feature: feature)
+                    appState.presentPaywall(feature: feature, message: message)
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(.cyan)

@@ -181,6 +181,11 @@ final class AppState: ObservableObject {
         }
     }
 
+    func metricHistorySnapshots(for server: ServerProfile, days: Int = 7) -> [MetricSnapshot] {
+        guard isProUnlocked, let modelContext else { return [] }
+        return (try? metricsHistoryService.snapshotsForLastDays(for: server.id, days: days, in: modelContext)) ?? []
+    }
+
     private func recordMetricSnapshot(_ metrics: ServerMetrics) {
         guard isProUnlocked, let modelContext else { return }
         try? metricsHistoryService.record(metrics, in: modelContext)

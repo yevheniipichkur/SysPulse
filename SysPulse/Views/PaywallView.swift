@@ -99,10 +99,18 @@ struct PaywallView: View {
         }
     }
 
+    private var displayedBenefits: [(String, String)] {
+        if let feature = appState.paywallFeatureTitle,
+           let contextual = PaywallFeatureBullets.bullets(for: feature) {
+            return contextual
+        }
+        return benefits
+    }
+
     private var benefitsCard: some View {
         GlassCard {
             VStack(spacing: 14) {
-                ForEach(benefits, id: \.0) { item in
+                ForEach(displayedBenefits, id: \.0) { item in
                     HStack(spacing: 12) {
                         Image(systemName: item.1)
                             .foregroundStyle(.cyan)
