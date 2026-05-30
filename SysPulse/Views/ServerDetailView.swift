@@ -73,6 +73,7 @@ struct ServerDetailView: View {
                 .refreshable {
                     appState.refreshMetrics(for: server, announceStatus: true)
                 }
+                .simultaneousGesture(monitorDismissDragGesture)
             } else {
                 EmptyStateView(
                     title: "No server selected",
@@ -80,10 +81,6 @@ struct ServerDetailView: View {
                     symbol: "server.rack"
                 )
             }
-        }
-        .overlay(alignment: .top) {
-            dismissHandle
-                .padding(.top, 6)
         }
         .accessibilityIdentifier("screen_monitor")
         .sheet(isPresented: $showingMissingTools) {
@@ -155,18 +152,7 @@ struct ServerDetailView: View {
                             .foregroundStyle(.secondary)
                     }
                     Spacer()
-                    HStack(spacing: 8) {
-                        StatusPill(status: server.status)
-                        Button {
-                            dismiss()
-                        } label: {
-                            Image(systemName: "xmark")
-                                .font(.system(size: 13, weight: .bold))
-                                .frame(width: 28, height: 28)
-                        }
-                        .buttonStyle(PressableGlassButtonStyle(cornerRadius: 14, verticalPadding: 0, horizontalPadding: 0))
-                        .accessibilityLabel("Close")
-                    }
+                    StatusPill(status: server.status)
                 }
 
                 HStack(spacing: 12) {
@@ -209,43 +195,60 @@ struct ServerDetailView: View {
     }
 
     private var detailTabs: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
+        GlassCard(cornerRadius: 22, padding: 12) {
+            LazyVGrid(
+                columns: Array(repeating: GridItem(.flexible(), spacing: 6), count: 5),
+                spacing: 8
+            ) {
                 ForEach(DetailTab.allCases) { tab in
-                    FilterChip(label: appState.localized(tab.shortTitleKey), isSelected: selectedTab == tab) {
+                    Button {
                         if appState.shouldReduceMotion {
                             selectedTab = tab
                         } else {
-                            withAnimation(.spring(response: 0.24, dampingFraction: 0.88)) {
+                            withAnimation(.spring(response: 0.28, dampingFraction: 0.86)) {
                                 selectedTab = tab
                             }
                         }
+                    } label: {
+                        VStack(spacing: 3) {
+                            Image(systemName: tab.symbol)
+                                .font(.system(size: 15, weight: .semibold))
+                                .frame(width: 38, height: 38)
+                                .foregroundStyle(selectedTab == tab ? .cyan : .secondary)
+                                .background(
+                                    selectedTab == tab ? Color.cyan.opacity(0.15) : Color.primary.opacity(0.055),
+                                    in: RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                )
+                                .overlay {
+                                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                        .stroke(
+                                            selectedTab == tab ? Color.cyan.opacity(0.42) : Color.clear,
+                                            lineWidth: 1
+                                        )
+                                }
+                            Text(LocalizedStringKey(tab.shortTitleKey))
+                                .font(.system(size: 9, weight: .semibold))
+                                .foregroundStyle(selectedTab == tab ? .cyan : .secondary)
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.72)
+                        }
+                        .frame(maxWidth: .infinity)
                     }
+                    .buttonStyle(.plain)
                     .accessibilityLabel(tab.titleKey)
                 }
             }
-            .padding(.vertical, 2)
         }
     }
 
-    private var dismissHandle: some View {
-        ZStack {
-            Color.clear
-                .frame(height: 44)
-            Capsule()
-                .fill(Color.primary.opacity(0.20))
-                .frame(width: 44, height: 4)
-        }
-        .frame(maxWidth: .infinity)
-        .contentShape(Rectangle())
-        .gesture(
-            DragGesture(minimumDistance: 20)
-                .onEnded { value in
-                    guard value.translation.height > 50 else { return }
-                    appState.haptic(.light)
-                    dismiss()
-                }
-        )
+    private var monitorDismissDragGesture: some Gesture {
+        DragGesture(minimumDistance: 36)
+            .onEnded { value in
+                guard value.translation.height > 110,
+                      abs(value.translation.width) < 100 else { return }
+                appState.haptic(.light)
+                dismiss()
+            }
     }
 
     private func overview(server: ServerProfile, metrics: ServerMetrics) -> some View {
@@ -292,6 +295,44 @@ struct ServerDetailView: View {
                     DetailRow(title: "Kernel", value: metrics.kernel)
                     DetailRow(title: "Load average", value: metrics.loadAverage)
                     DetailRow(title: "IP addresses", value: metrics.ipAddresses.joined(separator: ", "))
+                }
+            }
+
+            if appState.isProUnlocked {
+                healthTimeline(server: server)
+            }
+        }
+    }
+
+    private func healthTimeline(server: ServerProfile) -> some View {
+        let events = appState.serverEvents(for: server)
+        return GlassCard(cornerRadius: 22, padding: 15) {
+            VStack(alignment: .leading, spacing: 12) {
+                Label("Health Timeline", systemImage: "clock.arrow.circlepath")
+                    .font(.headline)
+                if events.isEmpty {
+                    Text("Events from metric refreshes and alerts will appear here.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else {
+                    ForEach(events) { event in
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack {
+                                Text(event.title)
+                                    .font(.subheadline.weight(.semibold))
+                                Spacer()
+                                Text(event.createdAt, style: .relative)
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+                            Text(event.details)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        if event.id != events.last?.id {
+                            Divider()
+                        }
+                    }
                 }
             }
         }
@@ -664,12 +705,29 @@ struct ServerDetailView: View {
                     StatusDot(title: container.status, color: isRunning ? .green : .orange)
                 }
 
-                HStack {
+                HStack(spacing: 8) {
                     Text("CPU \(percent(container.cpuUsage))")
                     Text("RAM \(percent(container.memoryUsage))")
                     Spacer()
                     Button("Logs") {
                         runRemote(dockerService.logsCommand(containerName: container.name, lines: 120))
+                    }
+                    if !isRunning {
+                        Button("Start") {
+                            confirm(
+                                dockerService.actionCommand(action: "start", containerName: container.name),
+                                message: appState.localized("Start %@? This command runs remotely over SSH.", container.name)
+                            )
+                        }
+                        .foregroundStyle(.green)
+                    } else {
+                        Button("Stop") {
+                            confirm(
+                                dockerService.actionCommand(action: "stop", containerName: container.name),
+                                message: appState.localized("Stop %@? This command runs remotely over SSH.", container.name)
+                            )
+                        }
+                        .foregroundStyle(.red)
                     }
                     Button("Restart") {
                         confirm(
@@ -696,13 +754,30 @@ struct ServerDetailView: View {
                     StatusDot(title: service.activeState, color: color)
                 }
 
-                HStack {
+                HStack(spacing: 8) {
                     Text("\(service.loadedState) / \(service.subState)")
                         .font(.caption.monospaced())
                         .foregroundStyle(.secondary)
                     Spacer()
                     Button("Status") {
                         runRemote(systemdService.statusCommand(serviceName: service.name))
+                    }
+                    if service.activeState != "active" {
+                        Button("Start") {
+                            confirm(
+                                systemdService.actionCommand(action: "start", serviceName: service.name),
+                                message: appState.localized("Start %@? This command runs remotely over SSH.", service.name)
+                            )
+                        }
+                        .foregroundStyle(.green)
+                    } else {
+                        Button("Stop") {
+                            confirm(
+                                systemdService.actionCommand(action: "stop", serviceName: service.name),
+                                message: appState.localized("Stop %@? This command runs remotely over SSH.", service.name)
+                            )
+                        }
+                        .foregroundStyle(.red)
                     }
                     Button("Restart") {
                         confirm(

@@ -13,11 +13,12 @@ struct PaywallView: View {
 
     private let benefits: [(String, String)] = [
         ("Unlimited servers",                   "server.rack"),
-        ("Docker, services and logs",            "shippingbox"),
-        ("Premium terminal themes",              "terminal"),
+        ("Auto-refresh and metric history",    "clock.arrow.circlepath"),
+        ("Docker and systemd actions",         "shippingbox"),
+        ("Health timeline and alerts",         "bell.badge"),
         ("Widgets and Live Activities",          "rectangle.stack.badge.play"),
-        ("Secure iCloud sync",                   "icloud"),
-        ("One app for all your Linux machines",  "sparkles")
+        ("Shortcuts and iCloud sync",            "icloud"),
+        ("Premium terminal themes",              "terminal")
     ]
 
     var body: some View {

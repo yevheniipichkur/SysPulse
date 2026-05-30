@@ -85,6 +85,23 @@ struct SettingsView: View {
                         }
                         .listItemEntrance(index: 3, disabled: appState.shouldReduceMotion)
 
+                        settingsSection("Monitoring", symbol: "waveform.path.ecg") {
+                            Toggle("Auto-refresh metrics", isOn: metricsAutoRefreshBinding)
+                            if appState.isProUnlocked && appState.settings.metricsAutoRefreshEnabled {
+                                Picker("Refresh interval", selection: metricsAutoRefreshIntervalBinding) {
+                                    ForEach(MetricsAutoRefreshInterval.allCases) { interval in
+                                        Text(interval.titleKey).tag(interval)
+                                    }
+                                }
+                            }
+                            Text(appState.isProUnlocked
+                                 ? "Pro keeps metric history and records health events on each refresh."
+                                 : "Unlock Pro for auto-refresh, metric history and health timeline.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        .listItemEntrance(index: 4, disabled: appState.shouldReduceMotion)
+
                         settingsSection("Data", symbol: "externaldrive") {
                             Toggle("iCloud sync", isOn: iCloudSyncBinding)
                             ICloudEntitlementStatusRow(diagnostic: iCloudEntitlementDiagnostic)
@@ -229,6 +246,26 @@ struct SettingsView: View {
             backendMonitoringToken = appState.backendMonitoringTokenForSettings()
         }
         .accessibilityIdentifier(AppTab.settings.screenAccessibilityIdentifier)
+    }
+
+    private var metricsAutoRefreshBinding: Binding<Bool> {
+        Binding {
+            appState.settings.metricsAutoRefreshEnabled
+        } set: { isEnabled in
+            if isEnabled && !appState.isProUnlocked {
+                appState.isPaywallPresented = true
+                return
+            }
+            appState.settings.metricsAutoRefreshEnabled = isEnabled
+        }
+    }
+
+    private var metricsAutoRefreshIntervalBinding: Binding<MetricsAutoRefreshInterval> {
+        Binding {
+            MetricsAutoRefreshInterval(rawValue: appState.settings.metricsAutoRefreshIntervalSeconds) ?? .sixty
+        } set: { interval in
+            appState.settings.metricsAutoRefreshIntervalSeconds = interval.rawValue
+        }
     }
 
     private var biometricLockBinding: Binding<Bool> {

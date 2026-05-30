@@ -11,6 +11,7 @@ enum SysPulseModelContainerFactory {
         ServerGroup.self,
         AlertRule.self,
         ServerEvent.self,
+        MetricSnapshot.self,
         SSHTunnel.self,
         CommandSnippet.self,
         SSHKeyPair.self

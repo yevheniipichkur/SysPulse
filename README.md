@@ -49,7 +49,7 @@ Free:
 - Basic terminal.
 - 3 quick commands.
 - 1 terminal theme.
-- Manual refresh.
+- Manual refresh only (no background auto-refresh).
 
 Pro:
 
@@ -63,6 +63,10 @@ Pro:
 - Premium terminal themes.
 - Command snippets and groups.
 - Smart Insights.
+- Auto-refresh metrics with configurable interval.
+- Metric history and health timeline.
+- Docker/systemd start, stop and restart from Monitor.
+- Shortcuts: refresh all servers.
 - Export session logs.
 - Advanced security settings.
 

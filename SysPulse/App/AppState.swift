@@ -24,6 +24,10 @@ final class AppState: ObservableObject {
     @Published var settings: AppSettings {
         didSet {
             settingsStorage.saveSettings(settings)
+            if oldValue.metricsAutoRefreshEnabled != settings.metricsAutoRefreshEnabled ||
+                oldValue.metricsAutoRefreshIntervalSeconds != settings.metricsAutoRefreshIntervalSeconds {
+                restartAutoRefreshIfNeeded()
+            }
         }
     }
     @Published var subscription: SubscriptionState {
@@ -67,6 +71,8 @@ final class AppState: ObservableObject {
     private let sftpService = SFTPFileTransferService()
     private let backendMonitoringService = BackendMonitoringService()
     private let metricsCollector = MetricsCollector()
+    private let metricsHistoryService = MetricsHistoryService()
+    private let serverEventService = ServerEventService()
     private let processService = ProcessService()
     private let diskService = DiskService()
     private let dockerService = DockerService()
@@ -90,7 +96,6 @@ final class AppState: ObservableObject {
     private let alertCooldown: TimeInterval = 15 * 60
     private static let backendMonitoringTokenAccount = "backend-monitoring-token"
     private static let metricsRefreshConcurrency = 2
-    private static let autoRefreshIntervalSeconds: UInt64 = 60
     private static let backgroundServerRefreshIntervalSeconds: UInt64 = 120
 
     init() {
@@ -150,7 +155,43 @@ final class AppState: ObservableObject {
         reloadProfilesFromRepository()
         reloadAlertRules()
         refreshAlertNotificationAuthorization()
-        startAutoRefresh()
+        restartAutoRefreshIfNeeded()
+        loadPersistedMetricsHistory()
+    }
+
+    func serverEvents(for server: ServerProfile?) -> [ServerEvent] {
+        guard let server, let modelContext else { return [] }
+        return (try? serverEventService.recentEvents(for: server.id, in: modelContext)) ?? []
+    }
+
+    func loadPersistedMetricsHistory() {
+        guard isProUnlocked, let modelContext else { return }
+        for server in serverProfiles {
+            guard var metrics = metricsByServer[server.id] else { continue }
+            try? metricsHistoryService.applyHistory(to: &metrics, in: modelContext)
+            metricsByServer[server.id] = metrics
+        }
+    }
+
+    private func recordMetricSnapshot(_ metrics: ServerMetrics) {
+        guard isProUnlocked, let modelContext else { return }
+        try? metricsHistoryService.record(metrics, in: modelContext)
+    }
+
+    private func recordServerEvent(
+        server: ServerProfile,
+        title: String,
+        details: String,
+        severity: String = "Moderate"
+    ) {
+        guard let modelContext else { return }
+        try? serverEventService.record(
+            serverID: server.id,
+            title: title,
+            details: details,
+            severity: severity,
+            in: modelContext
+        )
     }
 
     var isProUnlocked: Bool {
@@ -522,12 +563,21 @@ final class AppState: ObservableObject {
         }
     }
 
-    private func startAutoRefresh() {
+    func restartAutoRefreshIfNeeded() {
         autoRefreshTask?.cancel()
+        autoRefreshTask = nil
+        guard isProUnlocked, settings.metricsAutoRefreshEnabled else { return }
+        startAutoRefresh()
+    }
+
+    private func startAutoRefresh() {
+        guard isProUnlocked, settings.metricsAutoRefreshEnabled else { return }
+        autoRefreshTask?.cancel()
+        let interval = UInt64(max(settings.metricsAutoRefreshIntervalSeconds, 30))
         autoRefreshTask = Task {
             await performScheduledMetricsRefresh()
             while !Task.isCancelled {
-                try? await Task.sleep(for: .seconds(Self.autoRefreshIntervalSeconds))
+                try? await Task.sleep(for: .seconds(interval))
                 guard !Task.isCancelled else { break }
                 await performScheduledMetricsRefresh()
             }
@@ -535,6 +585,7 @@ final class AppState: ObservableObject {
     }
 
     private func performScheduledMetricsRefresh() async {
+        guard isProUnlocked, settings.metricsAutoRefreshEnabled else { return }
         let profiles = serverProfiles
         guard !profiles.isEmpty else { return }
 
@@ -597,7 +648,11 @@ final class AppState: ObservableObject {
             }
             let metrics = try await metricsCollector.collect(server: server, using: sshClient, previous: previous)
             await MainActor.run {
-                let visibleMetrics = isProUnlocked ? metrics : metricsWithoutPremiumSignals(metrics)
+                var visibleMetrics = isProUnlocked ? metrics : metricsWithoutPremiumSignals(metrics)
+                recordMetricSnapshot(visibleMetrics)
+                if isProUnlocked, let modelContext {
+                    try? metricsHistoryService.applyHistory(to: &visibleMetrics, in: modelContext)
+                }
                 metricsByServer[server.id] = visibleMetrics
                 metricRefreshingServerIDs.remove(server.id)
                 metricErrorByServer.removeValue(forKey: server.id)
@@ -619,6 +674,12 @@ final class AppState: ObservableObject {
                 if selectedServer?.id == server.id {
                     selectedServer?.status = .warning
                 }
+                recordServerEvent(
+                    server: server,
+                    title: localized("Metrics refresh failed"),
+                    details: message,
+                    severity: "Dangerous"
+                )
                 postStatus(localized("Metrics refresh failed for %@: %@", server.name, message), style: .error)
             }
         }
@@ -1197,8 +1258,12 @@ final class AppState: ObservableObject {
     private func enforceSubscriptionBoundaries() {
         guard !subscription.isPro else {
             publishWidgetSnapshots()
+            restartAutoRefreshIfNeeded()
             return
         }
+        settings.metricsAutoRefreshEnabled = false
+        autoRefreshTask?.cancel()
+        autoRefreshTask = nil
         if settings.terminalTheme.isPremium {
             settings.terminalTheme = .liquidDark
         }

@@ -719,6 +719,8 @@ struct AppSettings: Codable, Hashable {
     var backendMonitoringEnabled: Bool = false
     var backendMonitoringEndpoint: String = ""
     var forceProOverride: Bool = false
+    var metricsAutoRefreshEnabled: Bool = false
+    var metricsAutoRefreshIntervalSeconds: Int = 60
 
     init() {}
 
@@ -737,6 +739,8 @@ struct AppSettings: Codable, Hashable {
         case backendMonitoringEnabled
         case backendMonitoringEndpoint
         case forceProOverride
+        case metricsAutoRefreshEnabled
+        case metricsAutoRefreshIntervalSeconds
     }
 
     init(from decoder: Decoder) throws {
@@ -755,6 +759,26 @@ struct AppSettings: Codable, Hashable {
         backendMonitoringEnabled = try container.decodeIfPresent(Bool.self, forKey: .backendMonitoringEnabled) ?? false
         backendMonitoringEndpoint = try container.decodeIfPresent(String.self, forKey: .backendMonitoringEndpoint) ?? ""
         forceProOverride = try container.decodeIfPresent(Bool.self, forKey: .forceProOverride) ?? false
+        metricsAutoRefreshEnabled = try container.decodeIfPresent(Bool.self, forKey: .metricsAutoRefreshEnabled) ?? false
+        metricsAutoRefreshIntervalSeconds = try container.decodeIfPresent(Int.self, forKey: .metricsAutoRefreshIntervalSeconds) ?? 60
+    }
+}
+
+enum MetricsAutoRefreshInterval: Int, CaseIterable, Identifiable {
+    case thirty = 30
+    case sixty = 60
+    case twoMinutes = 120
+    case fiveMinutes = 300
+
+    var id: Int { rawValue }
+
+    var titleKey: LocalizedStringKey {
+        switch self {
+        case .thirty: "30 sec"
+        case .sixty: "1 min"
+        case .twoMinutes: "2 min"
+        case .fiveMinutes: "5 min"
+        }
     }
 }
 

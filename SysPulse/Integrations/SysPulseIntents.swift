@@ -33,6 +33,23 @@ struct RunQuickCommandIntent: AppIntent {
     }
 }
 
+extension Notification.Name {
+    static let syspulseRefreshAllServers = Notification.Name("syspulseRefreshAllServers")
+}
+
+struct RefreshAllServersIntent: AppIntent {
+    static var title: LocalizedStringResource = "Refresh all servers"
+    static var description = IntentDescription("Refresh metrics for every saved server in SysPulse.")
+    static var openAppWhenRun = true
+
+    func perform() async throws -> some IntentResult {
+        await MainActor.run {
+            NotificationCenter.default.post(name: .syspulseRefreshAllServers, object: nil)
+        }
+        return .result(dialog: "Refreshing all servers in SysPulse.")
+    }
+}
+
 struct CheckServerStatusIntent: AppIntent {
     static var title: LocalizedStringResource = "Check server status"
     static var openAppWhenRun = true
@@ -104,6 +121,12 @@ struct SysPulseShortcuts: AppShortcutsProvider {
             phrases: ["Open \(.applicationName) terminal"],
             shortTitle: "Open Terminal",
             systemImageName: "terminal"
+        )
+        AppShortcut(
+            intent: RefreshAllServersIntent(),
+            phrases: ["Refresh \(.applicationName) servers"],
+            shortTitle: "Refresh Servers",
+            systemImageName: "arrow.clockwise"
         )
     }
 }

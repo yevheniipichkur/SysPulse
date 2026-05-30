@@ -20,6 +20,9 @@ struct SysPulseApp: App {
                 .environmentObject(appState)
                 .environment(\.locale, appState.settings.language.locale)
                 .preferredColorScheme(appState.preferredColorScheme)
+                .onReceive(NotificationCenter.default.publisher(for: .syspulseRefreshAllServers)) { _ in
+                    appState.refreshAllServers()
+                }
         }
         .modelContainer(modelContainer)
     }
