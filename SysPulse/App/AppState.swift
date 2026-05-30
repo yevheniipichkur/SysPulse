@@ -86,7 +86,7 @@ final class AppState: ObservableObject {
     let healthScoreService = HealthScoreService()
     let insightsService = InsightsService()
     let packageDetector = PackageDetector()
-    private var realSSHClient = RealSSHClient()
+    var realSSHClient = RealSSHClient()
     var sshClient: SSHClientProtocol { realSSHClient }
     let storeKit = StoreKitService()
     let isScreenshotMode: Bool
