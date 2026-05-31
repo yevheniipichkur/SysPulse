@@ -822,7 +822,7 @@ final class NotificationService {
 
 struct GitBuildInfoService {
     var version: String {
-        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.1.0"
+        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0.0"
     }
 
     var build: String {
